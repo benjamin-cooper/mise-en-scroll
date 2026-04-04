@@ -286,7 +286,7 @@ function renderSearchSection() {
         <div class="tag-filters">
           <div class="tag-group">
             <span class="tag-label">Cuisine</span>
-            ${FILTERS.cuisine.map(f => `
+            ${[...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
               <button class="tag-chip ${state.cuisineFilter === f.label ? 'is-active' : ''}"
                       data-action="cuisine" data-value="${f.label}">
                 ${f.icon} ${f.label}
