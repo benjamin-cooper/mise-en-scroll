@@ -221,8 +221,13 @@ const ROUNDUP_PATTERNS = [
   /\b(travel|trip|visit)\s+to\b/i,
   /\brecap\b/i,
   /\bnewsletter\b/i,
-  /\(plus\b/i,                             // "(Plus the Sides I Always Bring With Them)"
-  /\bthe\s+best\s+\w+s\b(?!\s+recipe)/i,  // "The Best Potato Salads" (plural, not "The Best Recipes")
+  /\(plus\b/i,                                        // "(Plus the Sides I Always Bring With Them)"
+  /\bthe\s+best\s+\w+s\b(?!\s+recipe)/i,             // "The Best Potato Salads"
+  /\btested\s+by\s+experts?\b/i,                      // "Tested By Experts"
+  /\(20\d\d\)/,                                       // "(2026)" — gear/product roundups with year
+  /\bfor\s+\w+,\s*\w+.*?,\s*and\b/i,                 // "for Picnics, Potlucks, and Meal Prep"
+  /\b(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer).*(review|guide|best|tested)\b/i,
+  /\b(review|guide|best|tested).*(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer)\b/i,
 ];
 
 function isRoundup(title = '', url = '') {
