@@ -58,6 +58,7 @@ const state = {
   detailLoading: false,
   detailError: null,
   loading: true,
+  openFilterDropdown: null, // mobile filter panel: 'cuisine' | 'protein' | 'time' | 'meal' | null
   // Search API state
   searchMode: false,   // true when using Google API results
   searchResults: [],
@@ -274,6 +275,16 @@ function renderBlogPicker() {
 
 function renderSearchSection() {
   const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length;
+  const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
+
+  const mobileCats = [
+    { key: 'cuisine', label: 'Cuisine', filters: [...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)), active: state.cuisineFilters },
+    { key: 'protein', label: 'Protein', filters: FILTERS.protein, active: state.proteinFilters },
+    { key: 'time',    label: 'Time',    filters: FILTERS.time,    active: state.timeFilters },
+    { key: 'meal',    label: 'Meal',    filters: FILTERS.meal,    active: state.mealFilters },
+  ];
+  const openCat = state.openFilterDropdown ? mobileCats.find(c => c.key === state.openFilterDropdown) : null;
+
   return `
     <div class="search-section">
       <div class="container">
@@ -289,7 +300,9 @@ function renderSearchSection() {
             ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
           </div>
         </div>
-        <div class="tag-filters">
+
+        <!-- Desktop chip rows -->
+        <div class="tag-filters desktop-filters">
           <div class="tag-group">
             <span class="tag-label">Cuisine</span>
             ${[...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
@@ -327,6 +340,28 @@ function renderSearchSection() {
             `).join('')}
           </div>
         </div>
+
+        <!-- Mobile filter dropdown buttons -->
+        <div class="mobile-filter-row">
+          ${mobileCats.map(cat => `
+            <button class="mobile-filter-btn ${cat.active.length ? 'is-active' : ''} ${state.openFilterDropdown === cat.key ? 'is-open' : ''}"
+                    data-action="filter-dropdown-toggle" data-category="${cat.key}">
+              <span>${cat.label}${cat.active.length ? ` <span class="mobile-filter-count">${cat.active.length}</span>` : ''}</span>
+              ${chevron}
+            </button>
+          `).join('')}
+        </div>
+        ${openCat ? `
+          <div class="mobile-filter-panel">
+            ${openCat.filters.map(f => `
+              <button class="tag-chip ${openCat.active.includes(f.label) ? 'is-active' : ''}"
+                      data-action="${openCat.key}" data-value="${f.label}">
+                ${f.icon} ${f.label}
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+
         ${anyActive ? `<button class="clear-tags" data-action="clear-smart-filters">Clear filters</button>` : ''}
       </div>
     </div>
@@ -520,6 +555,11 @@ document.addEventListener('click', async (e) => {
     picker.hidden = true;
   }
 
+  // Close mobile filter panel if clicking outside
+  if (state.openFilterDropdown && !e.target.closest('.mobile-filter-row') && !e.target.closest('.mobile-filter-panel')) {
+    state.openFilterDropdown = null;
+  }
+
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const { action } = el.dataset;
@@ -534,6 +574,13 @@ document.addEventListener('click', async (e) => {
   if (action === 'blog-picker-toggle') {
     const dropdown = document.getElementById('blog-picker-dropdown');
     if (dropdown) dropdown.hidden = !dropdown.hidden;
+    return;
+  }
+
+  if (action === 'filter-dropdown-toggle') {
+    const cat = el.dataset.category;
+    state.openFilterDropdown = state.openFilterDropdown === cat ? null : cat;
+    renderApp();
     return;
   }
 
