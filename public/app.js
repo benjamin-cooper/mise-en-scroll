@@ -139,14 +139,6 @@ function buildSearchQuery() {
 
 let searchDebounceTimer = null;
 async function triggerSearch(start = 1) {
-  // Filters alone use local RSS data — only a text search query hits the API
-  if (!state.searchQuery.trim()) {
-    state.searchMode = false;
-    state.searchResults = [];
-    renderApp();
-    return;
-  }
-
   const q = buildSearchQuery();
   if (!q.trim() || q.trim() === 'recipe') {
     state.searchMode = false;
