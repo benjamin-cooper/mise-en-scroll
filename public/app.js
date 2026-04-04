@@ -234,32 +234,33 @@ function renderHeader() {
   `;
 }
 
-function renderFilters() {
+function renderFilters() { return ''; }
+
+function renderBlogPicker() {
   if (!BLOGS.length) return '';
   const active = state.filter;
   const activeBlog = active ? BLOGS.find(b => b.name === active) : null;
+  const sorted = [...BLOGS].sort((a, b) => a.name.localeCompare(b.name));
   return `
-    <div class="filters">
-      <div class="container">
-        <div class="blog-picker-wrap">
-          <button class="filter-pill blog-picker-btn ${active ? 'is-active' : ''}"
-                  data-action="blog-picker-toggle"
-                  ${activeBlog ? `style="background:${activeBlog.color};border-color:${activeBlog.color};color:#fff"` : ''}>
-            ${active ? escHtml(active) : 'All Blogs'}
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style="margin-left:4px;opacity:.7"><path d="M2 3.5l3 3 3-3"/></svg>
+    <div class="blog-picker-wrap">
+      <button class="blog-picker-btn ${active ? 'is-active' : ''}"
+              data-action="blog-picker-toggle"
+              ${activeBlog ? `style="background:${activeBlog.color};border-color:${activeBlog.color};color:#fff"` : ''}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.7"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
+        ${active ? escHtml(active) : 'All Blogs'}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="margin-left:2px;opacity:.6"><path d="M2 3.5l3 3 3-3"/></svg>
+      </button>
+      <div class="blog-picker-dropdown" id="blog-picker-dropdown" hidden>
+        <button class="blog-picker-item ${!active ? 'is-active' : ''}" data-action="filter" data-blog="">All Blogs</button>
+        <div class="blog-picker-divider"></div>
+        ${sorted.map(b => `
+          <button class="blog-picker-item ${active === b.name ? 'is-active' : ''}"
+                  data-action="filter" data-blog="${escHtml(b.name)}"
+                  ${active === b.name ? `style="color:${b.color}"` : ''}>
+            <span class="blog-picker-dot" style="background:${b.color}"></span>
+            ${escHtml(b.name)}
           </button>
-          <div class="blog-picker-dropdown" id="blog-picker-dropdown" hidden>
-            <button class="blog-picker-item ${!active ? 'is-active' : ''}" data-action="filter" data-blog="">All Blogs</button>
-            ${BLOGS.map(b => `
-              <button class="blog-picker-item ${active === b.name ? 'is-active' : ''}"
-                      data-action="filter" data-blog="${escHtml(b.name)}"
-                      ${active === b.name ? `style="color:${b.color}"` : ''}>
-                <span class="blog-picker-dot" style="background:${b.color}"></span>
-                ${escHtml(b.name)}
-              </button>
-            `).join('')}
-          </div>
-        </div>
+        `).join('')}
       </div>
     </div>
   `;
@@ -270,14 +271,17 @@ function renderSearchSection() {
   return `
     <div class="search-section">
       <div class="container">
-        <div class="search-wrap">
-          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input class="search-input" type="text" placeholder="Search recipes…"
-                 data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
-          ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
+        <div class="search-row">
+          ${renderBlogPicker()}
+          <div class="search-wrap">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input class="search-input" type="text" placeholder="Search recipes…"
+                   data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
+            ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
+          </div>
         </div>
         <div class="tag-filters">
           <div class="tag-group">
