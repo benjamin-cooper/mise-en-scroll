@@ -221,6 +221,8 @@ const ROUNDUP_PATTERNS = [
   /\b(travel|trip|visit)\s+to\b/i,
   /\brecap\b/i,
   /\bnewsletter\b/i,
+  /\(plus\b/i,                             // "(Plus the Sides I Always Bring With Them)"
+  /\bthe\s+best\s+\w+s\b(?!\s+recipe)/i,  // "The Best Potato Salads" (plural, not "The Best Recipes")
 ];
 
 function isRoundup(title = '', url = '') {
