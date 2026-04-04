@@ -119,7 +119,6 @@ const BLOGS = [
   // --- Modern / Creative ---
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
   { name: 'Molly Baz',             feed: 'https://mollybaz.com/feed/',                      color: '#e8b84b' },
-  { name: 'Bon Appétit',           feed: 'https://www.bonappetit.com/feed/rss',             color: '#d4262b' },
 ];
 
 const FAVORITES_FILE = path.join(__dirname, 'favorites.json');
@@ -228,6 +227,9 @@ const ROUNDUP_PATTERNS = [
   /\bfor\s+\w+,\s*\w+.*?,\s*and\b/i,                 // "for Picnics, Potlucks, and Meal Prep"
   /\b(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer).*(review|guide|best|tested)\b/i,
   /\b(review|guide|best|tested).*(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer)\b/i,
+  /\bI\s+tested\s+the\b/i,                            // "I Tested the Multicooker..."
+  /\bhere'?s?\s+my\s+verdict\b/i,                     // "Here's My Verdict"
+  /\bhas\s+\w+\s+separate\b/i,                        // "Has Five Separate Hot Sauces"
 ];
 
 function isRoundup(title = '', url = '') {
