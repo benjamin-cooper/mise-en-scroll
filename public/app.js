@@ -46,10 +46,10 @@ const state = {
   favorites: [],
   filter: null,          // blog filter
   searchQuery: '',
-  cuisineFilter: null,
-  proteinFilter: null,
-  timeFilter: null,
-  mealFilter: null,
+  cuisineFilters: [],
+  proteinFilters: [],
+  timeFilters: [],
+  mealFilters: [],
   selected: null,        // { url, preview }
   detail: null,          // full recipe from /api/recipe
   detailLoading: false,
@@ -78,14 +78,21 @@ const api = {
   }),
   recipe:    (url)      => fetch(`/api/recipe?url=${encodeURIComponent(url)}`).then(r => r.json()),
   search:    (q, page)  => fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
-  favorites: ()         => fetch('/api/favorites').then(r => r.json()),
-  save:  (data)         => fetch('/api/favorites', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }),
-  remove: (id) => fetch(`/api/favorites/${id}`, { method: 'DELETE' }),
 };
+
+// --- Favorites (localStorage) ---
+const FAV_KEY = 'mise-en-scroll-favs';
+function loadFavs() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch { return []; }
+}
+function saveFav(data) {
+  const favs = loadFavs();
+  if (!favs.find(f => f.url === data.url)) favs.unshift(data);
+  localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+}
+function removeFav(url) {
+  localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => f.url !== url)));
+}
 
 // --- Helpers ---
 function urlId(url) {
@@ -114,20 +121,18 @@ function buildSearchQuery() {
   const parts = [];
   if (state.searchQuery.trim()) parts.push(state.searchQuery.trim());
 
-  // Use the first keyword from each active filter as the search term
   const filterMap = [
-    { state: state.cuisineFilter,  group: 'cuisine' },
-    { state: state.proteinFilter,  group: 'protein' },
-    { state: state.timeFilter,     group: 'time'    },
-    { state: state.mealFilter,     group: 'meal'    },
+    { vals: state.cuisineFilters, group: 'cuisine' },
+    { vals: state.proteinFilters, group: 'protein' },
+    { vals: state.timeFilters,    group: 'time'    },
+    { vals: state.mealFilters,    group: 'meal'    },
   ];
-  for (const { state: val, group } of filterMap) {
-    if (val) {
+  for (const { vals, group } of filterMap) {
+    for (const val of vals) {
       const f = FILTERS[group].find(f => f.label === val);
       if (f) parts.push(f.keywords[0]);
     }
   }
-  // Append "recipe" to keep results focused
   if (!parts.some(p => p.includes('recipe'))) parts.push('recipe');
   return parts.join(' ');
 }
@@ -164,29 +169,27 @@ async function triggerSearch(start = 1) {
 // --- Filter logic ---
 function applyFilters(recipes) {
   return recipes.filter(r => {
-    // searchText includes title + categories + excerpt (set server-side)
     const full = r.searchText || (r.title + ' ' + r.excerpt).toLowerCase();
-    const title = (r.title || '').toLowerCase();
 
     if (state.filter && r.blog !== state.filter) return false;
 
     if (state.searchQuery.trim()) {
       if (!full.includes(state.searchQuery.trim().toLowerCase())) return false;
     }
-    if (state.cuisineFilter) {
-      const kws = FILTERS.cuisine.find(f => f.label === state.cuisineFilter)?.keywords || [];
+    if (state.cuisineFilters.length) {
+      const kws = state.cuisineFilters.flatMap(label => FILTERS.cuisine.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
-    if (state.proteinFilter) {
-      const kws = FILTERS.protein.find(f => f.label === state.proteinFilter)?.keywords || [];
+    if (state.proteinFilters.length) {
+      const kws = state.proteinFilters.flatMap(label => FILTERS.protein.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
-    if (state.timeFilter) {
-      const kws = FILTERS.time.find(f => f.label === state.timeFilter)?.keywords || [];
+    if (state.timeFilters.length) {
+      const kws = state.timeFilters.flatMap(label => FILTERS.time.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
-    if (state.mealFilter) {
-      const kws = FILTERS.meal.find(f => f.label === state.mealFilter)?.keywords || [];
+    if (state.mealFilters.length) {
+      const kws = state.mealFilters.flatMap(label => FILTERS.meal.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
     return true;
@@ -194,7 +197,7 @@ function applyFilters(recipes) {
 }
 
 function hasActiveFilters() {
-  return !!(state.searchQuery || state.cuisineFilter || state.proteinFilter || state.timeFilter || state.mealFilter || state.filter);
+  return !!(state.searchQuery || state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.filter);
 }
 
 // --- Render ---
@@ -267,7 +270,7 @@ function renderBlogPicker() {
 }
 
 function renderSearchSection() {
-  const anyActive = state.cuisineFilter || state.proteinFilter || state.timeFilter || state.mealFilter;
+  const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length;
   return `
     <div class="search-section">
       <div class="container">
@@ -287,7 +290,7 @@ function renderSearchSection() {
           <div class="tag-group">
             <span class="tag-label">Cuisine</span>
             ${[...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
-              <button class="tag-chip ${state.cuisineFilter === f.label ? 'is-active' : ''}"
+              <button class="tag-chip ${state.cuisineFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="cuisine" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
@@ -296,7 +299,7 @@ function renderSearchSection() {
           <div class="tag-group">
             <span class="tag-label">Protein</span>
             ${FILTERS.protein.map(f => `
-              <button class="tag-chip ${state.proteinFilter === f.label ? 'is-active' : ''}"
+              <button class="tag-chip ${state.proteinFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="protein" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
@@ -305,7 +308,7 @@ function renderSearchSection() {
           <div class="tag-group">
             <span class="tag-label">Time</span>
             ${FILTERS.time.map(f => `
-              <button class="tag-chip ${state.timeFilter === f.label ? 'is-active' : ''}"
+              <button class="tag-chip ${state.timeFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="time" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
@@ -314,7 +317,7 @@ function renderSearchSection() {
           <div class="tag-group">
             <span class="tag-label">Meal</span>
             ${FILTERS.meal.map(f => `
-              <button class="tag-chip ${state.mealFilter === f.label ? 'is-active' : ''}"
+              <button class="tag-chip ${state.mealFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="meal" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
@@ -535,22 +538,26 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'cuisine') {
-    state.cuisineFilter = state.cuisineFilter === el.dataset.value ? null : el.dataset.value;
+    const v = el.dataset.value;
+    state.cuisineFilters = state.cuisineFilters.includes(v) ? state.cuisineFilters.filter(x => x !== v) : [...state.cuisineFilters, v];
     triggerSearch();
   }
 
   if (action === 'protein') {
-    state.proteinFilter = state.proteinFilter === el.dataset.value ? null : el.dataset.value;
+    const v = el.dataset.value;
+    state.proteinFilters = state.proteinFilters.includes(v) ? state.proteinFilters.filter(x => x !== v) : [...state.proteinFilters, v];
     triggerSearch();
   }
 
   if (action === 'time') {
-    state.timeFilter = state.timeFilter === el.dataset.value ? null : el.dataset.value;
+    const v = el.dataset.value;
+    state.timeFilters = state.timeFilters.includes(v) ? state.timeFilters.filter(x => x !== v) : [...state.timeFilters, v];
     triggerSearch();
   }
 
   if (action === 'meal') {
-    state.mealFilter = state.mealFilter === el.dataset.value ? null : el.dataset.value;
+    const v = el.dataset.value;
+    state.mealFilters = state.mealFilters.includes(v) ? state.mealFilters.filter(x => x !== v) : [...state.mealFilters, v];
     triggerSearch();
   }
 
@@ -561,19 +568,19 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'clear-smart-filters') {
-    state.cuisineFilter = null;
-    state.proteinFilter = null;
-    state.timeFilter = null;
-    state.mealFilter = null;
+    state.cuisineFilters = [];
+    state.proteinFilters = [];
+    state.timeFilters = [];
+    state.mealFilters = [];
     triggerSearch();
   }
 
   if (action === 'clear-all-filters') {
     state.searchQuery = '';
-    state.cuisineFilter = null;
-    state.proteinFilter = null;
-    state.timeFilter = null;
-    state.mealFilter = null;
+    state.cuisineFilters = [];
+    state.proteinFilters = [];
+    state.timeFilters = [];
+    state.mealFilters = [];
     state.filter = null;
     state.searchMode = false;
     state.searchResults = [];
@@ -613,7 +620,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'save') {
     if (!state.selected) return;
     const p = state.selected.preview;
-    await api.save({
+    saveFav({
       url: state.selected.url,
       title: state.detail?.name || p.title,
       image: state.detail?.image || p.image,
@@ -621,14 +628,14 @@ document.addEventListener('click', async (e) => {
       blogColor: p.blogColor,
       date: p.date,
     });
-    state.favorites = await api.favorites();
+    state.favorites = loadFavs();
     renderApp();
   }
 
   if (action === 'unsave') {
     if (!state.selected) return;
-    await api.remove(urlId(state.selected.url));
-    state.favorites = await api.favorites();
+    removeFav(state.selected.url);
+    state.favorites = loadFavs();
     renderApp();
   }
 });
@@ -659,7 +666,8 @@ function closeDrawer() {
 
 // --- Init ---
 async function init() {
-  [BLOGS, state.favorites] = await Promise.all([api.blogs(), api.favorites()]);
+  state.favorites = loadFavs();
+  BLOGS = await api.blogs();
   renderApp();
 
   // Stream recipes in as each blog loads — renders progressively
