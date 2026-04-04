@@ -487,25 +487,41 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'q is required' });
   if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
 
-  // Build site: query to restrict to known blogs
+  // Split domains into chunks of 40 to stay within Serper's query length limit
   const domains = BLOGS.map(b => {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
-  const siteQuery = domains.map(d => `site:${d}`).join(' OR ');
-  const fullQuery = `${q} (${siteQuery})`;
+
+  const CHUNK = 40;
+  const chunks = [];
+  for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
 
   try {
-    const response = await fetch('https://google.serper.dev/search', {
-      method: 'POST',
-      headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: fullQuery, num: 10, page: parseInt(page) }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const data = await response.json();
+    // Fire all chunks in parallel — each chunk uses 1 Serper credit
+    const responses = await Promise.all(chunks.map(chunk => {
+      const siteQuery = chunk.map(d => `site:${d}`).join(' OR ');
+      return fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: `${q} (${siteQuery})`, num: 10, page: parseInt(page) }),
+        signal: AbortSignal.timeout(10000),
+      }).then(r => r.json()).catch(() => ({}));
+    }));
 
-    if (data.error) return res.status(502).json({ error: data.error });
+    // Merge results from all chunks, deduplicate by URL
+    const seen = new Set();
+    const allOrganic = [];
+    let totalResults = 0;
+    for (const data of responses) {
+      if (data.error) continue;
+      const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
+      totalResults += t;
+      for (const item of (data.organic || [])) {
+        if (!seen.has(item.link)) { seen.add(item.link); allOrganic.push(item); }
+      }
+    }
 
-    // Build a URL→image lookup from the RSS cache (free, instant)
+    // Build URL→image lookup from RSS cache (free, instant)
     const cacheImageMap = new Map();
     for (const { recipes } of feedCache.values()) {
       for (const r of recipes) {
@@ -513,7 +529,7 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    const results = (data.organic || []).filter(item => !isRoundup(item.title, item.link)).map(item => {
+    const results = allOrganic.filter(item => !isRoundup(item.title, item.link)).map(item => {
       const blog = BLOGS.find(b => {
         const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
         return item.link.includes(domain);
@@ -537,11 +553,11 @@ app.get('/api/search', async (req, res) => {
     if (missing.length) {
       await Promise.allSettled(missing.map(async (r) => {
         try {
-          const res = await fetch(r.url, {
+          const pageRes = await fetch(r.url, {
             headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
             signal: AbortSignal.timeout(5000),
           });
-          const html = await res.text();
+          const html = await pageRes.text();
           const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
                     html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
           if (m?.[1]) r.image = m[1];
@@ -551,8 +567,8 @@ app.get('/api/search', async (req, res) => {
 
     res.json({
       results,
-      totalResults: data.searchInformation?.totalResults || results.length,
-      nextStart: results.length === 10 ? parseInt(page) + 1 : null,
+      totalResults: totalResults || results.length,
+      nextStart: results.length >= 10 ? parseInt(page) + 1 : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
