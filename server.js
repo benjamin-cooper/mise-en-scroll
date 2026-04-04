@@ -86,11 +86,25 @@ const BLOGS = [
   { name: 'Veg Recipes of India',  feed: 'https://www.vegrecipesofindia.com/feed/',         color: '#f39c12' },
   { name: 'Spice Up the Curry',    feed: 'https://www.spiceupthecurry.com/feed/',           color: '#e74c3c' },
   { name: "Manjula's Kitchen",     feed: 'https://www.manjulaskitchen.com/feed/',           color: '#9b59b6' },
+  { name: 'Piping Pot Curry',      feed: 'https://pipingpotcurry.com/feed/',                color: '#e74c3c' },
+  { name: "Hebbars Kitchen",       feed: 'https://hebbarskitchen.com/feed/',                color: '#c0392b' },
+  { name: 'Spice Cravings',        feed: 'https://spicecravings.com/feed/',                 color: '#e67e22' },
+  // --- Greek / Mediterranean ---
+  { name: 'My Greek Dish',         feed: 'https://mygreekdish.com/feed/',                   color: '#2980b9' },
+  { name: 'Souvlaki For The Soul', feed: 'https://souvlakiforthesoul.com/feed/',            color: '#27ae60' },
+  { name: 'Kalofagas',             feed: 'https://kalofagas.ca/feed/',                      color: '#2c3e50' },
   // --- Mexican / Latin ---
   { name: 'Mexico in My Kitchen',  feed: 'https://www.mexicoinmykitchen.com/feed/',         color: '#27ae60' },
   { name: "Laylita's Recipes",     feed: 'https://laylita.com/recipes/feed/',               color: '#e67e22' },
   // --- Middle Eastern ---
   { name: 'Maureen Abood',         feed: 'https://maureenabood.com/feed/',                  color: '#2ecc71' },
+  { name: 'Give Recipe',           feed: 'https://giverecipe.com/feed/',                    color: '#c0392b' },
+  { name: "Ozlem's Turkish Table", feed: 'https://ozlemsturkishtable.com/feed/',             color: '#e67e22' },
+  { name: 'Tori Avey',             feed: 'https://toriavey.com/feed/',                      color: '#8e44ad' },
+  { name: 'Cleobuttera',           feed: 'https://cleobuttera.com/feed/',                   color: '#c0906a' },
+  { name: 'Feel Good Foodie',      feed: 'https://feelgoodfoodie.net/feed/',                color: '#27ae60' },
+  { name: 'Zaatar and Zaytoun',    feed: 'https://zaatarandzaytoun.com/feed/',              color: '#2ecc71' },
+  { name: 'Persian Mama',          feed: 'https://persianmama.com/feed/',                   color: '#9b59b6' },
   // --- African / Caribbean ---
   { name: 'Immaculate Bites',      feed: 'https://www.africanbites.com/feed/',              color: '#c0392b' },
   { name: "Chef Lola's Kitchen",   feed: 'https://cheflolaskitchen.com/feed/',              color: '#e74c3c' },
@@ -102,6 +116,10 @@ const BLOGS = [
   // --- BBQ / Southern ---
   { name: 'Hey Grill Hey',         feed: 'https://heygrillhey.com/feed/',                   color: '#c0392b' },
   { name: 'Sam the Cooking Guy',   feed: 'https://www.samthecookingguy.com/recipes?format=rss', color: '#1a1a2e' },
+  // --- Modern / Creative ---
+  { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
+  { name: 'Molly Baz',             feed: 'https://mollybaz.com/feed/',                      color: '#e8b84b' },
+  { name: 'Bon Appétit',           feed: 'https://www.bonappetit.com/feed/rss',             color: '#d4262b' },
 ];
 
 const FAVORITES_FILE = path.join(__dirname, 'favorites.json');
