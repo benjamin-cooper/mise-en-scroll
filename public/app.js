@@ -8,8 +8,11 @@ const FILTERS = {
     { label: 'Korean',        icon: '🥘', keywords: ['korean', 'bibimbap', 'bulgogi', 'kimchi', 'gochujang', 'japchae', 'banchan', 'galbi', 'dakgalbi', 'sundubu', 'doenjang', 'pajeon', 'tteok', 'doenjang jjigae', 'army stew'] },
     { label: 'Thai',          icon: '🌿', keywords: ['thai', 'pad thai', 'green curry', 'red curry', 'massaman', 'larb', 'tom yum', 'som tum', 'satay', 'pad see ew', 'khao', 'nam prik', 'yellow curry'] },
     { label: 'Vietnamese',    icon: '🍲', keywords: ['vietnamese', 'pho', 'banh mi', 'banh', 'bun bo', 'spring roll', 'fresh roll', 'bo kho', 'com tam', 'canh chua', 'bun thit', 'chả giò'] },
-    { label: 'Mediterranean', icon: '🫒', keywords: ['hummus', 'falafel', 'greek', 'mediterranean', 'shakshuka', 'gyro', 'tzatziki', 'pita', 'couscous', 'moroccan', 'harissa', 'tabbouleh', 'kebab', 'baba ganoush', 'spanakopita', 'za\'atar', 'sumac'] },
+    { label: 'Mediterranean', icon: '🫒', keywords: ['greek', 'mediterranean', 'shakshuka', 'gyro', 'tzatziki', 'spanakopita', 'moussaka', 'turkish', 'pide', 'borek', 'meze', 'dolma', 'lahmacun', 'baklava', 'couscous', 'moroccan', 'harissa', 'chermoula', 'tagine'] },
+    { label: 'Middle Eastern', icon: '🧆', keywords: ['middle eastern', 'lebanese', 'arabic', 'persian', 'iranian', 'israeli', 'jewish', 'falafel', 'hummus', 'shawarma', 'pita', 'tahini', 'za\'atar', 'sumac', 'tabbouleh', 'baba ganoush', 'fattoush', 'kibbeh', 'kabsa', 'mujaddara', 'musakhan', 'ghormeh', 'fesenjan', 'kebab'] },
     { label: 'Indian',        icon: '🍛', keywords: ['curry', 'tikka', 'masala', 'dal', 'naan', 'biryani', 'saag', 'paneer', 'tandoori', 'chutney', 'samosa', 'korma', 'vindaloo', 'palak', 'aloo', 'indian', 'chana', 'raita', 'dosa'] },
+    { label: 'Filipino',      icon: '🍚', keywords: ['filipino', 'adobo', 'sinigang', 'kare-kare', 'lechon', 'pancit', 'lumpia', 'sisig', 'tinola', 'pinakbet', 'pinoy', 'kaldereta', 'mechado', 'menudo', 'afritada'] },
+    { label: 'African',       icon: '🌍', keywords: ['nigerian', 'ethiopian', 'jollof', 'egusi', 'suya', 'injera', 'berbere', 'peri peri', 'piri piri', 'west african', 'ghanaian', 'senegalese', 'akara', 'moi moi', 'ogbono', 'pepper soup', 'ofe'] },
     { label: 'American',      icon: '🍔', keywords: ['burger', 'bbq', 'mac and cheese', 'meatloaf', 'pot roast', 'biscuit', 'cornbread', 'chili', 'wings', 'ribs', 'coleslaw', 'pulled pork', 'sloppy', 'casserole', 'ranch', 'buffalo', 'mashed potato', 'gravy'] },
   ],
   protein: [
