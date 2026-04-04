@@ -207,17 +207,20 @@ const ROUNDUP_PATTERNS = [
 
 function isRoundup(title = '', url = '') {
   if (ROUNDUP_PATTERNS.some(p => p.test(title))) return true;
-  // Filter homepage/category URLs (path is empty, just '/', or only one segment like '/category/')
+  // Filter homepage/category URLs
   if (url) {
     try {
       const path = new URL(url).pathname.replace(/\/$/, '');
       const segments = path.split('/').filter(Boolean);
-      if (segments.length === 0) return true;                          // homepage
-      if (segments.length === 1 && /^(category|tag|cuisine|recipes?|blog|posts?)$/i.test(segments[0])) return true;
+      if (segments.length === 0) return true;                                        // homepage
+      if (segments.some(s => /^(category|tag|tags|cuisine|blog|posts?|archive)$/i.test(s))) return true; // category/tag path
+      if (segments.length === 1 && /-(recipes?|dinners?|meals?|ideas?)$/.test(segments[0])) return true; // /chicken-recipes/
     } catch {}
   }
   // Filter site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name"
   if (/^[^|]{3,60}\|\s*.{3,60}$/.test(title) && /recipes?|kitchen|cook|food|eat/i.test(title)) return true;
+  // Filter "Over 30 / More than X" roundup titles
+  if (/^(over|more\s+than)\s+\d+/i.test(title)) return true;
   return false;
 }
 
