@@ -221,7 +221,7 @@ const ROUNDUP_PATTERNS = [
   /\brecap\b/i,
   /\bnewsletter\b/i,
   /\(plus\b/i,                                        // "(Plus the Sides I Always Bring With Them)"
-  /\bthe\s+best\s+\w+s\b(?!\s+recipe)/i,             // "The Best Potato Salads"
+  /\bthe\s+best\s+(?:\w+\s+){0,3}\w+s\b(?!\s+recipe)/i, // "The Best Potato Salads", "The Best Simple Weeknight Dinners"
   /\btested\s+by\s+experts?\b/i,                      // "Tested By Experts"
   /\(20\d\d\)/,                                       // "(2026)" — gear/product roundups with year
   /\bfor\s+\w+,\s*\w+.*?,\s*and\b/i,                 // "for Picnics, Potlucks, and Meal Prep"
@@ -232,6 +232,15 @@ const ROUNDUP_PATTERNS = [
   /\bhas\s+\w+\s+separate\b/i,                        // "Has Five Separate Hot Sauces"
   /\bwhat\s+to\s+(eat|cook|make)\s+(in|this|for|now)\b/i, // "What to Eat in April"
   /\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/i, // seasonal guides
+  /\bour\s+(favorite|favourite|top|best|go.to)\s+\w/i,   // "Our Favorite Chicken Dishes"
+  /\byou\s+(need\s+to\s+try|must\s+try|should\s+make)\b/i, // "Recipes You Need to Try"
+  /\b(every|all)\s+\w+\s+(need|should|must)\b/i,          // "Every Cook Needs This"
+  /\bwhy\s+(i|we|you)\s+(love|make|always)\b/i,           // "Why I Always Have This"
+  /\b(obsessed|addicted)\s+with\b/i,                      // lifestyle post style
+  /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\b/i, // "My Go-To Dinner Party Dishes"
+  /\bweeknight\s+(dinner\s+)?ideas?\b/i,                  // "Weeknight Dinner Ideas"
+  /\b(spring|summer|fall|winter|autumn)\s+(recipes?|dinners?|meals?|produce|eats?)\b(?!.*:)/i, // "Spring Recipes" roundup (not "Spring Pasta: recipe")
+  /\b\d+\s+(ways?|ideas?)\s+to\b/i,                       // "5 Ways to Use Leftover Chicken"
 ];
 
 function isRoundup(title = '', url = '') {
