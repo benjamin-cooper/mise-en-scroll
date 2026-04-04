@@ -236,17 +236,30 @@ function renderHeader() {
 
 function renderFilters() {
   if (!BLOGS.length) return '';
+  const active = state.filter;
+  const activeBlog = active ? BLOGS.find(b => b.name === active) : null;
   return `
     <div class="filters">
       <div class="container">
-        <button class="filter-pill ${!state.filter ? 'is-active' : ''}" data-action="filter" data-blog="">All blogs</button>
-        ${BLOGS.map(b => `
-          <button class="filter-pill ${state.filter === b.name ? 'is-active' : ''}"
-                  data-action="filter" data-blog="${b.name}"
-                  ${state.filter === b.name ? `style="background:${b.color};border-color:${b.color};color:#fff"` : ''}>
-            ${b.name}
+        <div class="blog-picker-wrap">
+          <button class="filter-pill blog-picker-btn ${active ? 'is-active' : ''}"
+                  data-action="blog-picker-toggle"
+                  ${activeBlog ? `style="background:${activeBlog.color};border-color:${activeBlog.color};color:#fff"` : ''}>
+            ${active ? escHtml(active) : 'All Blogs'}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style="margin-left:4px;opacity:.7"><path d="M2 3.5l3 3 3-3"/></svg>
           </button>
-        `).join('')}
+          <div class="blog-picker-dropdown" id="blog-picker-dropdown" hidden>
+            <button class="blog-picker-item ${!active ? 'is-active' : ''}" data-action="filter" data-blog="">All Blogs</button>
+            ${BLOGS.map(b => `
+              <button class="blog-picker-item ${active === b.name ? 'is-active' : ''}"
+                      data-action="filter" data-blog="${escHtml(b.name)}"
+                      ${active === b.name ? `style="color:${b.color}"` : ''}>
+                <span class="blog-picker-dot" style="background:${b.color}"></span>
+                ${escHtml(b.name)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -487,6 +500,12 @@ document.addEventListener('click', async (e) => {
     closeDrawer(); return;
   }
 
+  // Close blog picker if clicking outside
+  const picker = document.getElementById('blog-picker-dropdown');
+  if (picker && !picker.hidden && !e.target.closest('.blog-picker-wrap')) {
+    picker.hidden = true;
+  }
+
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const { action } = el.dataset;
@@ -498,8 +517,16 @@ document.addEventListener('click', async (e) => {
     renderApp();
   }
 
+  if (action === 'blog-picker-toggle') {
+    const dropdown = document.getElementById('blog-picker-dropdown');
+    if (dropdown) dropdown.hidden = !dropdown.hidden;
+    return;
+  }
+
   if (action === 'filter') {
     state.filter = el.dataset.blog || null;
+    const dropdown = document.getElementById('blog-picker-dropdown');
+    if (dropdown) dropdown.hidden = true;
     renderApp();
   }
 
