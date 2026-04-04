@@ -205,8 +205,20 @@ const ROUNDUP_PATTERNS = [
   /\bnewsletter\b/i,
 ];
 
-function isRoundup(title = '') {
-  return ROUNDUP_PATTERNS.some(p => p.test(title));
+function isRoundup(title = '', url = '') {
+  if (ROUNDUP_PATTERNS.some(p => p.test(title))) return true;
+  // Filter homepage/category URLs (path is empty, just '/', or only one segment like '/category/')
+  if (url) {
+    try {
+      const path = new URL(url).pathname.replace(/\/$/, '');
+      const segments = path.split('/').filter(Boolean);
+      if (segments.length === 0) return true;                          // homepage
+      if (segments.length === 1 && /^(category|tag|cuisine|recipes?|blog|posts?)$/i.test(segments[0])) return true;
+    } catch {}
+  }
+  // Filter site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name"
+  if (/^[^|]{3,60}\|\s*.{3,60}$/.test(title) && /recipes?|kitchen|cook|food|eat/i.test(title)) return true;
+  return false;
 }
 
 // Fallback HTML scraper for common WordPress recipe plugins
@@ -272,7 +284,7 @@ async function fetchBlogFeed(blog) {
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
 
   const feed = await parser.parseURL(blog.feed);
-  const recipes = feed.items.filter(item => !isRoundup(item.title)).slice(0, 8).map((item) => {
+  const recipes = feed.items.filter(item => !isRoundup(item.title, item.link)).slice(0, 8).map((item) => {
     const categories = (item.categories || []).map(c =>
       typeof c === 'string' ? c : (c._ || c['#text'] || '')
     ).filter(Boolean);
@@ -460,7 +472,7 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    const results = (data.organic || []).map(item => {
+    const results = (data.organic || []).filter(item => !isRoundup(item.title, item.link)).map(item => {
       const blog = BLOGS.find(b => {
         const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
         return item.link.includes(domain);
