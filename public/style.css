@@ -733,6 +733,29 @@ ul, ol { padding-left: 1.25rem; }
   min-width: 160px;
 }
 
+/* === Toast === */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 600;
+  white-space: nowrap;
+  animation: toast-in 0.18s ease;
+  transition: opacity 0.3s ease;
+}
+.toast.toast-out { opacity: 0; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* === Mobile filter dropdowns === */
 .mobile-filter-row  { display: none; }
 .mobile-filter-panel { display: none; }
@@ -746,6 +769,10 @@ ul, ol { padding-left: 1.25rem; }
     grid-template-columns: 1fr 1fr;
     gap: 8px;
     margin-top: 10px;
+  }
+  /* Odd last item (e.g. 5th button) spans full width */
+  .mobile-filter-btn:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
   .mobile-filter-btn {
     width: 100%;

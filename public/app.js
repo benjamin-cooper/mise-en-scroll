@@ -38,6 +38,14 @@ const FILTERS = {
     { label: 'Snack/Side', icon: '🥨', keywords: ['snack', 'appetizer', 'side dish', 'dip', 'starter', 'finger food', 'small plate', 'nibble', 'chips', 'hummus', 'salsa', 'guacamole', 'bruschetta', 'crostini'] },
     { label: 'Drinks',    icon: '🥤', keywords: ['cocktail', 'mocktail', 'smoothie', 'juice', 'lemonade', 'iced tea', 'drink', 'beverage', 'shake', 'margarita', 'sangria', 'punch', 'spritz', 'agua fresca', 'latte', 'cold brew', 'shrub', 'syrup'] },
   ],
+  dietary: [
+    { label: 'Vegan',       icon: '🌱', keywords: ['vegan', 'plant-based', 'plant based', 'dairy-free egg-free'] },
+    { label: 'Vegetarian',  icon: '🥦', keywords: ['vegetarian', 'meatless', 'no meat', 'veggie'] },
+    { label: 'Gluten-Free', icon: '🌾', keywords: ['gluten-free', 'gluten free', 'gf recipe', 'celiac', 'coeliac'] },
+    { label: 'Dairy-Free',  icon: '🥛', keywords: ['dairy-free', 'dairy free', 'non-dairy', 'lactose-free', 'lactose free'] },
+    { label: 'Keto',        icon: '🥑', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly'] },
+    { label: 'Paleo',       icon: '🍖', keywords: ['paleo', 'primal', 'whole30', 'grain-free', 'grain free'] },
+  ],
 };
 
 // Mirrors server BLOGS (name + color only, for filter pills)
@@ -53,6 +61,7 @@ const state = {
   proteinFilters: [],
   timeFilters: [],
   mealFilters: [],
+  dietaryFilters: [],
   selected: null,        // { url, preview }
   detail: null,          // full recipe from /api/recipe
   detailLoading: false,
@@ -126,10 +135,11 @@ function buildSearchQuery() {
   if (state.searchQuery.trim()) parts.push(state.searchQuery.trim());
 
   const filterMap = [
-    { vals: state.cuisineFilters, group: 'cuisine' },
-    { vals: state.proteinFilters, group: 'protein' },
-    { vals: state.timeFilters,    group: 'time'    },
-    { vals: state.mealFilters,    group: 'meal'    },
+    { vals: state.cuisineFilters,  group: 'cuisine'  },
+    { vals: state.proteinFilters,  group: 'protein'  },
+    { vals: state.timeFilters,     group: 'time'     },
+    { vals: state.mealFilters,     group: 'meal'     },
+    { vals: state.dietaryFilters,  group: 'dietary'  },
   ];
   for (const { vals, group } of filterMap) {
     for (const val of vals) {
@@ -196,12 +206,16 @@ function applyFilters(recipes) {
       const kws = state.mealFilters.flatMap(label => FILTERS.meal.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
+    if (state.dietaryFilters.length) {
+      const kws = state.dietaryFilters.flatMap(label => FILTERS.dietary.find(f => f.label === label)?.keywords || []);
+      if (!kws.some(kw => full.includes(kw))) return false;
+    }
     return true;
   });
 }
 
 function hasActiveFilters() {
-  return !!(state.searchQuery || state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.filter);
+  return !!(state.searchQuery || state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.filter);
 }
 
 // --- Render ---
@@ -278,10 +292,11 @@ function renderSearchSection() {
   const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
 
   const mobileCats = [
-    { key: 'cuisine', label: 'Cuisine', filters: [...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)), active: state.cuisineFilters },
-    { key: 'protein', label: 'Protein', filters: FILTERS.protein, active: state.proteinFilters },
-    { key: 'time',    label: 'Time',    filters: FILTERS.time,    active: state.timeFilters },
-    { key: 'meal',    label: 'Meal',    filters: FILTERS.meal,    active: state.mealFilters },
+    { key: 'cuisine',  label: 'Cuisine',  filters: [...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)), active: state.cuisineFilters },
+    { key: 'protein',  label: 'Protein',  filters: FILTERS.protein,  active: state.proteinFilters },
+    { key: 'time',     label: 'Time',     filters: FILTERS.time,     active: state.timeFilters },
+    { key: 'meal',     label: 'Meal',     filters: FILTERS.meal,     active: state.mealFilters },
+    { key: 'dietary',  label: 'Dietary',  filters: FILTERS.dietary,  active: state.dietaryFilters },
   ];
   const openCat = state.openFilterDropdown ? mobileCats.find(c => c.key === state.openFilterDropdown) : null;
 
@@ -335,6 +350,15 @@ function renderSearchSection() {
             ${FILTERS.meal.map(f => `
               <button class="tag-chip ${state.mealFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="meal" data-value="${f.label}">
+                ${f.icon} ${f.label}
+              </button>
+            `).join('')}
+          </div>
+          <div class="tag-group">
+            <span class="tag-label">Dietary</span>
+            ${FILTERS.dietary.map(f => `
+              <button class="tag-chip ${state.dietaryFilters.includes(f.label) ? 'is-active' : ''}"
+                      data-action="dietary" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
             `).join('')}
@@ -523,6 +547,7 @@ function renderDrawer() {
           ${fav ? 'Saved ✓' : 'Save Recipe'}
         </button>
         <a href="${url}" target="_blank" rel="noopener" class="btn btn-secondary">View Original →</a>
+        <button class="btn btn-secondary" data-action="share">Share</button>
       </div>
     `;
   }
@@ -540,6 +565,17 @@ function renderDrawer() {
       </aside>
     </div>
   `;
+}
+
+// --- Toast ---
+function showToast(msg) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('toast-out'), 2000);
+  setTimeout(() => el.remove(), 2350);
 }
 
 // --- Events ---
@@ -615,6 +651,23 @@ document.addEventListener('click', async (e) => {
     triggerSearch();
   }
 
+  if (action === 'dietary') {
+    const v = el.dataset.value;
+    state.dietaryFilters = state.dietaryFilters.includes(v) ? state.dietaryFilters.filter(x => x !== v) : [...state.dietaryFilters, v];
+    triggerSearch();
+  }
+
+  if (action === 'share') {
+    const url = state.selected?.url;
+    const title = state.selected?.preview?.title;
+    if (!url) return;
+    if (navigator.share) {
+      navigator.share({ title: title || 'Recipe', url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => showToast('Could not copy link'));
+    }
+  }
+
   if (action === 'search-clear') {
     state.searchQuery = '';
     triggerSearch();
@@ -626,6 +679,7 @@ document.addEventListener('click', async (e) => {
     state.proteinFilters = [];
     state.timeFilters = [];
     state.mealFilters = [];
+    state.dietaryFilters = [];
     triggerSearch();
   }
 
@@ -635,6 +689,7 @@ document.addEventListener('click', async (e) => {
     state.proteinFilters = [];
     state.timeFilters = [];
     state.mealFilters = [];
+    state.dietaryFilters = [];
     state.filter = null;
     state.searchMode = false;
     state.searchResults = [];

@@ -1,0 +1,18 @@
+{
+  "name": "Mise en Scroll",
+  "short_name": "Mise en Scroll",
+  "description": "Recipe discovery from 83 food blogs",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#c75b2e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
