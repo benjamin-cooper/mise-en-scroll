@@ -406,12 +406,16 @@ function renderContent() {
 }
 
 function renderCard(r) {
+  const noImg = !r.image;
+  const c = r.blogColor || '#c75b2e';
   return `
     <article class="card" data-action="card" data-url="${r.url}">
-      <div class="card-image ${!r.image ? 'no-image' : ''}">
+      <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
-          onerror="this.closest('.card-image').classList.add('no-image');this.remove()">` : ''}
-        <div class="card-image-placeholder">🍴</div>
+          onerror="this.closest('.card-image').classList.add('no-image');this.style.setProperty('--blog-color','${c}');this.remove()">` : ''}
+        ${noImg ? `<div class="card-no-image">
+          <span class="card-no-image-initial">${escHtml(r.blog.charAt(0))}</span>
+        </div>` : ''}
       </div>
       <div class="card-body">
         <div class="card-meta">

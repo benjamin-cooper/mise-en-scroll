@@ -230,6 +230,8 @@ const ROUNDUP_PATTERNS = [
   /\bI\s+tested\s+the\b/i,                            // "I Tested the Multicooker..."
   /\bhere'?s?\s+my\s+verdict\b/i,                     // "Here's My Verdict"
   /\bhas\s+\w+\s+separate\b/i,                        // "Has Five Separate Hot Sauces"
+  /\bwhat\s+to\s+(eat|cook|make)\s+(in|this|for|now)\b/i, // "What to Eat in April"
+  /\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/i, // seasonal guides
 ];
 
 function isRoundup(title = '', url = '') {
