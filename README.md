@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 93 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 101 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 93 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 101 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
 - **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
@@ -45,6 +45,7 @@ A recipe discovery app that aggregates the latest posts from 93 food blogs into 
 | Sam the Cooking Guy | Justine Snacks |
 | Alexandra Cooks | Averie Cooks |
 | Inspired Taste | Sweet Peas and Saffron |
+| The Kitchn | |
 
 ### Asian
 | Blog | Cuisine Focus |
@@ -123,6 +124,25 @@ A recipe discovery app that aggregates the latest posts from 93 food blogs into 
 | Blog |
 |------|
 | Everyday Homemade |
+
+### Italian
+| Blog |
+|------|
+| An Italian in my Kitchen |
+| Memorie di Angelina |
+| Italian Food Forever |
+
+### Eastern European
+| Blog |
+|------|
+| Valentina's Corner |
+| Eating European |
+
+### Nordic / Scandinavian
+| Blog |
+|------|
+| Nordic Food & Living |
+| Nordic Kitchen Stories |
 
 ### Drinks / Cocktails
 | Blog |
