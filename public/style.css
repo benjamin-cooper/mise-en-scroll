@@ -98,30 +98,6 @@ ul, ol { padding-left: 1.25rem; }
   line-height: 1.4;
 }
 
-/* === Filter Pills (legacy, kept for potential reuse) === */
-.filter-pill {
-  flex-shrink: 0;
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  border: 1.5px solid var(--border);
-  color: var(--muted);
-  background: var(--surface);
-  transition: all var(--transition);
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-}
-.filter-pill:hover {
-  border-color: var(--text);
-  color: var(--text);
-}
-.filter-pill.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
 
 /* Blog picker dropdown */
 .blog-picker-wrap {
