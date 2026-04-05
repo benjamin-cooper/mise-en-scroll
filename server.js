@@ -233,6 +233,10 @@ const ROUNDUP_PATTERNS = [
   /\bweeknight\s+(dinner\s+)?ideas?\b/i,                  // "Weeknight Dinner Ideas"
   /\b(spring|summer|fall|winter|autumn)\s+(recipes?|dinners?|meals?|produce|eats?)\b(?!.*:)/i, // "Spring Recipes" roundup (not "Spring Pasta: recipe")
   /\b\d+\s+(ways?|ideas?)\s+to\b/i,                       // "5 Ways to Use Leftover Chicken"
+  // Promotional / engagement posts
+  /\b(cooking|recipe|baking|meal)\s+challenge\b/i,        // "April Cooking Challenge"
+  /\bgiveaway\b/i,                                         // giveaway posts
+  /\b(cook|make)\s+and\s+review\b/i,                      // "Cook and Review This"
 ];
 
 function isRoundup(title = '', url = '') {
