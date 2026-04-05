@@ -1,10 +1,11 @@
 const CACHE = 'mise-en-scroll-v1';
-const STATIC = ['/', '/app.js', '/style.css', '/manifest.json', '/icons/icon.svg'];
+const STATIC = ['/', '/app.js', '/style.css', '/manifest.json', '/icons/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png'];
 
-// Install: pre-cache the app shell
+// Install: pre-cache the app shell, then activate immediately
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
-  self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
+  );
 });
 
 // Activate: delete old caches

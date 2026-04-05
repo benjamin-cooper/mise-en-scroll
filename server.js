@@ -22,19 +22,25 @@ const parser = new RSSParser({
 app.use(express.json());
 
 // Serve sw.js with an injected cache version derived from asset mtimes.
-// No-cache header ensures browsers always fetch the latest version,
-// and the CACHE constant inside the SW changes whenever assets change.
-app.get('/sw.js', (req, res) => {
+// Source is read once at startup (and re-read if the version changes) so
+// we never block the event loop with synchronous file I/O on each request.
+let _swCached = { version: null, src: null };
+function getSwSource() {
   const swPath = path.join(__dirname, 'public', 'sw.js');
   const assets = ['app.js', 'style.css'].map(f => path.join(__dirname, 'public', f));
   const version = assets.reduce((acc, f) => {
     try { return acc + fs.statSync(f).mtimeMs; } catch { return acc; }
   }, 0).toString(36);
-  let src = fs.readFileSync(swPath, 'utf8');
-  src = src.replace('mise-en-scroll-v1', `mise-en-scroll-${version}`);
+  if (version !== _swCached.version) {
+    const raw = fs.readFileSync(swPath, 'utf8');
+    _swCached = { version, src: raw.replace('mise-en-scroll-v1', `mise-en-scroll-${version}`) };
+  }
+  return _swCached.src;
+}
+app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'no-cache');
-  res.send(src);
+  res.send(getSwSource());
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -207,13 +213,15 @@ function extractImage(item) {
 
 function parseISO8601Duration(str) {
   if (!str) return null;
-  const m = str.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
+  const m = str.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
   if (!m) return null;
   const h = parseInt(m[1] || 0);
   const min = parseInt(m[2] || 0);
+  const sec = parseInt(m[3] || 0);
   if (h && min) return `${h}h ${min}m`;
   if (h) return `${h}h`;
   if (min) return `${min}m`;
+  if (sec) return `${sec}s`;
   return null;
 }
 
@@ -412,10 +420,13 @@ app.get('/api/recipes/stream', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  let closed = false;
+  req.on('close', () => { closed = true; });
+  const send = (data) => { if (!closed && !res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
   const CONCURRENCY = 10;
 
   for (let i = 0; i < BLOGS.length; i += CONCURRENCY) {
+    if (closed) break;
     const batch = BLOGS.slice(i, i + CONCURRENCY);
     await Promise.allSettled(batch.map(async (blog) => {
       try {
@@ -426,7 +437,7 @@ app.get('/api/recipes/stream', async (req, res) => {
   }
 
   send({ type: 'done' });
-  res.end();
+  if (!closed) res.end();
 });
 
 app.get('/api/recipe', async (req, res) => {
@@ -589,7 +600,7 @@ app.get('/api/search', async (req, res) => {
     res.json({
       results,
       totalResults: totalResults || results.length,
-      nextStart: results.length >= 10 ? parseInt(page) + 1 : null,
+      nextStart: allOrganic.length > 0 ? parseInt(page) + 1 : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
