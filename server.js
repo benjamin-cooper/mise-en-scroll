@@ -52,16 +52,6 @@ app.get('/sw.js', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/status', (req, res) => {
-  const key = process.env.ANTHROPIC_API_KEY;
-  res.json({
-    serper: !!process.env.SERPER_API_KEY,
-    anthropic: !!key,
-    anthropicState: key === undefined ? 'undefined' : key === '' ? 'empty_string' : `has_value_len_${key.length}`,
-    anthropicTrimLen: key ? key.trim().length : 0,
-    allEnvKeys: Object.keys(process.env).filter(k => !['PATH','HOME','USER','SHELL','TERM','LANG','LC_ALL','PWD','OLDPWD','SHLVL','_','HOSTNAME','NODE_ENV','NODE_VERSION','NPM_CONFIG_PREFIX','NPM_CONFIG_CACHE'].includes(k)),
-  });
-});
 
 const BLOGS = [
   // --- General / American ---
@@ -440,6 +430,7 @@ app.get('/api/recipes/stream', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+  if (req.query.fresh === '1') feedCache.clear();
 
   let closed = false;
   req.on('close', () => { closed = true; });
