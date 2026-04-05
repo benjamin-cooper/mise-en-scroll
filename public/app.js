@@ -664,7 +664,8 @@ document.addEventListener('click', async (e) => {
   if (filterStateKey) {
     const v = el.dataset.value;
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
-    triggerSearch();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
   }
 
   if (action === 'share') {
@@ -774,9 +775,11 @@ document.addEventListener('keydown', (e) => {
     const drawer = document.getElementById('drawer');
     if (!drawer) return;
     const focusable = [...drawer.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-    if (focusable.length < 2) return;
+    if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
+    // With one element, always trap focus back to it on Tab
+    if (focusable.length === 1) { e.preventDefault(); first.focus(); return; }
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
