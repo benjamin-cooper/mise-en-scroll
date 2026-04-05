@@ -402,23 +402,6 @@ async function fetchBlogFeed(blog) {
     };
   });
 
-  // For items missing images, try fetching og:image from the page
-  const missing = recipes.filter(r => !r.image);
-  if (missing.length) {
-    await Promise.allSettled(missing.map(async (r) => {
-      try {
-        const res = await fetch(r.url, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
-          signal: AbortSignal.timeout(6000),
-        });
-        const html = await res.text();
-        const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
-                  html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
-        if (m?.[1]) r.image = m[1];
-      } catch {}
-    }));
-  }
-
   feedCache.set(blog.name, { recipes, fetchedAt: Date.now() });
   return recipes;
 }
