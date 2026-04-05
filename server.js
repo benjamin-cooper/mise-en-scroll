@@ -53,10 +53,13 @@ app.get('/sw.js', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/status', (req, res) => {
+  const key = process.env.ANTHROPIC_API_KEY;
   res.json({
     serper: !!process.env.SERPER_API_KEY,
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
-    anthropicLength: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.trim().length : 0,
+    anthropic: !!key,
+    anthropicState: key === undefined ? 'undefined' : key === '' ? 'empty_string' : `has_value_len_${key.length}`,
+    anthropicTrimLen: key ? key.trim().length : 0,
+    allEnvKeys: Object.keys(process.env).filter(k => k.includes('ANTHROPIC') || k.includes('API')),
   });
 });
 
