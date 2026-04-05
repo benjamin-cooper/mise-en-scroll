@@ -7,11 +7,13 @@ A recipe discovery app that aggregates the latest posts from 83 food blogs into 
 ## What it does
 
 - **Live feed** — streams the latest recipes from 83 blogs simultaneously, rendering cards as each feed loads
-- **Filters** — narrow by cuisine, protein, cook time, and meal type; filter clicks search the full archive via Serper.dev
+- **Filters** — narrow by cuisine, protein, cook time, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
 - **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
 - **Favorites** — save recipes locally (stored in your browser, private to you)
+- **Share** — share any recipe via the native share sheet on mobile or copy-to-clipboard on desktop
 - **Roundup filtering** — automatically hides listicles, meal plans, gear reviews, and lifestyle posts so you only see actual recipes
+- **PWA** — installable on iOS and Android via "Add to Home Screen"
 
 ## Blogs
 
@@ -120,10 +122,11 @@ Clicking any filter chip searches the full blog archive via Serper.dev.
 
 | Category | Options |
 |----------|---------|
-| **Cuisine** | Italian, Mexican, Chinese, Japanese, Korean, Thai, Vietnamese, Mediterranean, Indian, Middle Eastern, Filipino, African, American |
+| **Cuisine** | African, American, Chinese, Filipino, Indian, Italian, Japanese, Korean, Mediterranean, Mexican, Middle Eastern, Thai, Vietnamese |
 | **Protein** | Chicken, Beef, Pork, Seafood, Lamb, Vegetarian, Other |
 | **Time** | Quick (≤30m), ~1 Hour, Slow Cooker, 2+ Hours |
 | **Meal** | Breakfast, Lunch, Dinner, Dessert, Snack/Side, Drinks |
+| **Dietary** | Vegan, Vegetarian, Gluten-Free, Dairy-Free, Keto, Paleo |
 
 Multiple filters can be selected at once (OR logic within each category).
 
@@ -137,6 +140,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant
 - **Frontend** — vanilla JS, no framework
 - **Favorites** — stored in `localStorage` (browser-local, private per device)
+- **PWA** — `manifest.json` + SVG icon; installable on iOS/Android via Add to Home Screen
 
 ## Setup
 
