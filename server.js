@@ -631,7 +631,7 @@ app.get('/api/ingredient-search', async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI search not configured. Add ANTHROPIC_API_KEY.' });
   try {
     const msg = await getAnthropic().messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 30,
       messages: [{
         role: 'user',
