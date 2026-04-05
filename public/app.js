@@ -244,8 +244,13 @@ function renderApp() {
   if (!drawerNowOpen) {
     requestAnimationFrame(() => window.scrollTo(0, _savedScrollY));
   }
-  if (drawerJustOpened) {
-    requestAnimationFrame(() => document.querySelector('.drawer-close')?.focus());
+  if (drawerNowOpen) {
+    setTimeout(() => {
+      const drawer = document.getElementById('drawer');
+      if (drawer && !drawer.contains(document.activeElement)) {
+        document.querySelector('.drawer-close')?.focus();
+      }
+    }, 50);
   }
 
   setupInfiniteScroll();
@@ -797,11 +802,11 @@ async function init() {
     if (state.loading) {
       state.loading = false;
     }
-    if (!state.searchMode) renderApp();
+    if (!state.searchMode && !state.selected) renderApp();
   });
 
   state.loading = false;
-  if (!state.searchMode) renderApp();
+  if (!state.searchMode && !state.selected) renderApp();
 }
 
 init();
