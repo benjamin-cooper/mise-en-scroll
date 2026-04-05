@@ -299,6 +299,9 @@ const ROUNDUP_PATTERNS = [
   /,\s*(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}/i, // "Title, April 2026"
   /\bfor\s+under\s+\$\d+\b/i,                             // "Easter Dinner for Under $40"
   /\bat\s+(walmart|target|costco|aldi|kroger|trader\s+joe'?s|whole\s+foods|sam'?s\s+club)\b/i, // shopping-guide posts
+  /\b(aldi|costco|trader\s+joe'?s?|whole\s+foods)\b.{0,30}\b(shortcut|find|buy|haul|steal|deal|score|pick)\b/i, // "Aldi Dinner Shortcut"
+  /\bthis\s+\$\d+\s+\w+\s+(shortcut|find|buy|deal|score)\b/i, // "This $4 Aldi Dinner Shortcut"
+  /\bdinner\s+shortcut\b/i,                                    // generic dinner shortcut posts
   /\bfavorite\b.{0,25}\brecipes\b/i,                      // "My Favorite Easter Brunch Recipes…"
   /\bnotes\s+from\b/i,                                     // "Notes From An Estranged Sister"
   /^(is|are|was|were|did|do|does|have|has|can|will|should|would)\s/i, // yes/no question titles (never recipes)
