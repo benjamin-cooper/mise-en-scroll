@@ -328,10 +328,10 @@ function renderSearchSection() {
 
   const mobileCats = [
     { key: 'cuisine',  label: 'Cuisine',  filters: [...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)), active: state.cuisineFilters },
-    { key: 'protein',  label: 'Protein',  filters: FILTERS.protein,  active: state.proteinFilters },
-    { key: 'time',     label: 'Time',     filters: FILTERS.time,     active: state.timeFilters },
-    { key: 'meal',     label: 'Meal',     filters: FILTERS.meal,     active: state.mealFilters },
     { key: 'dietary',  label: 'Dietary',  filters: FILTERS.dietary,  active: state.dietaryFilters },
+    { key: 'protein',  label: 'Protein',  filters: FILTERS.protein,  active: state.proteinFilters },
+    { key: 'meal',     label: 'Meal',     filters: FILTERS.meal,     active: state.mealFilters },
+    { key: 'time',     label: 'Time',     filters: FILTERS.time,     active: state.timeFilters },
   ];
   const openCat = state.openFilterDropdown ? mobileCats.find(c => c.key === state.openFilterDropdown) : null;
 
@@ -363,19 +363,19 @@ function renderSearchSection() {
             `).join('')}
           </div>
           <div class="tag-group">
-            <span class="tag-label">Protein</span>
-            ${FILTERS.protein.map(f => `
-              <button class="tag-chip ${state.proteinFilters.includes(f.label) ? 'is-active' : ''}"
-                      data-action="protein" data-value="${f.label}">
+            <span class="tag-label">Dietary</span>
+            ${FILTERS.dietary.map(f => `
+              <button class="tag-chip ${state.dietaryFilters.includes(f.label) ? 'is-active' : ''}"
+                      data-action="dietary" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
             `).join('')}
           </div>
           <div class="tag-group">
-            <span class="tag-label">Time</span>
-            ${FILTERS.time.map(f => `
-              <button class="tag-chip ${state.timeFilters.includes(f.label) ? 'is-active' : ''}"
-                      data-action="time" data-value="${f.label}">
+            <span class="tag-label">Protein</span>
+            ${FILTERS.protein.map(f => `
+              <button class="tag-chip ${state.proteinFilters.includes(f.label) ? 'is-active' : ''}"
+                      data-action="protein" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
             `).join('')}
@@ -390,10 +390,10 @@ function renderSearchSection() {
             `).join('')}
           </div>
           <div class="tag-group">
-            <span class="tag-label">Dietary</span>
-            ${FILTERS.dietary.map(f => `
-              <button class="tag-chip ${state.dietaryFilters.includes(f.label) ? 'is-active' : ''}"
-                      data-action="dietary" data-value="${f.label}">
+            <span class="tag-label">Time</span>
+            ${FILTERS.time.map(f => `
+              <button class="tag-chip ${state.timeFilters.includes(f.label) ? 'is-active' : ''}"
+                      data-action="time" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
             `).join('')}

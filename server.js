@@ -144,6 +144,12 @@ const BLOGS = [
   // --- Plant-forward / Seasonal ---
   { name: 'The First Mess',        feed: 'https://thefirstmess.com/feed/',                  color: '#4a8a5a' },
   { name: 'Naturally Ella',        feed: 'https://naturallyella.com/feed/',                 color: '#5a9a3a' },
+  // --- Comfort Food / Sourdough ---
+  { name: 'Everyday Homemade',     feed: 'https://enwnutrition.com/feed/',                  color: '#b87333' },
+  // --- Drinks / Cocktails ---
+  { name: 'Punch',                 feed: 'https://punchdrink.com/feed/',                    color: '#313131' },
+  { name: 'Cocktail Contessa',     feed: 'https://www.cocktailcontessa.com/feed/',          color: '#186F85' },
+  { name: 'Alcademics',            feed: 'https://alcademics.com/feed/',                    color: '#558866' },
 ];
 
 function decodeHtml(str) {

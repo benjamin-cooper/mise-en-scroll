@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 89 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 93 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 89 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 93 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
 - **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
@@ -118,6 +118,18 @@ A recipe discovery app that aggregates the latest posts from 89 food blogs into 
 |------|
 | The First Mess |
 | Naturally Ella |
+
+### Comfort Food / Sourdough
+| Blog |
+|------|
+| Everyday Homemade |
+
+### Drinks / Cocktails
+| Blog |
+|------|
+| Punch |
+| Cocktail Contessa |
+| Alcademics |
 
 ### French / European
 | Blog |
