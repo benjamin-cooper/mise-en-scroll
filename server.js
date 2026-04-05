@@ -288,6 +288,10 @@ const ROUNDUP_PATTERNS = [
   /\bfavorite\b.{0,25}\brecipes\b/i,                      // "My Favorite Easter Brunch Recipes…"
   /\bnotes\s+from\b/i,                                     // "Notes From An Estranged Sister"
   /^(is|are|was|were|did|do|does|have|has|can|will|should|would)\s/i, // yes/no question titles (never recipes)
+  /\bnever\s+\w+.*\bagain\b/i,                             // "Never Buy Free-Range Eggs Again"
+  /\bwhy\s+(i|we)('(ll|ve|m|d|re)|m)?\s/i,                // "Why I'll Never…", "Why We Always…"
+  /\bthe\s+truth\s+about\b/i,                              // "The Truth About X" editorial posts
+  /\b(stop|quit|give\s+up)\s+(buying|ordering|eating|using|making)\b/i, // "Stop Buying X"
 ];
 
 function isRoundup(title = '', url = '') {
