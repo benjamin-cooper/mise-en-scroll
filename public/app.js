@@ -74,6 +74,7 @@ const state = {
   searchTotal: 0,
   searchLoading: false,
   searchNextStart: null,
+  searchError: null,
   ingredientMode: false, // true when searching by ingredients
   blogPickerOpen: false,
 };
@@ -166,6 +167,7 @@ async function triggerSearch(start = 1) {
     }
     state.searchMode = true;
     state.searchLoading = true;
+    state.searchError = null;
     if (start === 1) state.searchResults = [];
     renderApp();
     try {
@@ -176,6 +178,7 @@ async function triggerSearch(start = 1) {
       state.searchNextStart = data.nextStart;
     } catch (err) {
       console.error('Ingredient search failed:', err);
+      state.searchError = err.message || 'Ingredient search failed. Please try again.';
     } finally {
       state.searchLoading = false;
       renderApp();
@@ -194,6 +197,7 @@ async function triggerSearch(start = 1) {
 
   state.searchMode = true;
   state.searchLoading = true;
+  state.searchError = null;
   if (start === 1) state.searchResults = [];
   renderApp();
 
@@ -205,6 +209,7 @@ async function triggerSearch(start = 1) {
     state.searchNextStart = data.nextStart;
   } catch (err) {
     console.error('Search failed:', err);
+    state.searchError = err.message || 'Search failed. Please try again.';
   } finally {
     state.searchLoading = false;
     renderApp();
@@ -479,7 +484,7 @@ function renderContent() {
         <div class="container">
           <div class="empty">
             <div class="empty-icon">🔍</div>
-            <p>No recipes found. Try different filters or search terms.</p>
+            <p>${state.searchError ? escHtml(state.searchError) : 'No recipes found. Try different filters or search terms.'}</p>
             <button class="btn btn-secondary" data-action="clear-all-filters" style="margin-top:16px">Clear all filters</button>
           </div>
         </div>
