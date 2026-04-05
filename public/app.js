@@ -15,7 +15,7 @@ const FILTERS = {
     { label: 'African',       icon: '🌍', keywords: ['nigerian', 'ethiopian', 'jollof', 'egusi', 'suya', 'injera', 'berbere', 'peri peri', 'piri piri', 'west african', 'ghanaian', 'senegalese', 'akara', 'moi moi', 'ogbono', 'pepper soup', 'ofe'] },
     { label: 'American',      icon: '🍔', keywords: ['burger', 'bbq', 'mac and cheese', 'meatloaf', 'pot roast', 'biscuit', 'cornbread', 'chili', 'wings', 'ribs', 'coleslaw', 'pulled pork', 'sloppy', 'casserole', 'ranch', 'buffalo', 'mashed potato', 'gravy'] },
     { label: 'Caribbean',       icon: '🌴', keywords: ['caribbean', 'jamaican', 'trinidadian', 'haitian', 'cuban', 'puerto rican', 'jerk', 'plantain', 'rice and peas', 'callaloo', 'roti', 'curry goat', 'oxtail', 'ackee', 'saltfish', 'doubles'] },
-    { label: 'Eastern European', icon: '🥟', keywords: ['polish', 'czech', 'hungarian', 'ukrainian', 'romanian', 'russian', 'serbian', 'eastern european', 'pierogi', 'borscht', 'schnitzel', 'goulash', 'kielbasa', 'sauerkraut', 'stroganoff', 'cabbage roll', 'perogies'] },
+    { label: 'Eastern European', icon: '🥣', keywords: ['polish', 'czech', 'hungarian', 'ukrainian', 'romanian', 'russian', 'serbian', 'eastern european', 'pierogi', 'borscht', 'schnitzel', 'goulash', 'kielbasa', 'sauerkraut', 'stroganoff', 'cabbage roll', 'perogies'] },
   ],
   protein: [
     { label: 'Chicken',    icon: '🍗', keywords: ['chicken', 'poultry'] },
