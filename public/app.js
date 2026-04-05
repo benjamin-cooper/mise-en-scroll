@@ -14,6 +14,8 @@ const FILTERS = {
     { label: 'Filipino',      icon: '🍚', keywords: ['filipino', 'adobo', 'sinigang', 'kare-kare', 'lechon', 'pancit', 'lumpia', 'sisig', 'tinola', 'pinakbet', 'pinoy', 'kaldereta', 'mechado', 'menudo', 'afritada'] },
     { label: 'African',       icon: '🌍', keywords: ['nigerian', 'ethiopian', 'jollof', 'egusi', 'suya', 'injera', 'berbere', 'peri peri', 'piri piri', 'west african', 'ghanaian', 'senegalese', 'akara', 'moi moi', 'ogbono', 'pepper soup', 'ofe'] },
     { label: 'American',      icon: '🍔', keywords: ['burger', 'bbq', 'mac and cheese', 'meatloaf', 'pot roast', 'biscuit', 'cornbread', 'chili', 'wings', 'ribs', 'coleslaw', 'pulled pork', 'sloppy', 'casserole', 'ranch', 'buffalo', 'mashed potato', 'gravy'] },
+    { label: 'Caribbean',       icon: '🌴', keywords: ['caribbean', 'jamaican', 'trinidadian', 'haitian', 'cuban', 'puerto rican', 'jerk', 'plantain', 'rice and peas', 'callaloo', 'roti', 'curry goat', 'oxtail', 'ackee', 'saltfish', 'doubles'] },
+    { label: 'Eastern European', icon: '🥟', keywords: ['polish', 'czech', 'hungarian', 'ukrainian', 'romanian', 'russian', 'serbian', 'eastern european', 'pierogi', 'borscht', 'schnitzel', 'goulash', 'kielbasa', 'sauerkraut', 'stroganoff', 'cabbage roll', 'perogies'] },
   ],
   protein: [
     { label: 'Chicken',    icon: '🍗', keywords: ['chicken', 'poultry'] },
@@ -28,7 +30,14 @@ const FILTERS = {
     { label: 'Quick (≤30m)', icon: '⚡', keywords: ['quick', '15 minute', '15-minute', '20 minute', '20-minute', '30 minute', '30-minute', 'weeknight', 'speedy', 'fast ', 'in a hurry', 'easy weeknight'] },
     { label: '~1 Hour',      icon: '🕐', keywords: ['45 minute', '45-minute', 'one hour', 'one-hour', '60 minute', 'sheet pan', 'sheet-pan', 'one pan', 'one-pan', 'one pot', 'one-pot', 'skillet'] },
     { label: '2+ Hours',     icon: '⏳', keywords: ['2 hour', '2-hour', '3 hour', '3-hour', 'overnight', 'all day', 'sunday roast', 'all-day', 'long braise', 'low and slow', 'oven braised'] },
-    { label: 'Slow Cooker',  icon: '🫕', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
+  ],
+  method: [
+    { label: 'Air Fryer',   icon: '💨', keywords: ['air fryer', 'air-fryer', 'air fry', 'air fried'] },
+    { label: 'Baked',       icon: '🫓', keywords: ['baked', 'bake', 'roasted', 'oven-baked', 'sheet pan', 'sheet-pan'] },
+    { label: 'Grilled',     icon: '🔥', keywords: ['grilled', 'grill', 'grilling', 'bbq', 'barbecue', 'charred', 'smoked'] },
+    { label: 'Instant Pot', icon: '⚡', keywords: ['instant pot', 'pressure cooker', 'pressure cook', 'instant-pot'] },
+    { label: 'No-Cook',     icon: '🥗', keywords: ['no-cook', 'no cook', 'no-bake', 'no bake', 'raw', 'refrigerator', 'icebox'] },
+    { label: 'Slow Cooker', icon: '🫕', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
   ],
   meal: [
     { label: 'Breakfast',  icon: '🥞', keywords: ['breakfast', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'brunch', 'benedict', 'overnight oats', 'smoothie bowl', 'morning'] },
@@ -62,6 +71,7 @@ const state = {
   timeFilters: [],
   mealFilters: [],
   dietaryFilters: [],
+  methodFilters: [],
   selected: null,        // { url, preview }
   detail: null,          // full recipe from /api/recipe
   detailLoading: false,
@@ -113,6 +123,12 @@ function saveFav(data) {
 function removeFav(url) {
   localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => f.url !== url)));
 }
+let _favSet = new Set();
+function isFav(url) { return _favSet.has(url); }
+function refreshFavorites() {
+  state.favorites = loadFavs();
+  _favSet = new Set(state.favorites.map(f => f.url));
+}
 
 // --- Filter persistence (localStorage) ---
 const FILTERS_KEY = 'mise-en-scroll-filters';
@@ -121,6 +137,7 @@ function saveFilters() {
     localStorage.setItem(FILTERS_KEY, JSON.stringify({
       cuisine: state.cuisineFilters, protein: state.proteinFilters,
       time: state.timeFilters, meal: state.mealFilters, dietary: state.dietaryFilters,
+      method: state.methodFilters,
     }));
   } catch {}
 }
@@ -141,7 +158,6 @@ function loadSearchHistory() {
 }
 
 // --- Helpers ---
-function isFav(url)       { return state.favorites.some(f => f.url === url); }
 function formatDate(str)  { if (!str) return ''; return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function formatTimeAgo(ts) {
   if (!ts) return '';
@@ -179,6 +195,7 @@ function buildSearchQuery() {
     { vals: state.timeFilters,     group: 'time'     },
     { vals: state.mealFilters,     group: 'meal'     },
     { vals: state.dietaryFilters,  group: 'dietary'  },
+    { vals: state.methodFilters,   group: 'method'   },
   ];
   for (const { vals, group } of filterMap) {
     for (const val of vals) {
@@ -262,8 +279,16 @@ async function triggerSearch(start = 1) {
 }
 
 // --- Filter logic ---
+let _filterMemo = null;
 function applyFilters(recipes) {
-  return recipes.filter(r => {
+  const fp = [
+    state.filter || '', state.searchQuery,
+    state.cuisineFilters.join(), state.proteinFilters.join(),
+    state.timeFilters.join(), state.mealFilters.join(),
+    state.dietaryFilters.join(), state.methodFilters.join(),
+  ].join('|');
+  if (_filterMemo && _filterMemo.recipes === recipes && _filterMemo.fp === fp) return _filterMemo.result;
+  const result = recipes.filter(r => {
     const full = r.searchText || (r.title + ' ' + r.excerpt).toLowerCase();
 
     if (state.filter && r.blog !== state.filter) return false;
@@ -291,12 +316,18 @@ function applyFilters(recipes) {
       const kws = state.dietaryFilters.flatMap(label => FILTERS.dietary.find(f => f.label === label)?.keywords || []);
       if (!kws.some(kw => full.includes(kw))) return false;
     }
+    if (state.methodFilters.length) {
+      const kws = state.methodFilters.flatMap(label => FILTERS.method.find(f => f.label === label)?.keywords || []);
+      if (!kws.some(kw => full.includes(kw))) return false;
+    }
     return true;
   });
+  _filterMemo = { recipes, fp, result };
+  return result;
 }
 
 function hasActiveFilters() {
-  return !!(state.searchQuery || state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.filter);
+  return !!(state.searchQuery || state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.methodFilters.length || state.filter);
 }
 
 // --- Render ---
@@ -428,6 +459,7 @@ function renderSearchSection() {
     { key: 'dietary',  label: 'Dietary',  filters: FILTERS.dietary,  active: state.dietaryFilters },
     { key: 'protein',  label: 'Protein',  filters: FILTERS.protein,  active: state.proteinFilters },
     { key: 'time',     label: 'Time',     filters: FILTERS.time,     active: state.timeFilters },
+    { key: 'method',   label: 'Method',   filters: FILTERS.method,   active: state.methodFilters },
   ];
   const openCat = state.openFilterDropdown ? mobileCats.find(c => c.key === state.openFilterDropdown) : null;
 
@@ -509,6 +541,15 @@ function renderSearchSection() {
             ${FILTERS.time.map(f => `
               <button class="tag-chip ${state.timeFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="time" data-value="${f.label}">
+                ${f.icon} ${f.label}
+              </button>
+            `).join('')}
+          </div>
+          <div class="tag-group">
+            <span class="tag-label">Method</span>
+            ${FILTERS.method.map(f => `
+              <button class="tag-chip ${state.methodFilters.includes(f.label) ? 'is-active' : ''}"
+                      data-action="method" data-value="${f.label}">
                 ${f.icon} ${f.label}
               </button>
             `).join('')}
@@ -816,7 +857,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  const filterStateKey = { cuisine: 'cuisineFilters', protein: 'proteinFilters', time: 'timeFilters', meal: 'mealFilters', dietary: 'dietaryFilters' }[action];
+  const filterStateKey = { cuisine: 'cuisineFilters', protein: 'proteinFilters', time: 'timeFilters', meal: 'mealFilters', dietary: 'dietaryFilters', method: 'methodFilters' }[action];
   if (filterStateKey) {
     const v = el.dataset.value;
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
@@ -887,6 +928,7 @@ document.addEventListener('click', async (e) => {
     state.timeFilters = [];
     state.mealFilters = [];
     state.dietaryFilters = [];
+    state.methodFilters = [];
     state.discoverRenderLimit = 60;
     saveFilters();
     triggerSearch();
@@ -900,6 +942,7 @@ document.addEventListener('click', async (e) => {
     state.timeFilters = [];
     state.mealFilters = [];
     state.dietaryFilters = [];
+    state.methodFilters = [];
     state.filter = null;
     state.searchMode = false;
     state.searchResults = [];
@@ -920,7 +963,7 @@ document.addEventListener('click', async (e) => {
       const r = pool.find(r => r.url === url);
       if (r) saveFav({ url: r.url, title: r.title, image: r.image, blog: r.blog, blogColor: r.blogColor, date: r.date, excerpt: r.excerpt });
     }
-    state.favorites = loadFavs();
+    refreshFavorites();
     if (state.view === 'favorites') renderApp();
     else refreshDiscoverContent();
     return;
@@ -964,14 +1007,14 @@ document.addEventListener('click', async (e) => {
       date: p.date,
       excerpt: p.excerpt || '',
     });
-    state.favorites = loadFavs();
+    refreshFavorites();
     renderApp();
   }
 
   if (action === 'unsave') {
     if (!state.selected) return;
     removeFav(state.selected.url);
-    state.favorites = loadFavs();
+    refreshFavorites();
     renderApp();
   }
 });
@@ -986,7 +1029,7 @@ document.addEventListener('input', (e) => {
   if (input) { input.focus(); input.setSelectionRange(cursor, cursor); }
 
   clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => triggerSearch(), 600);
+  searchDebounceTimer = setTimeout(() => triggerSearch(), 400);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -1029,7 +1072,7 @@ function refreshDiscoverContent() {
 
 // --- Init ---
 async function init() {
-  state.favorites = loadFavs();
+  refreshFavorites();
   state.recentSearches = loadSearchHistory();
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
@@ -1038,6 +1081,7 @@ async function init() {
     state.timeFilters    = savedFilters.time     || [];
     state.mealFilters    = savedFilters.meal     || [];
     state.dietaryFilters = savedFilters.dietary  || [];
+    state.methodFilters  = savedFilters.method   || [];
   }
   BLOGS = await api.blogs();
   renderApp();
