@@ -77,13 +77,15 @@ const state = {
   searchError: null,
   ingredientMode: false, // true when searching by ingredients
   blogPickerOpen: false,
+  feedLastLoaded: null,
+  feedRefreshing: false,
 };
 
 // --- API ---
 const api = {
   blogs:     ()         => fetch('/api/blogs').then(r => r.json()),
-  recipesStream: (onBatch) => new Promise((resolve) => {
-    const es = new EventSource('/api/recipes/stream');
+  recipesStream: (onBatch, fresh = false) => new Promise((resolve) => {
+    const es = new EventSource(`/api/recipes/stream${fresh ? '?fresh=1' : ''}`);
     es.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'batch') onBatch(msg.recipes);
@@ -113,6 +115,15 @@ function removeFav(url) {
 // --- Helpers ---
 function isFav(url)       { return state.favorites.some(f => f.url === url); }
 function formatDate(str)  { if (!str) return ''; return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function formatTimeAgo(ts) {
+  if (!ts) return '';
+  const sec = Math.round((Date.now() - ts) / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  return `${hr}h ago`;
+}
 function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -391,9 +402,10 @@ function renderSearchSection() {
           <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
                   data-action="toggle-ingredient-mode"
                   title="${state.ingredientMode ? 'Switch to keyword search' : 'Search by ingredients you have'}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
             </svg>
+            <span>${state.ingredientMode ? 'By ingredients' : 'By ingredients'}</span>
           </button>
         </div>
 
@@ -469,6 +481,13 @@ function renderSearchSection() {
 
         ${anyActive ? `<button class="clear-tags" data-action="clear-smart-filters">Clear filters</button>` : ''}
       </div>
+      ${state.ingredientMode ? `
+        <div class="ingredient-banner">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/></svg>
+          <span>Ingredient mode — enter what's in your fridge, e.g. <em>chicken, lemon, garlic</em></span>
+          <button class="ingredient-banner-close" data-action="toggle-ingredient-mode">✕</button>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -535,6 +554,15 @@ function renderContent() {
 
   return `
     <div class="container">
+      ${!state.loading ? `
+        <div class="feed-meta-bar">
+          <span class="feed-updated">${state.feedLastLoaded ? `Updated ${formatTimeAgo(state.feedLastLoaded)}` : ''}</span>
+          <button class="feed-refresh-btn ${state.feedRefreshing ? 'is-loading' : ''}" data-action="refresh-feed" ${state.feedRefreshing ? 'disabled' : ''}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            ${state.feedRefreshing ? 'Refreshing…' : 'Refresh feed'}
+          </button>
+        </div>
+      ` : ''}
       <div id="discover-content">
         ${countNote}
         <div class="grid">
@@ -726,6 +754,28 @@ document.addEventListener('click', async (e) => {
     }
   }
 
+  if (action === 'refresh-feed') {
+    if (state.feedRefreshing) return;
+    state.recipes = [];
+    state.loading = true;
+    state.feedRefreshing = true;
+    state.feedLastLoaded = null;
+    renderApp();
+    await api.recipesStream((batch) => {
+      state.recipes = [...state.recipes, ...batch].sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (state.loading) {
+        state.loading = false;
+        if (!state.searchMode && !state.selected) renderApp();
+      } else if (!state.searchMode && !state.selected) {
+        refreshDiscoverContent();
+      }
+    }, true);
+    state.feedRefreshing = false;
+    state.feedLastLoaded = Date.now();
+    if (!state.searchMode && !state.selected) renderApp();
+    return;
+  }
+
   if (action === 'toggle-ingredient-mode') {
     state.ingredientMode = !state.ingredientMode;
     state.searchQuery = '';
@@ -879,8 +929,7 @@ async function init() {
       refreshDiscoverContent();
     }
   });
-
-  state.loading = false;
+  state.feedLastLoaded = Date.now();
   if (!state.searchMode && !state.selected) renderApp();
 }
 

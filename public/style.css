@@ -632,15 +632,18 @@ ul, ol { padding-left: 1.25rem; }
 }
 .ingredient-toggle {
   flex-shrink: 0;
-  width: 40px;
   height: 40px;
+  padding: 0 12px;
+  gap: 6px;
   border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--bg);
   color: var(--muted);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
   transition: border-color var(--transition), color var(--transition), background var(--transition);
 }
 .ingredient-toggle:hover {
@@ -659,6 +662,33 @@ ul, ol { padding-left: 1.25rem; }
 .search-input.ingredient-mode:focus {
   box-shadow: 0 0 0 3px rgba(199, 91, 46, 0.15);
 }
+
+/* === Ingredient mode banner === */
+.ingredient-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--accent-light);
+  border: 1px solid rgba(199, 91, 46, 0.2);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  margin-top: 10px;
+}
+.ingredient-banner svg { flex-shrink: 0; opacity: 0.7; }
+.ingredient-banner span { flex: 1; }
+.ingredient-banner em { font-style: italic; opacity: 0.8; }
+.ingredient-banner-close {
+  font-size: 0.75rem;
+  color: var(--accent);
+  opacity: 0.6;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity var(--transition);
+}
+.ingredient-banner-close:hover { opacity: 1; }
+
 .search-clear {
   position: absolute;
   right: 8px;
@@ -738,6 +768,39 @@ ul, ol { padding-left: 1.25rem; }
   font-size: 0.8125rem;
   color: var(--muted);
   margin-bottom: 16px;
+}
+
+/* === Feed meta bar === */
+.feed-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.feed-updated {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.feed-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  transition: all var(--transition);
+}
+.feed-refresh-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text);
+}
+.feed-refresh-btn.is-loading {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* === Load more === */
