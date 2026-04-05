@@ -3,6 +3,7 @@ const express = require('express');
 const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const path = require('path');
+const fs = require('fs');
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
@@ -19,6 +20,23 @@ const parser = new RSSParser({
 });
 
 app.use(express.json());
+
+// Serve sw.js with an injected cache version derived from asset mtimes.
+// No-cache header ensures browsers always fetch the latest version,
+// and the CACHE constant inside the SW changes whenever assets change.
+app.get('/sw.js', (req, res) => {
+  const swPath = path.join(__dirname, 'public', 'sw.js');
+  const assets = ['app.js', 'style.css'].map(f => path.join(__dirname, 'public', f));
+  const version = assets.reduce((acc, f) => {
+    try { return acc + fs.statSync(f).mtimeMs; } catch { return acc; }
+  }, 0).toString(36);
+  let src = fs.readFileSync(swPath, 'utf8');
+  src = src.replace('mise-en-scroll-v1', `mise-en-scroll-${version}`);
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(src);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const BLOGS = [
@@ -237,6 +255,10 @@ const ROUNDUP_PATTERNS = [
   /\b(cooking|recipe|baking|meal)\s+challenge\b/i,        // "April Cooking Challenge"
   /\bgiveaway\b/i,                                         // giveaway posts
   /\b(cook|make)\s+and\s+review\b/i,                      // "Cook and Review This"
+  /\balmanac\b/i,                                          // "The Bakehouse Almanac, April 2026"
+  /,\s*(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}/i, // "Title, April 2026"
+  /\bfor\s+under\s+\$\d+\b/i,                             // "Easter Dinner for Under $40"
+  /\bat\s+(walmart|target|costco|aldi|kroger|trader\s+joe'?s|whole\s+foods|sam'?s\s+club)\b/i, // shopping-guide posts
 ];
 
 function isRoundup(title = '', url = '') {

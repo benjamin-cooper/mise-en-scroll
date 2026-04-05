@@ -33,19 +33,18 @@ A recipe discovery app that aggregates the latest posts from 89 food blogs into 
 | The Cozy Cook | Jo Cooks |
 | Feasting at Home | Plays Well With Butter |
 | Wholesome Yum | Carlsbad Cravings |
-| Host the Toast | The Mediterranean Dish |
-| Dishing Out Health | The Food Charlatan |
-| Foxes Love Lemons | RecipeTin Eats |
-| How Sweet Eats | A Couple Cooks |
-| Love and Lemons | Cooking Classy |
-| Tastes Better From Scratch | The Stay At Home Chef |
-| Dinner at the Zoo | Kevin Is Cooking |
-| Little Spice Jar | Creme de la Crumb |
-| Fifteen Spatulas | Downshiftology |
-| The Defined Dish | Sam the Cooking Guy |
-| Justine Snacks | Alexandra Cooks |
-| Averie Cooks | Inspired Taste |
-| Sweet Peas and Saffron | Joy the Baker |
+| The Mediterranean Dish | Dishing Out Health |
+| The Food Charlatan | Foxes Love Lemons |
+| RecipeTin Eats | How Sweet Eats |
+| A Couple Cooks | Love and Lemons |
+| Cooking Classy | Tastes Better From Scratch |
+| The Stay At Home Chef | Dinner at the Zoo |
+| Kevin Is Cooking | Little Spice Jar |
+| Creme de la Crumb | Fifteen Spatulas |
+| Downshiftology | The Defined Dish |
+| Sam the Cooking Guy | Justine Snacks |
+| Alexandra Cooks | Averie Cooks |
+| Inspired Taste | Sweet Peas and Saffron |
 
 ### Asian
 | Blog | Cuisine Focus |
@@ -154,7 +153,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant
 - **Frontend** — vanilla JS, no framework
 - **Favorites** — stored in `localStorage` (browser-local, private per device)
-- **PWA** — `manifest.json` + SVG icon; installable on iOS/Android via Add to Home Screen
+- **PWA** — `manifest.json` + PNG icons (192×192, 512×512) + service worker with auto-versioned cache; installable on iOS/Android via Add to Home Screen
 
 ## Setup
 
