@@ -79,6 +79,8 @@ const state = {
   blogPickerOpen: false,
   feedLastLoaded: null,
   feedRefreshing: false,
+  discoverRenderLimit: 60, // virtualized card window
+  recentSearches: [],
 };
 
 // --- API ---
@@ -110,6 +112,32 @@ function saveFav(data) {
 }
 function removeFav(url) {
   localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => f.url !== url)));
+}
+
+// --- Filter persistence (localStorage) ---
+const FILTERS_KEY = 'mise-en-scroll-filters';
+function saveFilters() {
+  try {
+    localStorage.setItem(FILTERS_KEY, JSON.stringify({
+      cuisine: state.cuisineFilters, protein: state.proteinFilters,
+      time: state.timeFilters, meal: state.mealFilters, dietary: state.dietaryFilters,
+    }));
+  } catch {}
+}
+function loadSavedFilters() {
+  try { return JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null'); } catch { return null; }
+}
+
+// --- Search history (localStorage) ---
+const SEARCHES_KEY = 'mise-en-scroll-searches';
+function saveSearchToHistory(q) {
+  if (!q?.trim()) return;
+  const updated = [q.trim(), ...state.recentSearches.filter(s => s !== q.trim())].slice(0, 5);
+  state.recentSearches = updated;
+  try { localStorage.setItem(SEARCHES_KEY, JSON.stringify(updated)); } catch {}
+}
+function loadSearchHistory() {
+  try { return JSON.parse(localStorage.getItem(SEARCHES_KEY) || '[]'); } catch { return []; }
 }
 
 // --- Helpers ---
@@ -166,6 +194,7 @@ let searchDebounceTimer = null;
 let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
+let _discoverScrollObserver = null;
 async function triggerSearch(start = 1) {
   // In saved view, never hit the API — just re-render with local filtering
   if (state.view === 'favorites') { renderApp(); return; }
@@ -179,6 +208,7 @@ async function triggerSearch(start = 1) {
       renderApp();
       return;
     }
+    if (start === 1) saveSearchToHistory(ingredients);
     state.searchMode = true;
     state.searchLoading = true;
     state.searchError = null;
@@ -209,6 +239,7 @@ async function triggerSearch(start = 1) {
     return;
   }
 
+  if (start === 1 && state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
   state.searchMode = true;
   state.searchLoading = true;
   state.searchError = null;
@@ -309,14 +340,28 @@ function renderApp() {
 
 function setupInfiniteScroll() {
   if (_infiniteScrollObserver) { _infiniteScrollObserver.disconnect(); _infiniteScrollObserver = null; }
-  const sentinel = document.getElementById('infinite-scroll-sentinel');
-  if (!sentinel) return;
-  _infiniteScrollObserver = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && state.searchNextStart && !state.searchLoading) {
-      triggerSearch(state.searchNextStart);
-    }
-  }, { rootMargin: '300px' });
-  _infiniteScrollObserver.observe(sentinel);
+  if (_discoverScrollObserver) { _discoverScrollObserver.disconnect(); _discoverScrollObserver = null; }
+
+  const apiSentinel = document.getElementById('infinite-scroll-sentinel');
+  if (apiSentinel) {
+    _infiniteScrollObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && state.searchNextStart && !state.searchLoading) {
+        triggerSearch(state.searchNextStart);
+      }
+    }, { rootMargin: '300px' });
+    _infiniteScrollObserver.observe(apiSentinel);
+  }
+
+  const discoverSentinel = document.getElementById('discover-scroll-sentinel');
+  if (discoverSentinel) {
+    _discoverScrollObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        state.discoverRenderLimit += 30;
+        refreshDiscoverContent();
+      }
+    }, { rootMargin: '400px' });
+    _discoverScrollObserver.observe(discoverSentinel);
+  }
 }
 
 function renderHeader() {
@@ -412,6 +457,14 @@ function renderSearchSection() {
             <span>By ingredients</span>
           </button>` : ''}
         </div>
+
+        ${state.recentSearches.length && !state.searchQuery && !state.ingredientMode && state.view !== 'favorites' ? `
+          <div class="recent-searches">
+            <span class="recent-searches-label">Recent</span>
+            ${state.recentSearches.map(s => `<button class="recent-search-chip" data-action="recent-search" data-query="${escHtml(s)}">${escHtml(s)}</button>`).join('')}
+            <button class="recent-searches-clear" data-action="clear-search-history" aria-label="Clear history">Clear</button>
+          </div>
+        ` : ''}
 
         <!-- Desktop chip rows -->
         <div class="tag-filters desktop-filters">
@@ -550,7 +603,11 @@ function renderContent() {
     `;
   }
 
-  const count = recipes.length;
+  const allFiltered = recipes; // already filtered above
+  const visible = allFiltered.slice(0, state.discoverRenderLimit);
+  const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
+
+  const count = allFiltered.length;
   const total = base.length;
   const countNote = hasActiveFilters() && count < total
     ? `<p class="result-count">Showing ${count} of ${total} recent recipes</p>`
@@ -570,8 +627,9 @@ function renderContent() {
       <div id="discover-content">
         ${countNote}
         <div class="grid">
-          ${recipes.map(renderCard).join('')}
+          ${visible.map(renderCard).join('')}
         </div>
+        ${hasMoreCards ? `<div id="discover-scroll-sentinel"></div>` : ''}
       </div>
     </div>
   `;
@@ -719,6 +777,9 @@ document.addEventListener('click', async (e) => {
     state.view = el.dataset.view;
     state.selected = null;
     state.detail = null;
+    state.ingredientMode = false;
+    state.discoverRenderLimit = 60;
+    clearTimeout(searchDebounceTimer);
     renderApp();
   }
 
@@ -741,11 +802,27 @@ document.addEventListener('click', async (e) => {
     renderApp();
   }
 
+  if (action === 'recent-search') {
+    state.searchQuery = el.dataset.query;
+    state.discoverRenderLimit = 60;
+    triggerSearch();
+    return;
+  }
+
+  if (action === 'clear-search-history') {
+    state.recentSearches = [];
+    try { localStorage.removeItem(SEARCHES_KEY); } catch {}
+    renderApp();
+    return;
+  }
+
   const filterStateKey = { cuisine: 'cuisineFilters', protein: 'proteinFilters', time: 'timeFilters', meal: 'mealFilters', dietary: 'dietaryFilters' }[action];
   if (filterStateKey) {
     const v = el.dataset.value;
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
     if (state.ingredientMode) { state.ingredientMode = false; state.searchQuery = ''; }
+    state.discoverRenderLimit = 60;
+    saveFilters();
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
   }
@@ -810,6 +887,8 @@ document.addEventListener('click', async (e) => {
     state.timeFilters = [];
     state.mealFilters = [];
     state.dietaryFilters = [];
+    state.discoverRenderLimit = 60;
+    saveFilters();
     triggerSearch();
   }
 
@@ -827,6 +906,8 @@ document.addEventListener('click', async (e) => {
     state.searchTotal = 0;
     state.searchNextStart = null;
     state.searchError = null;
+    state.discoverRenderLimit = 60;
+    saveFilters();
     renderApp();
   }
 
@@ -936,15 +1017,27 @@ function refreshDiscoverContent() {
   const el = document.getElementById('discover-content');
   if (!el) return;
   const base = state.recipes;
-  const recipes = applyFilters(base);
-  const countNote = hasActiveFilters() && recipes.length < base.length
-    ? `<p class="result-count">Showing ${recipes.length} of ${base.length} recent recipes</p>` : '';
-  el.innerHTML = `${countNote}<div class="grid">${recipes.map(renderCard).join('')}</div>`;
+  const allFiltered = applyFilters(base);
+  const visible = allFiltered.slice(0, state.discoverRenderLimit);
+  const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
+  const countNote = hasActiveFilters() && allFiltered.length < base.length
+    ? `<p class="result-count">Showing ${allFiltered.length} of ${base.length} recent recipes</p>` : '';
+  el.innerHTML = `${countNote}<div class="grid">${visible.map(renderCard).join('')}</div>${hasMoreCards ? '<div id="discover-scroll-sentinel"></div>' : ''}`;
+  setupInfiniteScroll();
 }
 
 // --- Init ---
 async function init() {
   state.favorites = loadFavs();
+  state.recentSearches = loadSearchHistory();
+  const savedFilters = loadSavedFilters();
+  if (savedFilters) {
+    state.cuisineFilters = savedFilters.cuisine  || [];
+    state.proteinFilters = savedFilters.protein  || [];
+    state.timeFilters    = savedFilters.time     || [];
+    state.mealFilters    = savedFilters.meal     || [];
+    state.dietaryFilters = savedFilters.dietary  || [];
+  }
   BLOGS = await api.blogs();
   renderApp();
 

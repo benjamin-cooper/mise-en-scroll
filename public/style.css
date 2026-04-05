@@ -802,15 +802,54 @@ ul, ol { padding-left: 1.25rem; }
   cursor: not-allowed;
 }
 
-/* === Load more === */
+/* === Load more spinner === */
 .load-more-wrap {
   display: flex;
   justify-content: center;
   margin-top: 32px;
 }
-.load-more {
-  min-width: 160px;
+
+/* === Recent searches === */
+.recent-searches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 0 2px;
 }
+.recent-searches-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.recent-search-chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.recent-search-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.recent-searches-clear {
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 3px 6px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity var(--transition);
+  margin-left: 2px;
+}
+.recent-searches-clear:hover { opacity: 1; }
 
 /* === Toast === */
 .toast {
