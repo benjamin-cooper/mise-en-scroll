@@ -962,6 +962,7 @@ document.addEventListener('click', async (e) => {
       blog: p.blog,
       blogColor: p.blogColor,
       date: p.date,
+      excerpt: p.excerpt || '',
     });
     state.favorites = loadFavs();
     renderApp();
