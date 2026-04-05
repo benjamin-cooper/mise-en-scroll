@@ -52,6 +52,14 @@ app.get('/sw.js', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/api/status', (req, res) => {
+  res.json({
+    serper: !!process.env.SERPER_API_KEY,
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    anthropicLength: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.trim().length : 0,
+  });
+});
+
 const BLOGS = [
   // --- General / American ---
   { name: 'Half Baked Harvest',    feed: 'https://www.halfbakedharvest.com/feed/',        color: '#b8620a' },
