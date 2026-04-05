@@ -75,6 +75,7 @@ const state = {
   searchLoading: false,
   searchNextStart: null,
   ingredientMode: false, // true when searching by ingredients
+  blogPickerOpen: false,
 };
 
 // --- API ---
@@ -337,7 +338,7 @@ function renderBlogPicker() {
         ${active ? escHtml(active) : 'All Blogs'}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="margin-left:2px;opacity:.6"><path d="M2 3.5l3 3 3-3"/></svg>
       </button>
-      <div class="blog-picker-dropdown" id="blog-picker-dropdown" hidden>
+      <div class="blog-picker-dropdown" id="blog-picker-dropdown" ${state.blogPickerOpen ? '' : 'hidden'}>
         <button class="blog-picker-item ${!active ? 'is-active' : ''}" data-action="filter" data-blog="">All Blogs</button>
         <div class="blog-picker-divider"></div>
         ${sorted.map(b => `
@@ -529,9 +530,11 @@ function renderContent() {
 
   return `
     <div class="container">
-      ${countNote}
-      <div class="grid">
-        ${recipes.map(renderCard).join('')}
+      <div id="discover-content">
+        ${countNote}
+        <div class="grid">
+          ${recipes.map(renderCard).join('')}
+        </div>
       </div>
     </div>
   `;
@@ -659,9 +662,8 @@ document.addEventListener('click', async (e) => {
   }
 
   // Close blog picker if clicking outside
-  const picker = document.getElementById('blog-picker-dropdown');
-  if (picker && !picker.hidden && !e.target.closest('.blog-picker-wrap')) {
-    picker.hidden = true;
+  if (state.blogPickerOpen && !e.target.closest('.blog-picker-wrap')) {
+    state.blogPickerOpen = false;
   }
 
   // Close mobile filter panel if clicking outside
@@ -681,8 +683,8 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'blog-picker-toggle') {
-    const dropdown = document.getElementById('blog-picker-dropdown');
-    if (dropdown) dropdown.hidden = !dropdown.hidden;
+    state.blogPickerOpen = !state.blogPickerOpen;
+    renderApp();
     return;
   }
 
@@ -695,8 +697,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'filter') {
     state.filter = el.dataset.blog || null;
-    const dropdown = document.getElementById('blog-picker-dropdown');
-    if (dropdown) dropdown.hidden = true;
+    state.blogPickerOpen = false;
     renderApp();
   }
 
@@ -842,20 +843,36 @@ function closeDrawer() {
   renderApp();
 }
 
+// Lightweight update — only re-renders the card grid, leaving the rest of the
+// page (header, search bar, filters, blog picker) completely untouched.
+function refreshDiscoverContent() {
+  const el = document.getElementById('discover-content');
+  if (!el) return;
+  const base = state.recipes;
+  const recipes = applyFilters(base);
+  const countNote = hasActiveFilters() && recipes.length < base.length
+    ? `<p class="result-count">Showing ${recipes.length} of ${base.length} recent recipes</p>` : '';
+  el.innerHTML = `${countNote}<div class="grid">${recipes.map(renderCard).join('')}</div>`;
+}
+
 // --- Init ---
 async function init() {
   state.favorites = loadFavs();
   BLOGS = await api.blogs();
   renderApp();
 
-  // Stream recipes in as each blog loads — renders progressively
+  // Stream recipes in as each blog loads — renders progressively.
+  // First batch does a full renderApp() to paint the shell; subsequent batches
+  // only update the card grid so the blog picker and filters stay untouched.
   await api.recipesStream((batch) => {
     state.recipes = [...state.recipes, ...batch]
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (state.loading) {
       state.loading = false;
+      if (!state.searchMode && !state.selected) renderApp();
+    } else if (!state.searchMode && !state.selected) {
+      refreshDiscoverContent();
     }
-    if (!state.searchMode && !state.selected) renderApp();
   });
 
   state.loading = false;
