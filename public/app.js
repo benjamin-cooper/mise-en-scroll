@@ -704,6 +704,7 @@ document.addEventListener('click', async (e) => {
   if (filterStateKey) {
     const v = el.dataset.value;
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
+    if (state.ingredientMode) { state.ingredientMode = false; state.searchQuery = ''; }
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
   }
