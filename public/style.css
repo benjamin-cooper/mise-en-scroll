@@ -341,7 +341,7 @@ ul, ol { padding-left: 1.25rem; }
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 300;
   background: rgba(28, 25, 23, 0);
   pointer-events: none;
   transition: background 250ms ease;
