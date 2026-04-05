@@ -778,7 +778,8 @@ document.addEventListener('click', async (e) => {
       }
     }, true);
     state.feedRefreshing = false;
-    state.feedLastLoaded = Date.now();
+    state.loading = false; // ensure skeletons don't spin forever if stream errored
+    if (state.recipes.length) state.feedLastLoaded = Date.now();
     if (!state.searchMode && !state.selected) renderApp();
     return;
   }
