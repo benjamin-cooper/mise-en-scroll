@@ -4,8 +4,10 @@ const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const app = express();
 const parser = new RSSParser({
@@ -106,7 +108,6 @@ const BLOGS = [
   // --- Asian (continued) ---
   { name: 'My Korean Kitchen',     feed: 'https://mykoreankitchen.com/feed/',               color: '#c0300a' },
   { name: 'Pickled Plum',          feed: 'https://pickledplum.com/feed/',                   color: '#8e44ad' },
-  { name: 'Viet World Kitchen',    feed: 'https://www.vietworldkitchen.com/blog/atom.xml',  color: '#27ae60' },
   // --- Indian ---
   { name: 'Veg Recipes of India',  feed: 'https://www.vegrecipesofindia.com/feed/',         color: '#f39c12' },
   { name: 'Spice Up the Curry',    feed: 'https://www.spiceupthecurry.com/feed/',           color: '#e74c3c' },
@@ -115,8 +116,6 @@ const BLOGS = [
   { name: "Hebbars Kitchen",       feed: 'https://hebbarskitchen.com/feed/',                color: '#c0392b' },
   { name: 'Spice Cravings',        feed: 'https://spicecravings.com/feed/',                 color: '#e67e22' },
   // --- Greek / Mediterranean ---
-  { name: 'My Greek Dish',         feed: 'https://mygreekdish.com/feed/',                   color: '#2980b9' },
-  { name: 'Souvlaki For The Soul', feed: 'https://souvlakiforthesoul.com/feed/',            color: '#27ae60' },
   { name: "Dimitra's Dishes",      feed: 'https://www.dimitrasdishes.com/feed/',            color: '#1a6b9a' },
   // --- Mexican / Latin ---
   { name: 'Mexico in My Kitchen',  feed: 'https://www.mexicoinmykitchen.com/feed/',         color: '#27ae60' },
@@ -164,7 +163,6 @@ const BLOGS = [
   { name: "Valentina's Corner",    feed: 'https://valentinascorner.com/feed/',              color: '#7b1fa2' },
   { name: 'Eating European',       feed: 'https://eatingeuropean.com/feed/',                color: '#e65100' },
   // --- Nordic / Scandinavian ---
-  { name: 'Nordic Food & Living',  feed: 'https://nordicfoodliving.com/feed/',              color: '#37474f' },
   { name: 'Nordic Kitchen Stories',feed: 'https://www.nordickitchenstories.co.uk/feed/',    color: '#558b2f' },
   // --- General (large) ---
   { name: 'The Kitchn',            feed: 'https://feeds.feedburner.com/thekitchn',          color: '#e53935' },
@@ -517,13 +515,8 @@ app.get('/api/recipe', async (req, res) => {
   }
 });
 
-// Serper.dev search — searches across all blogs
-app.get('/api/search', async (req, res) => {
-  const { q, page = 1 } = req.query;
-  if (!q) return res.status(400).json({ error: 'q is required' });
-  if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
-
-  // Split domains into chunks of 40 to stay within Serper's query length limit
+// Shared Serper search helper — used by both /api/search and /api/ingredient-search
+async function runSerperSearch(q, page) {
   const domains = BLOGS.map(b => {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
@@ -532,80 +525,103 @@ app.get('/api/search', async (req, res) => {
   const chunks = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
 
-  try {
-    // Fire all chunks in parallel — each chunk uses 1 Serper credit
-    const responses = await Promise.all(chunks.map(chunk => {
-      const siteQuery = chunk.map(d => `site:${d}`).join(' OR ');
-      return fetch('https://google.serper.dev/search', {
-        method: 'POST',
-        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: `${q} (${siteQuery})`, num: 10, page: parseInt(page) }),
-        signal: AbortSignal.timeout(10000),
-      }).then(r => r.json()).catch(() => ({}));
+  const responses = await Promise.all(chunks.map(chunk => {
+    const siteQuery = chunk.map(d => `site:${d}`).join(' OR ');
+    return fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: `${q} (${siteQuery})`, num: 10, page: parseInt(page) }),
+      signal: AbortSignal.timeout(10000),
+    }).then(r => r.json()).catch(() => ({}));
+  }));
+
+  const seen = new Set();
+  const allOrganic = [];
+  let totalResults = 0;
+  for (const data of responses) {
+    if (data.error) continue;
+    const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
+    totalResults += t;
+    for (const item of (data.organic || [])) {
+      if (!seen.has(item.link)) { seen.add(item.link); allOrganic.push(item); }
+    }
+  }
+
+  const cacheImageMap = new Map();
+  for (const { recipes } of feedCache.values()) {
+    for (const r of recipes) {
+      if (r.url && r.image) cacheImageMap.set(r.url, r.image);
+    }
+  }
+
+  const results = allOrganic.filter(item => !isRoundup(item.title, item.link)).map(item => {
+    const blog = BLOGS.find(b => {
+      const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+      return item.link.includes(domain);
+    });
+    return {
+      id: Buffer.from(item.link).toString('base64'),
+      title: item.title,
+      url: item.link,
+      image: cacheImageMap.get(item.link) || null,
+      blog: blog?.name || item.displayLink || item.link,
+      blogColor: blog?.color || '#888',
+      excerpt: item.snippet,
+      date: null,
+      searchText: (item.title + ' ' + item.snippet).toLowerCase(),
+      categories: [],
+    };
+  });
+
+  const missing = results.filter(r => !r.image);
+  if (missing.length) {
+    await Promise.allSettled(missing.map(async (r) => {
+      try {
+        const pageRes = await fetch(r.url, {
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
+          signal: AbortSignal.timeout(5000),
+        });
+        const html = await pageRes.text();
+        const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
+                  html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
+        if (m?.[1]) r.image = m[1];
+      } catch {}
     }));
+  }
 
-    // Merge results from all chunks, deduplicate by URL
-    const seen = new Set();
-    const allOrganic = [];
-    let totalResults = 0;
-    for (const data of responses) {
-      if (data.error) continue;
-      const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
-      totalResults += t;
-      for (const item of (data.organic || [])) {
-        if (!seen.has(item.link)) { seen.add(item.link); allOrganic.push(item); }
-      }
-    }
+  return { results, totalResults: totalResults || results.length, nextStart: allOrganic.length > 0 ? parseInt(page) + 1 : null };
+}
 
-    // Build URL→image lookup from RSS cache (free, instant)
-    const cacheImageMap = new Map();
-    for (const { recipes } of feedCache.values()) {
-      for (const r of recipes) {
-        if (r.url && r.image) cacheImageMap.set(r.url, r.image);
-      }
-    }
+// Serper.dev keyword search
+app.get('/api/search', async (req, res) => {
+  const { q, page = 1 } = req.query;
+  if (!q) return res.status(400).json({ error: 'q is required' });
+  if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
+  try {
+    res.json(await runSerperSearch(q, page));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    const results = allOrganic.filter(item => !isRoundup(item.title, item.link)).map(item => {
-      const blog = BLOGS.find(b => {
-        const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
-        return item.link.includes(domain);
-      });
-      return {
-        id: Buffer.from(item.link).toString('base64'),
-        title: item.title,
-        url: item.link,
-        image: cacheImageMap.get(item.link) || null,
-        blog: blog?.name || item.displayLink || item.link,
-        blogColor: blog?.color || '#888',
-        excerpt: item.snippet,
-        date: null,
-        searchText: (item.title + ' ' + item.snippet).toLowerCase(),
-        categories: [],
-      };
+// Ingredient-based search — uses Haiku to convert ingredients into search terms
+app.get('/api/ingredient-search', async (req, res) => {
+  const { ingredients, page = 1 } = req.query;
+  if (!ingredients) return res.status(400).json({ error: 'ingredients is required' });
+  if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI search not configured. Add ANTHROPIC_API_KEY.' });
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 30,
+      messages: [{
+        role: 'user',
+        content: `Convert this ingredient list into a short recipe search query of 3-5 words. Return ONLY the search terms, nothing else.\nIngredients: ${ingredients}`,
+      }],
     });
-
-    // Fetch og:image for results still missing images
-    const missing = results.filter(r => !r.image);
-    if (missing.length) {
-      await Promise.allSettled(missing.map(async (r) => {
-        try {
-          const pageRes = await fetch(r.url, {
-            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
-            signal: AbortSignal.timeout(5000),
-          });
-          const html = await pageRes.text();
-          const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
-                    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
-          if (m?.[1]) r.image = m[1];
-        } catch {}
-      }));
-    }
-
-    res.json({
-      results,
-      totalResults: totalResults || results.length,
-      nextStart: allOrganic.length > 0 ? parseInt(page) + 1 : null,
-    });
+    const terms = msg.content[0].text.trim();
+    const q = /recipe/i.test(terms) ? terms : `${terms} recipe`;
+    res.json(await runSerperSearch(q, page));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

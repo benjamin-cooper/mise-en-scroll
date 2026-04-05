@@ -74,6 +74,7 @@ const state = {
   searchTotal: 0,
   searchLoading: false,
   searchNextStart: null,
+  ingredientMode: false, // true when searching by ingredients
 };
 
 // --- API ---
@@ -88,8 +89,9 @@ const api = {
     };
     es.onerror = () => { es.close(); resolve(); };
   }),
-  recipe:    (url)      => fetch(`/api/recipe?url=${encodeURIComponent(url)}`).then(r => r.json()),
-  search:    (q, page)  => fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
+  recipe:           (url)               => fetch(`/api/recipe?url=${encodeURIComponent(url)}`).then(r => r.json()),
+  search:           (q, page)           => fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
+  ingredientSearch: (ingredients, page) => fetch(`/api/ingredient-search?ingredients=${encodeURIComponent(ingredients)}&page=${page || 1}`).then(r => r.json()),
 };
 
 // --- Favorites (localStorage) ---
@@ -152,6 +154,35 @@ let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 async function triggerSearch(start = 1) {
+  // Ingredient mode — sends raw ingredient text to AI-powered endpoint
+  if (state.ingredientMode) {
+    const ingredients = state.searchQuery.trim();
+    if (!ingredients) {
+      state.searchMode = false;
+      state.searchResults = [];
+      renderApp();
+      return;
+    }
+    state.searchMode = true;
+    state.searchLoading = true;
+    if (start === 1) state.searchResults = [];
+    renderApp();
+    try {
+      const data = await api.ingredientSearch(ingredients, start);
+      if (data.error) throw new Error(data.error);
+      state.searchResults = start === 1 ? data.results : [...state.searchResults, ...data.results];
+      state.searchTotal = data.totalResults;
+      state.searchNextStart = data.nextStart;
+    } catch (err) {
+      console.error('Ingredient search failed:', err);
+    } finally {
+      state.searchLoading = false;
+      renderApp();
+    }
+    return;
+  }
+
+  // Keyword mode — standard Serper search
   const q = buildSearchQuery();
   if (!q.trim() || q.trim() === 'recipe') {
     state.searchMode = false;
@@ -345,10 +376,19 @@ function renderSearchSection() {
                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
             </svg>
-            <input class="search-input" type="text" placeholder="Search recipes…"
+            <input class="search-input ${state.ingredientMode ? 'ingredient-mode' : ''}"
+                   type="text"
+                   placeholder="${state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
                    data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
             ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
           </div>
+          <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
+                  data-action="toggle-ingredient-mode"
+                  title="${state.ingredientMode ? 'Switch to keyword search' : 'Search by ingredients you have'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
+            </svg>
+          </button>
         </div>
 
         <!-- Desktop chip rows -->
@@ -677,6 +717,15 @@ document.addEventListener('click', async (e) => {
     } else {
       navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => showToast('Could not copy link'));
     }
+  }
+
+  if (action === 'toggle-ingredient-mode') {
+    state.ingredientMode = !state.ingredientMode;
+    state.searchQuery = '';
+    state.searchMode = false;
+    state.searchResults = [];
+    renderApp();
+    setTimeout(() => document.querySelector('[data-action="search"]')?.focus(), 50);
   }
 
   if (action === 'search-clear') {
