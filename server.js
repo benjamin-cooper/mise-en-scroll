@@ -59,7 +59,7 @@ app.get('/api/status', (req, res) => {
     anthropic: !!key,
     anthropicState: key === undefined ? 'undefined' : key === '' ? 'empty_string' : `has_value_len_${key.length}`,
     anthropicTrimLen: key ? key.trim().length : 0,
-    allEnvKeys: Object.keys(process.env).filter(k => k.includes('ANTHROPIC') || k.includes('API')),
+    allEnvKeys: Object.keys(process.env).filter(k => !['PATH','HOME','USER','SHELL','TERM','LANG','LC_ALL','PWD','OLDPWD','SHLVL','_','HOSTNAME','NODE_ENV','NODE_VERSION','NPM_CONFIG_PREFIX','NPM_CONFIG_CACHE'].includes(k)),
   });
 });
 
