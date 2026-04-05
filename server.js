@@ -150,6 +150,18 @@ const BLOGS = [
   { name: 'Punch',                 feed: 'https://punchdrink.com/feed/',                    color: '#313131' },
   { name: 'Cocktail Contessa',     feed: 'https://www.cocktailcontessa.com/feed/',          color: '#186F85' },
   { name: 'Alcademics',            feed: 'https://alcademics.com/feed/',                    color: '#558866' },
+  // --- Italian ---
+  { name: 'An Italian in my Kitchen', feed: 'https://anitalianinmykitchen.com/feed/',       color: '#c8102e' },
+  { name: 'Memorie di Angelina',   feed: 'https://memoriediangelina.com/feed/',             color: '#2e7d32' },
+  { name: 'Italian Food Forever',  feed: 'https://italianfoodforever.com/feed/',            color: '#1565c0' },
+  // --- Eastern European ---
+  { name: "Valentina's Corner",    feed: 'https://valentinascorner.com/feed/',              color: '#7b1fa2' },
+  { name: 'Eating European',       feed: 'https://eatingeuropean.com/feed/',                color: '#e65100' },
+  // --- Nordic / Scandinavian ---
+  { name: 'Nordic Food & Living',  feed: 'https://nordicfoodliving.com/feed/',              color: '#37474f' },
+  { name: 'Nordic Kitchen Stories',feed: 'https://www.nordickitchenstories.co.uk/feed/',    color: '#558b2f' },
+  // --- General (large) ---
+  { name: 'The Kitchn',            feed: 'https://feeds.feedburner.com/thekitchn',          color: '#e53935' },
 ];
 
 function decodeHtml(str) {
@@ -265,6 +277,9 @@ const ROUNDUP_PATTERNS = [
   /,\s*(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}/i, // "Title, April 2026"
   /\bfor\s+under\s+\$\d+\b/i,                             // "Easter Dinner for Under $40"
   /\bat\s+(walmart|target|costco|aldi|kroger|trader\s+joe'?s|whole\s+foods|sam'?s\s+club)\b/i, // shopping-guide posts
+  /\bfavorite\b.{0,25}\brecipes\b/i,                      // "My Favorite Easter Brunch Recipes…"
+  /\bnotes\s+from\b/i,                                     // "Notes From An Estranged Sister"
+  /^(is|are|was|were|did|do|does|have|has|can|will|should|would)\s/i, // yes/no question titles (never recipes)
 ];
 
 function isRoundup(title = '', url = '') {
