@@ -148,6 +148,9 @@ function buildSearchQuery() {
 }
 
 let searchDebounceTimer = null;
+let _savedScrollY = 0;
+let _prevDrawerOpen = false;
+let _infiniteScrollObserver = null;
 async function triggerSearch(start = 1) {
   const q = buildSearchQuery();
   if (!q.trim() || q.trim() === 'recipe') {
@@ -216,6 +219,19 @@ function hasActiveFilters() {
 
 // --- Render ---
 function renderApp() {
+  const drawerNowOpen = !!state.selected;
+  const drawerJustOpened = drawerNowOpen && !_prevDrawerOpen;
+
+  if (drawerJustOpened) {
+    _savedScrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+  } else if (!drawerNowOpen && _prevDrawerOpen) {
+    document.body.style.overflow = '';
+  } else if (!drawerNowOpen) {
+    _savedScrollY = window.scrollY;
+  }
+  _prevDrawerOpen = drawerNowOpen;
+
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
     ${renderSearchSection()}
@@ -224,6 +240,27 @@ function renderApp() {
     </div>
     ${renderDrawer()}
   `;
+
+  if (!drawerNowOpen) {
+    requestAnimationFrame(() => window.scrollTo(0, _savedScrollY));
+  }
+  if (drawerJustOpened) {
+    requestAnimationFrame(() => document.querySelector('.drawer-close')?.focus());
+  }
+
+  setupInfiniteScroll();
+}
+
+function setupInfiniteScroll() {
+  if (_infiniteScrollObserver) { _infiniteScrollObserver.disconnect(); _infiniteScrollObserver = null; }
+  const sentinel = document.getElementById('infinite-scroll-sentinel');
+  if (!sentinel) return;
+  _infiniteScrollObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && state.searchNextStart && !state.searchLoading) {
+      triggerSearch(state.searchNextStart);
+    }
+  }, { rootMargin: '300px' });
+  _infiniteScrollObserver.observe(sentinel);
 }
 
 function renderHeader() {
@@ -408,13 +445,8 @@ function renderContent() {
         <div class="grid">
           ${state.searchResults.map(renderCard).join('')}
         </div>
-        ${state.searchNextStart ? `
-          <div class="load-more-wrap">
-            <button class="btn btn-secondary load-more" data-action="load-more" ${state.searchLoading ? 'disabled' : ''}>
-              ${state.searchLoading ? 'Loading…' : 'Load more'}
-            </button>
-          </div>
-        ` : ''}
+        ${state.searchNextStart ? `<div id="infinite-scroll-sentinel"></div>` : ''}
+        ${state.searchLoading && state.searchResults.length ? `<div class="load-more-wrap"><div class="spinner"></div></div>` : ''}
       </div>
     `;
   }
@@ -507,7 +539,10 @@ function renderDrawer() {
 
   let body = '';
   if (state.detailLoading) {
-    body = `<div class="drawer-loading"><div class="spinner"></div><p>Loading recipe…</p></div>`;
+    body = `
+      ${preview.excerpt ? `<p class="drawer-description">${escHtml(preview.excerpt)}</p>` : ''}
+      <div class="drawer-loading"><div class="spinner"></div><p>Loading recipe…</p></div>
+    `;
   } else if (state.detailError) {
     body = `
       <div class="drawer-error">
@@ -666,10 +701,6 @@ document.addEventListener('click', async (e) => {
     renderApp();
   }
 
-  if (action === 'load-more') {
-    if (state.searchNextStart) triggerSearch(state.searchNextStart);
-  }
-
   if (action === 'close') { closeDrawer(); }
 
   if (action === 'card') {
@@ -733,7 +764,17 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.selected) closeDrawer();
+  if (e.key === 'Escape' && state.selected) { closeDrawer(); return; }
+  if (e.key === 'Tab' && state.selected) {
+    const drawer = document.getElementById('drawer');
+    if (!drawer) return;
+    const focusable = [...drawer.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+    if (focusable.length < 2) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 });
 
 function closeDrawer() {
