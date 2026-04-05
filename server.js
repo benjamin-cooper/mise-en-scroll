@@ -7,7 +7,12 @@ const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Lazy — don't instantiate at startup so a missing key doesn't crash the server
+let _anthropic = null;
+function getAnthropic() {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _anthropic;
+}
 
 const app = express();
 const parser = new RSSParser({
@@ -611,7 +616,7 @@ app.get('/api/ingredient-search', async (req, res) => {
   if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI search not configured. Add ANTHROPIC_API_KEY.' });
   try {
-    const msg = await anthropic.messages.create({
+    const msg = await getAnthropic().messages.create({
       model: 'claude-3-5-haiku-20241022',
       max_tokens: 30,
       messages: [{
