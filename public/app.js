@@ -79,7 +79,6 @@ const state = {
 // --- API ---
 const api = {
   blogs:     ()         => fetch('/api/blogs').then(r => r.json()),
-  recipes:   ()         => fetch('/api/recipes').then(r => r.json()),
   recipesStream: (onBatch) => new Promise((resolve) => {
     const es = new EventSource('/api/recipes/stream');
     es.onmessage = (e) => {
@@ -108,9 +107,6 @@ function removeFav(url) {
 }
 
 // --- Helpers ---
-function urlId(url) {
-  try { return btoa(url); } catch { return btoa(encodeURIComponent(url)); }
-}
 function isFav(url)       { return state.favorites.some(f => f.url === url); }
 function formatDate(str)  { if (!str) return ''; return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function escHtml(str) {
@@ -222,7 +218,6 @@ function hasActiveFilters() {
 function renderApp() {
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
-    ${renderFilters()}
     ${renderSearchSection()}
     <div class="grid-section">
       ${renderContent()}
@@ -255,8 +250,6 @@ function renderHeader() {
   `;
 }
 
-function renderFilters() { return ''; }
-
 function renderBlogPicker() {
   if (!BLOGS.length) return '';
   const active = state.filter;
@@ -288,7 +281,7 @@ function renderBlogPicker() {
 }
 
 function renderSearchSection() {
-  const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length;
+  const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length;
   const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
 
   const mobileCats = [
@@ -474,7 +467,7 @@ function renderCard(r) {
     <article class="card" data-action="card" data-url="${r.url}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
-          onerror="this.closest('.card-image').classList.add('no-image');this.style.setProperty('--blog-color','${c}');this.remove()">` : ''}
+          onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-initial\\'>${escHtml(r.blog.charAt(0))}</span></div>'">` : ''}
         ${noImg ? `<div class="card-no-image">
           <span class="card-no-image-initial">${escHtml(r.blog.charAt(0))}</span>
         </div>` : ''}
@@ -627,33 +620,10 @@ document.addEventListener('click', async (e) => {
     renderApp();
   }
 
-  if (action === 'cuisine') {
+  const filterStateKey = { cuisine: 'cuisineFilters', protein: 'proteinFilters', time: 'timeFilters', meal: 'mealFilters', dietary: 'dietaryFilters' }[action];
+  if (filterStateKey) {
     const v = el.dataset.value;
-    state.cuisineFilters = state.cuisineFilters.includes(v) ? state.cuisineFilters.filter(x => x !== v) : [...state.cuisineFilters, v];
-    triggerSearch();
-  }
-
-  if (action === 'protein') {
-    const v = el.dataset.value;
-    state.proteinFilters = state.proteinFilters.includes(v) ? state.proteinFilters.filter(x => x !== v) : [...state.proteinFilters, v];
-    triggerSearch();
-  }
-
-  if (action === 'time') {
-    const v = el.dataset.value;
-    state.timeFilters = state.timeFilters.includes(v) ? state.timeFilters.filter(x => x !== v) : [...state.timeFilters, v];
-    triggerSearch();
-  }
-
-  if (action === 'meal') {
-    const v = el.dataset.value;
-    state.mealFilters = state.mealFilters.includes(v) ? state.mealFilters.filter(x => x !== v) : [...state.mealFilters, v];
-    triggerSearch();
-  }
-
-  if (action === 'dietary') {
-    const v = el.dataset.value;
-    state.dietaryFilters = state.dietaryFilters.includes(v) ? state.dietaryFilters.filter(x => x !== v) : [...state.dietaryFilters, v];
+    state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
     triggerSearch();
   }
 

@@ -98,19 +98,7 @@ ul, ol { padding-left: 1.25rem; }
   line-height: 1.4;
 }
 
-/* === Filters === */
-.filters {
-  height: var(--filter-h);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-}
-.filters .container {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+/* === Filter Pills (legacy, kept for potential reuse) === */
 .filter-pill {
   flex-shrink: 0;
   padding: 5px 14px;

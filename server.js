@@ -3,7 +3,6 @@ const express = require('express');
 const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const path = require('path');
-const fs = require('fs');
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
@@ -50,11 +49,14 @@ const BLOGS = [
   { name: 'Plays Well With Butter',feed: 'https://playswellwithbutter.com/feed/',           color: '#b8860b' },
   { name: 'Wholesome Yum',         feed: 'https://www.wholesomeyum.com/feed/',              color: '#2e7d5a' },
   { name: 'Carlsbad Cravings',     feed: 'https://carlsbadcravings.com/feed/',              color: '#b0306a' },
-  { name: 'Host the Toast',        feed: 'https://hostthetoast.com/feed/',                  color: '#c53a2a' },
   { name: 'The Mediterranean Dish',feed: 'https://www.themediterraneandish.com/feed/',      color: '#2a7a9b' },
   { name: 'Dishing Out Health',    feed: 'https://dishingouthealth.com/feed/',              color: '#3a8a5a' },
   { name: 'The Food Charlatan',    feed: 'https://thefoodcharlatan.com/feed/',              color: '#c04a2a' },
   { name: 'Foxes Love Lemons',     feed: 'https://www.foxeslovelemons.com/feed/',           color: '#d4920a' },
+  { name: 'Alexandra Cooks',       feed: 'https://alexandracooks.com/feed/',                color: '#5a7a5a' },
+  { name: 'Averie Cooks',          feed: 'https://www.averiecooks.com/feed/',               color: '#d4607a' },
+  { name: 'Inspired Taste',        feed: 'https://www.inspiredtaste.net/feed/',             color: '#e8922a' },
+  { name: 'Sweet Peas and Saffron',feed: 'https://sweetpeasandsaffron.com/feed/',           color: '#f0a030' },
   // --- Asian specialists ---
   { name: 'The Woks of Life',      feed: 'https://thewoksoflife.com/feed/',                 color: '#c0300a' },
   { name: 'Just One Cookbook',     feed: 'https://www.justonecookbook.com/feed/',           color: '#c0607a' },
@@ -62,7 +64,7 @@ const BLOGS = [
   { name: 'Rasa Malaysia',         feed: 'https://rasamalaysia.com/feed/',                  color: '#c07020' },
   { name: "Omnivore's Cookbook",   feed: 'https://omnivorescookbook.com/feed/',             color: '#20908a' },
   { name: 'Hot Thai Kitchen',      feed: 'https://hot-thai-kitchen.com/feed/',              color: '#2a9a3a' },
-  // --- More general ---
+  // --- General (continued) ---
   { name: 'RecipeTin Eats',        feed: 'https://www.recipetineats.com/feed/',             color: '#c0392b' },
   { name: 'How Sweet Eats',        feed: 'https://www.howsweeteats.com/feed/',              color: '#e91e8c' },
   { name: 'A Couple Cooks',        feed: 'https://www.acouplecooks.com/feed/',              color: '#2e86ab' },
@@ -77,11 +79,10 @@ const BLOGS = [
   { name: 'Fifteen Spatulas',      feed: 'https://www.fifteenspatulas.com/feed/',           color: '#c0607a' },
   { name: 'Downshiftology',        feed: 'https://downshiftology.com/feed/',                color: '#8a5a2a' },
   { name: 'The Defined Dish',      feed: 'https://thedefineddish.com/feed/',                color: '#6a4a8a' },
-  // --- Asian specialists ---
+  // --- Asian (continued) ---
   { name: 'My Korean Kitchen',     feed: 'https://mykoreankitchen.com/feed/',               color: '#c0300a' },
   { name: 'Pickled Plum',          feed: 'https://pickledplum.com/feed/',                   color: '#8e44ad' },
   { name: 'Viet World Kitchen',    feed: 'https://www.vietworldkitchen.com/blog/atom.xml',  color: '#27ae60' },
-  { name: 'Christie at Home',      feed: 'https://christieathome.com/feed/',                color: '#e84393' },
   // --- Indian ---
   { name: 'Veg Recipes of India',  feed: 'https://www.vegrecipesofindia.com/feed/',         color: '#f39c12' },
   { name: 'Spice Up the Curry',    feed: 'https://www.spiceupthecurry.com/feed/',           color: '#e74c3c' },
@@ -92,19 +93,17 @@ const BLOGS = [
   // --- Greek / Mediterranean ---
   { name: 'My Greek Dish',         feed: 'https://mygreekdish.com/feed/',                   color: '#2980b9' },
   { name: 'Souvlaki For The Soul', feed: 'https://souvlakiforthesoul.com/feed/',            color: '#27ae60' },
-  { name: 'Kalofagas',             feed: 'https://kalofagas.ca/feed/',                      color: '#2c3e50' },
+  { name: "Dimitra's Dishes",      feed: 'https://www.dimitrasdishes.com/feed/',            color: '#1a6b9a' },
   // --- Mexican / Latin ---
   { name: 'Mexico in My Kitchen',  feed: 'https://www.mexicoinmykitchen.com/feed/',         color: '#27ae60' },
   { name: "Laylita's Recipes",     feed: 'https://laylita.com/recipes/feed/',               color: '#e67e22' },
+  { name: 'Isabel Eats',           feed: 'https://www.isabeleats.com/feed/',                color: '#c75b2e' },
   // --- Middle Eastern ---
-  { name: 'Maureen Abood',         feed: 'https://maureenabood.com/feed/',                  color: '#2ecc71' },
   { name: 'Give Recipe',           feed: 'https://giverecipe.com/feed/',                    color: '#c0392b' },
   { name: "Ozlem's Turkish Table", feed: 'https://ozlemsturkishtable.com/feed/',             color: '#e67e22' },
   { name: 'Tori Avey',             feed: 'https://toriavey.com/feed/',                      color: '#8e44ad' },
-  { name: 'Cleobuttera',           feed: 'https://cleobuttera.com/feed/',                   color: '#c0906a' },
   { name: 'Feel Good Foodie',      feed: 'https://feelgoodfoodie.net/feed/',                color: '#27ae60' },
   { name: 'Zaatar and Zaytoun',    feed: 'https://zaatarandzaytoun.com/feed/',              color: '#2ecc71' },
-  { name: 'Persian Mama',          feed: 'https://persianmama.com/feed/',                   color: '#9b59b6' },
   // --- African / Caribbean ---
   { name: 'Immaculate Bites',      feed: 'https://www.africanbites.com/feed/',              color: '#c0392b' },
   { name: "Chef Lola's Kitchen",   feed: 'https://cheflolaskitchen.com/feed/',              color: '#e74c3c' },
@@ -118,23 +117,16 @@ const BLOGS = [
   { name: 'Sam the Cooking Guy',   feed: 'https://www.samthecookingguy.com/recipes?format=rss', color: '#1a1a2e' },
   // --- Modern / Creative ---
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
-  { name: 'Molly Baz',             feed: 'https://mollybaz.com/feed/',                      color: '#e8b84b' },
+  // --- Baking ---
+  { name: "Sally's Baking Addiction", feed: 'https://sallysbakingaddiction.com/feed/',      color: '#c0607a' },
+  { name: 'Handle the Heat',       feed: 'https://handletheheat.com/feed/',                 color: '#e05a2b' },
+  { name: 'Beyond Frosting',       feed: 'https://beyondfrosting.com/feed/',                color: '#d4608a' },
+  { name: 'The Vanilla Bean Blog', feed: 'https://www.thevanillabeanblog.com/feed/',        color: '#c8a050' },
+  { name: 'Joy the Baker',         feed: 'https://joythebaker.com/feed/',                   color: '#e8702a' },
+  // --- Plant-forward / Seasonal ---
+  { name: 'The First Mess',        feed: 'https://thefirstmess.com/feed/',                  color: '#4a8a5a' },
+  { name: 'Naturally Ella',        feed: 'https://naturallyella.com/feed/',                 color: '#5a9a3a' },
 ];
-
-const FAVORITES_FILE = path.join(__dirname, 'favorites.json');
-
-function loadFavorites() {
-  try {
-    if (!fs.existsSync(FAVORITES_FILE)) return [];
-    return JSON.parse(fs.readFileSync(FAVORITES_FILE, 'utf8'));
-  } catch {
-    return [];
-  }
-}
-
-function saveFavorites(favs) {
-  fs.writeFileSync(FAVORITES_FILE, JSON.stringify(favs, null, 2));
-}
 
 function decodeHtml(str) {
   if (!str) return '';
@@ -338,7 +330,7 @@ async function fetchBlogFeed(blog) {
       image: extractImage(item),
       blog: blog.name,
       blogColor: blog.color,
-      excerpt: decodeHtml(item.contentSnippet?.slice(0, 140).trim()) + '…' || '',
+      excerpt: item.contentSnippet ? decodeHtml(item.contentSnippet.slice(0, 140).trim()) + '…' : '',
       categories,
       searchText,
     };
@@ -365,18 +357,8 @@ async function fetchBlogFeed(blog) {
   return recipes;
 }
 
-// Fetch up to `concurrency` feeds at a time to avoid overwhelming the server
-async function fetchAllFeeds(concurrency = 10) {
-  const results = [];
-  for (let i = 0; i < BLOGS.length; i += concurrency) {
-    const batch = BLOGS.slice(i, i + concurrency);
-    const batchResults = await Promise.allSettled(batch.map(fetchBlogFeed));
-    results.push(...batchResults);
-  }
-  return results;
-}
-
-// Stream recipes via SSE so the client renders as each blog loads
+// Stream recipes via SSE so the client renders as each blog loads.
+// Limits concurrency to avoid overwhelming outbound connections on a cold cache.
 app.get('/api/recipes/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -384,28 +366,20 @@ app.get('/api/recipes/stream', async (req, res) => {
   res.flushHeaders();
 
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const CONCURRENCY = 10;
 
-  await Promise.allSettled(
-    BLOGS.map(async (blog) => {
+  for (let i = 0; i < BLOGS.length; i += CONCURRENCY) {
+    const batch = BLOGS.slice(i, i + CONCURRENCY);
+    await Promise.allSettled(batch.map(async (blog) => {
       try {
         const recipes = await fetchBlogFeed(blog);
         send({ type: 'batch', recipes });
       } catch {}
-    })
-  );
+    }));
+  }
 
   send({ type: 'done' });
   res.end();
-});
-
-// Keep the original endpoint for cache hits (returns instantly if cached)
-app.get('/api/recipes', async (req, res) => {
-  const results = await fetchAllFeeds(10);
-  const recipes = results
-    .filter((r) => r.status === 'fulfilled')
-    .flatMap((r) => r.value)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-  res.json(recipes);
 });
 
 app.get('/api/recipe', async (req, res) => {
@@ -573,25 +547,6 @@ app.get('/api/search', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-app.get('/api/favorites', (req, res) => res.json(loadFavorites()));
-
-app.post('/api/favorites', (req, res) => {
-  const favs = loadFavorites();
-  if (!favs.find((f) => f.url === req.body.url)) {
-    favs.unshift(req.body);
-    saveFavorites(favs);
-  }
-  res.json({ ok: true });
-});
-
-app.delete('/api/favorites/:id', (req, res) => {
-  const favs = loadFavorites().filter(
-    (f) => Buffer.from(f.url).toString('base64') !== req.params.id
-  );
-  saveFavorites(favs);
-  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 3000;

@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 83 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 89 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 83 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 89 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
 - **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
@@ -43,7 +43,9 @@ A recipe discovery app that aggregates the latest posts from 83 food blogs into 
 | Little Spice Jar | Creme de la Crumb |
 | Fifteen Spatulas | Downshiftology |
 | The Defined Dish | Sam the Cooking Guy |
-| Justine Snacks | Molly Baz |
+| Justine Snacks | Alexandra Cooks |
+| Averie Cooks | Inspired Taste |
+| Sweet Peas and Saffron | Joy the Baker |
 
 ### Asian
 | Blog | Cuisine Focus |
@@ -57,7 +59,6 @@ A recipe discovery app that aggregates the latest posts from 83 food blogs into 
 | Rasa Malaysia | Malaysian / Southeast Asian |
 | Pickled Plum | Japanese / Asian fusion |
 | Viet World Kitchen | Vietnamese |
-| Christie at Home | Korean / Asian fusion |
 
 ### Indian
 | Blog |
@@ -74,25 +75,23 @@ A recipe discovery app that aggregates the latest posts from 83 food blogs into 
 |------|
 | My Greek Dish |
 | Souvlaki For The Soul |
-| Kalofagas |
+| Dimitra's Dishes |
 
 ### Mexican / Latin
 | Blog |
 |------|
 | Mexico in My Kitchen |
 | Laylita's Recipes |
+| Isabel Eats |
 
 ### Middle Eastern
 | Blog | Focus |
 |------|-------|
-| Maureen Abood | Lebanese |
 | Give Recipe | Turkish |
 | Ozlem's Turkish Table | Turkish |
 | Tori Avey | Israeli / Jewish |
-| Cleobuttera | Egyptian / Levantine |
 | Feel Good Foodie | Lebanese / Arabic |
 | Zaatar and Zaytoun | Palestinian |
-| Persian Mama | Persian / Iranian |
 
 ### African / Caribbean
 | Blog |
@@ -105,6 +104,21 @@ A recipe discovery app that aggregates the latest posts from 83 food blogs into 
 |------|
 | Panlasang Pinoy |
 | Kawaling Pinoy |
+
+### Baking
+| Blog |
+|------|
+| Sally's Baking Addiction |
+| Handle the Heat |
+| Beyond Frosting |
+| The Vanilla Bean Blog |
+| Joy the Baker |
+
+### Plant-forward / Seasonal
+| Blog |
+|------|
+| The First Mess |
+| Naturally Ella |
 
 ### French / European
 | Blog |
