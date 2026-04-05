@@ -554,7 +554,7 @@ function renderContent() {
 
   return `
     <div class="container">
-      ${!state.loading ? `
+      ${!state.loading && state.view === 'discover' ? `
         <div class="feed-meta-bar">
           <span class="feed-updated">${state.feedLastLoaded ? `Updated ${formatTimeAgo(state.feedLastLoaded)}` : ''}</span>
           <button class="feed-refresh-btn ${state.feedRefreshing ? 'is-loading' : ''}" data-action="refresh-feed" ${state.feedRefreshing ? 'disabled' : ''}>
@@ -777,15 +777,20 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'toggle-ingredient-mode') {
+    clearTimeout(searchDebounceTimer);
     state.ingredientMode = !state.ingredientMode;
     state.searchQuery = '';
     state.searchMode = false;
     state.searchResults = [];
+    state.searchTotal = 0;
+    state.searchNextStart = null;
+    state.searchError = null;
     renderApp();
     setTimeout(() => document.querySelector('[data-action="search"]')?.focus(), 50);
   }
 
   if (action === 'search-clear') {
+    clearTimeout(searchDebounceTimer);
     state.searchQuery = '';
     triggerSearch();
     document.querySelector('[data-action="search"]')?.focus();
@@ -801,6 +806,7 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'clear-all-filters') {
+    clearTimeout(searchDebounceTimer);
     state.searchQuery = '';
     state.cuisineFilters = [];
     state.proteinFilters = [];
@@ -810,6 +816,9 @@ document.addEventListener('click', async (e) => {
     state.filter = null;
     state.searchMode = false;
     state.searchResults = [];
+    state.searchTotal = 0;
+    state.searchNextStart = null;
+    state.searchError = null;
     renderApp();
   }
 
