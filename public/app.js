@@ -140,7 +140,7 @@ function buildSearchQuery() {
   for (const { vals, group } of filterMap) {
     for (const val of vals) {
       const f = FILTERS[group].find(f => f.label === val);
-      if (f) parts.push(f.keywords[0]);
+      if (f) parts.push(`(${f.keywords.join(' OR ')})`);
     }
   }
   if (!parts.some(p => p.includes('recipe'))) parts.push('recipe');
