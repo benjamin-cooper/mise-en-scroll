@@ -243,6 +243,29 @@ ul, ol { padding-left: 1.25rem; }
   transition: transform 300ms ease;
 }
 .card:hover .card-image img { transform: scale(1.04); }
+.card-save {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(4px);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: all var(--transition);
+  opacity: 0;
+}
+.card:hover .card-save { opacity: 1; }
+.card-save.is-saved {
+  opacity: 1;
+  color: var(--accent);
+}
+.card-save:hover { color: var(--accent); background: white; }
 .card-image.no-image {
   background: color-mix(in srgb, var(--blog-color, #c75b2e) 12%, #faf7f2);
 }

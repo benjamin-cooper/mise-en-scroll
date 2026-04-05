@@ -167,6 +167,9 @@ let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 async function triggerSearch(start = 1) {
+  // In saved view, never hit the API — just re-render with local filtering
+  if (state.view === 'favorites') { renderApp(); return; }
+
   // Ingredient mode — sends raw ingredient text to AI-powered endpoint
   if (state.ingredientMode) {
     const ingredients = state.searchQuery.trim();
@@ -395,18 +398,19 @@ function renderSearchSection() {
             </svg>
             <input class="search-input ${state.ingredientMode ? 'ingredient-mode' : ''}"
                    type="text"
-                   placeholder="${state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
+                   placeholder="${state.view === 'favorites' ? 'Filter saved recipes…' : state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
                    data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
             ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
           </div>
+          ${state.view !== 'favorites' ? `
           <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
                   data-action="toggle-ingredient-mode"
                   title="${state.ingredientMode ? 'Switch to keyword search' : 'Search by ingredients you have'}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
             </svg>
-            <span>${state.ingredientMode ? 'By ingredients' : 'By ingredients'}</span>
-          </button>
+            <span>By ingredients</span>
+          </button>` : ''}
         </div>
 
         <!-- Desktop chip rows -->
@@ -584,6 +588,9 @@ function renderCard(r) {
         ${noImg ? `<div class="card-no-image">
           <span class="card-no-image-initial">${escHtml(r.blog.charAt(0))}</span>
         </div>` : ''}
+        <button class="card-save ${isFav(r.url) ? 'is-saved' : ''}" data-action="toggle-save" data-url="${r.url}" aria-label="${isFav(r.url) ? 'Remove from saved' : 'Save recipe'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav(r.url) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
       </div>
       <div class="card-body">
         <div class="card-meta">
@@ -820,6 +827,21 @@ document.addEventListener('click', async (e) => {
     state.searchNextStart = null;
     state.searchError = null;
     renderApp();
+  }
+
+  if (action === 'toggle-save') {
+    const url = el.dataset.url;
+    if (isFav(url)) {
+      removeFav(url);
+    } else {
+      const pool = [...state.recipes, ...state.favorites, ...state.searchResults];
+      const r = pool.find(r => r.url === url);
+      if (r) saveFav({ url: r.url, title: r.title, image: r.image, blog: r.blog, blogColor: r.blogColor, date: r.date, excerpt: r.excerpt });
+    }
+    state.favorites = loadFavs();
+    if (state.view === 'favorites') renderApp();
+    else refreshDiscoverContent();
+    return;
   }
 
   if (action === 'close') { closeDrawer(); }
