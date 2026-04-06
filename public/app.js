@@ -214,30 +214,27 @@ let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 let _discoverScrollObserver = null;
 
-// Throttle DOM updates during RSS streaming — at most one refresh per 500ms.
-// Without this, 97 concurrent blog feeds fire dozens of re-renders per second,
-// causing the card grid to flash and cards to jump positions ("seizure" effect).
-let _lastStreamRender = 0;
-let _streamRenderTimer = null;
-function scheduleStreamRender() {
-  const now = Date.now();
-  const gap = now - _lastStreamRender;
-  if (gap >= 500) {
-    // Enough time since last paint — render immediately.
-    clearTimeout(_streamRenderTimer);
-    _streamRenderTimer = null;
-    _lastStreamRender = now;
-    if (!state.searchMode && !state.selected) refreshDiscoverContent();
-  } else if (!_streamRenderTimer) {
-    // Too soon — schedule a deferred render; all batches that arrive before it
-    // fires will be included automatically since we read state.recipes at render time.
-    _streamRenderTimer = setTimeout(() => {
-      _streamRenderTimer = null;
-      _lastStreamRender = Date.now();
-      if (!state.searchMode && !state.selected) refreshDiscoverContent();
-    }, 500 - gap);
-  }
-  // else a timer is already pending — new data will be picked up when it fires.
+// Append-only streaming — new cards are inserted at the bottom of the existing
+// grid rather than replacing it. Existing cards never move, so there are no
+// layout shifts or position jumps while blogs load. One final sorted renderApp()
+// runs when the stream finishes to give the canonical date-ordered result.
+let _streamAppendedSet = new Set(); // URLs already in the DOM during streaming
+
+function appendStreamCards(batch) {
+  if (state.searchMode || state.selected) return;
+  const grid = document.querySelector('#discover-content .grid');
+  if (!grid) return;
+  // Stop appending once we've hit the render limit (performance guard — the
+  // rest will appear in the final sorted render when the stream finishes).
+  if (_streamAppendedSet.size >= state.discoverRenderLimit) return;
+  const toAdd = batch
+    .filter(r => !_streamAppendedSet.has(r.url))
+    .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
+  if (!toAdd.length) return;
+  toAdd.forEach(r => {
+    _streamAppendedSet.add(r.url);
+    grid.insertAdjacentHTML('beforeend', renderCard(r));
+  });
 }
 async function triggerSearch(start = 1) {
   // In saved view, never hit the API — just re-render with local filtering
@@ -915,20 +912,21 @@ document.addEventListener('click', async (e) => {
     state.feedLastLoaded = null;
     state.streamingMore = false;
     renderApp();
-    _lastStreamRender = 0;
+    _streamAppendedSet.clear();
     await api.recipesStream((batch) => {
       state.recipes = [...state.recipes, ...batch].sort((a, b) => new Date(b.date) - new Date(a.date));
       if (state.loading) {
         state.loading = false;
         state.streamingMore = true;
-        _lastStreamRender = Date.now();
-        if (!state.searchMode && !state.selected) renderApp();
+        if (!state.searchMode && !state.selected) {
+          renderApp();
+          state.recipes.slice(0, state.discoverRenderLimit).forEach(r => _streamAppendedSet.add(r.url));
+        }
       } else {
-        scheduleStreamRender();
+        appendStreamCards(batch);
       }
     }, true);
-    clearTimeout(_streamRenderTimer);
-    _streamRenderTimer = null;
+    _streamAppendedSet.clear();
     state.feedRefreshing = false;
     state.streamingMore = false;
     state.loading = false;
@@ -1123,27 +1121,28 @@ async function init() {
   BLOGS = await api.blogs();
   renderApp();
 
-  // Stream recipes in as each blog loads — renders progressively.
-  // The first batch swaps skeletons for real cards (full renderApp).
-  // Subsequent batches accumulate and are flushed to the DOM at most every 500ms
-  // via scheduleStreamRender(), preventing the rapid-fire re-renders that cause
-  // the card grid to flash and cards to jump around ("seizure" effect).
-  _lastStreamRender = 0;
+  // Stream recipes in as each blog loads.
+  // First batch: swap skeletons for real cards via renderApp(), track rendered URLs.
+  // Subsequent batches: append new cards directly to the grid — no re-sort, no
+  // full replacement — so existing cards never jump position mid-load.
+  // Final render when stream finishes: one clean sorted renderApp().
+  _streamAppendedSet.clear();
   await api.recipesStream((batch) => {
     state.recipes = [...state.recipes, ...batch]
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (state.loading) {
       state.loading = false;
       state.streamingMore = true;
-      _lastStreamRender = Date.now();
-      if (!state.searchMode && !state.selected) renderApp();
+      if (!state.searchMode && !state.selected) {
+        renderApp();
+        // Track what just rendered so appendStreamCards skips them.
+        state.recipes.slice(0, state.discoverRenderLimit).forEach(r => _streamAppendedSet.add(r.url));
+      }
     } else {
-      scheduleStreamRender();
+      appendStreamCards(batch);
     }
   });
-  // Stream finished — clear throttle, do one final render.
-  clearTimeout(_streamRenderTimer);
-  _streamRenderTimer = null;
+  _streamAppendedSet.clear();
   state.streamingMore = false;
   state.feedLastLoaded = Date.now();
   if (!state.searchMode && !state.selected) renderApp();
