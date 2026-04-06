@@ -309,6 +309,13 @@ const ROUNDUP_PATTERNS = [
   /\b(brilliant|genius|clever)\s+(find|hack|trick|solution|discovery)\b/i, // "Thanks to This Brilliant Find"
   /\b(new|exciting|hottest?|must.visit)\s+(bar|restaurant|spot|place)\b/i, // bar/restaurant features
   /\bbar\s+(scene|guide|hop)\b/i,                                       // bar scene guides
+  // Product trivia / "did you know" editorial (common on The Kitchn)
+  /\b(secret|hidden)\s+(feature|function|button|compartment|setting|trick)\b/i, // "The Secret Feature on Kikkoman..."
+  /\bsecret\s+\w+\s+on\s+\w/i,                                         // "The Secret X on Y Bottles"
+  /\b(did\s+you\s+know|fun\s+fact)\b/i,                                 // trivia posts
+  /\bthe\s+one\s+(thing|mistake|trick|rule|secret|reason)\b/i,          // "The One Thing You Should Always..."
+  /\byou('ve)?\s+(been\s+doing|never\s+knew|didn'?t\s+know|always\s+wondered)\b/i, // "You've Been Doing X Wrong"
+  /\b(doing|making|using|storing|eating|cooking)\s+[\w\s]{2,30}wrong\b/i, // "You've Been Making Scrambled Eggs Wrong"
 ];
 
 function isRoundup(title = '', url = '') {
