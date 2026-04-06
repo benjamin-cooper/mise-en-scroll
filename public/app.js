@@ -89,6 +89,7 @@ const state = {
   blogPickerOpen: false,
   feedLastLoaded: null,
   feedRefreshing: false,
+  streamingMore: false,   // true while SSE stream is active after first batch
   discoverRenderLimit: 60, // virtualized card window
   recentSearches: [],
 };
@@ -212,6 +213,32 @@ let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 let _discoverScrollObserver = null;
+
+// Throttle DOM updates during RSS streaming — at most one refresh per 500ms.
+// Without this, 97 concurrent blog feeds fire dozens of re-renders per second,
+// causing the card grid to flash and cards to jump positions ("seizure" effect).
+let _lastStreamRender = 0;
+let _streamRenderTimer = null;
+function scheduleStreamRender() {
+  const now = Date.now();
+  const gap = now - _lastStreamRender;
+  if (gap >= 500) {
+    // Enough time since last paint — render immediately.
+    clearTimeout(_streamRenderTimer);
+    _streamRenderTimer = null;
+    _lastStreamRender = now;
+    if (!state.searchMode && !state.selected) refreshDiscoverContent();
+  } else if (!_streamRenderTimer) {
+    // Too soon — schedule a deferred render; all batches that arrive before it
+    // fires will be included automatically since we read state.recipes at render time.
+    _streamRenderTimer = setTimeout(() => {
+      _streamRenderTimer = null;
+      _lastStreamRender = Date.now();
+      if (!state.searchMode && !state.selected) refreshDiscoverContent();
+    }, 500 - gap);
+  }
+  // else a timer is already pending — new data will be picked up when it fires.
+}
 async function triggerSearch(start = 1) {
   // In saved view, never hit the API — just re-render with local filtering
   if (state.view === 'favorites') { renderApp(); return; }
@@ -671,6 +698,7 @@ function renderContent() {
           ${visible.map(renderCard).join('')}
         </div>
         ${hasMoreCards ? `<div id="discover-scroll-sentinel"></div>` : ''}
+        ${state.streamingMore ? `<div class="stream-loading" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : ''}
       </div>
     </div>
   `;
@@ -885,18 +913,25 @@ document.addEventListener('click', async (e) => {
     state.loading = true;
     state.feedRefreshing = true;
     state.feedLastLoaded = null;
+    state.streamingMore = false;
     renderApp();
+    _lastStreamRender = 0;
     await api.recipesStream((batch) => {
       state.recipes = [...state.recipes, ...batch].sort((a, b) => new Date(b.date) - new Date(a.date));
       if (state.loading) {
         state.loading = false;
+        state.streamingMore = true;
+        _lastStreamRender = Date.now();
         if (!state.searchMode && !state.selected) renderApp();
-      } else if (!state.searchMode && !state.selected) {
-        refreshDiscoverContent();
+      } else {
+        scheduleStreamRender();
       }
     }, true);
+    clearTimeout(_streamRenderTimer);
+    _streamRenderTimer = null;
     state.feedRefreshing = false;
-    state.loading = false; // ensure skeletons don't spin forever if stream errored
+    state.streamingMore = false;
+    state.loading = false;
     if (state.recipes.length) state.feedLastLoaded = Date.now();
     if (!state.searchMode && !state.selected) renderApp();
     return;
@@ -1066,7 +1101,9 @@ function refreshDiscoverContent() {
   const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
   const countNote = hasActiveFilters() && allFiltered.length < base.length
     ? `<p class="result-count">Showing ${allFiltered.length} of ${base.length} recent recipes</p>` : '';
-  el.innerHTML = `${countNote}<div class="grid">${visible.map(renderCard).join('')}</div>${hasMoreCards ? '<div id="discover-scroll-sentinel"></div>' : ''}`;
+  const streamBar = state.streamingMore
+    ? `<div class="stream-loading" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : '';
+  el.innerHTML = `${countNote}<div class="grid">${visible.map(renderCard).join('')}</div>${hasMoreCards ? '<div id="discover-scroll-sentinel"></div>' : ''}${streamBar}`;
   setupInfiniteScroll();
 }
 
@@ -1087,18 +1124,27 @@ async function init() {
   renderApp();
 
   // Stream recipes in as each blog loads — renders progressively.
-  // First batch does a full renderApp() to paint the shell; subsequent batches
-  // only update the card grid so the blog picker and filters stay untouched.
+  // The first batch swaps skeletons for real cards (full renderApp).
+  // Subsequent batches accumulate and are flushed to the DOM at most every 500ms
+  // via scheduleStreamRender(), preventing the rapid-fire re-renders that cause
+  // the card grid to flash and cards to jump around ("seizure" effect).
+  _lastStreamRender = 0;
   await api.recipesStream((batch) => {
     state.recipes = [...state.recipes, ...batch]
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (state.loading) {
       state.loading = false;
+      state.streamingMore = true;
+      _lastStreamRender = Date.now();
       if (!state.searchMode && !state.selected) renderApp();
-    } else if (!state.searchMode && !state.selected) {
-      refreshDiscoverContent();
+    } else {
+      scheduleStreamRender();
     }
   });
+  // Stream finished — clear throttle, do one final render.
+  clearTimeout(_streamRenderTimer);
+  _streamRenderTimer = null;
+  state.streamingMore = false;
   state.feedLastLoaded = Date.now();
   if (!state.searchMode && !state.selected) renderApp();
 }
