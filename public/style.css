@@ -809,6 +809,16 @@ ul, ol { padding-left: 1.25rem; }
   margin-top: 32px;
 }
 
+/* === Stream card insertion animation === */
+/* Applied to cards inserted mid-stream so they fade in rather than pop in. */
+@keyframes card-enter {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.card.card-entering {
+  animation: card-enter 0.22s ease;
+}
+
 /* === Stream loading indicator === */
 /* Shown while the RSS stream is still fetching blogs — three bouncing dots     */
 /* that appear below the card grid so the user knows more recipes are coming.   */
