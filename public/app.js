@@ -214,26 +214,46 @@ let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 let _discoverScrollObserver = null;
 
-// Append-only streaming — new cards are inserted at the bottom of the existing
-// grid rather than replacing it. Existing cards never move, so there are no
-// layout shifts or position jumps while blogs load. One final sorted renderApp()
-// runs when the stream finishes to give the canonical date-ordered result.
+// Sorted insertion streaming — each incoming batch is inserted into the grid at
+// its correct date-sorted position rather than appending to the bottom or
+// replacing the whole grid. Newest recipes always sort to the top; cards already
+// on screen only shift if something newer than them arrives (and only those below
+// the insertion point move). New cards fade in so the insertion feels smooth.
 let _streamAppendedSet = new Set(); // URLs already in the DOM during streaming
 
-function appendStreamCards(batch) {
+function insertSortedStreamCards(batch) {
   if (state.searchMode || state.selected) return;
   const grid = document.querySelector('#discover-content .grid');
   if (!grid) return;
-  // Stop appending once we've hit the render limit (performance guard — the
-  // rest will appear in the final sorted render when the stream finishes).
   if (_streamAppendedSet.size >= state.discoverRenderLimit) return;
-  const toAdd = batch
+
+  const toAdd = [...batch]
     .filter(r => !_streamAppendedSet.has(r.url))
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) // newest first within batch
     .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
   if (!toAdd.length) return;
-  toAdd.forEach(r => {
-    _streamAppendedSet.add(r.url);
-    grid.insertAdjacentHTML('beforeend', renderCard(r));
+
+  toAdd.forEach(recipe => {
+    _streamAppendedSet.add(recipe.url);
+    const recipeDate = new Date(recipe.date || 0);
+
+    // Find the first existing card whose date is older — insert before it.
+    const cards = grid.querySelectorAll('.card');
+    let insertBefore = null;
+    for (const card of cards) {
+      if (new Date(card.dataset.date || 0) < recipeDate) {
+        insertBefore = card;
+        break;
+      }
+    }
+
+    if (insertBefore) {
+      insertBefore.insertAdjacentHTML('beforebegin', renderCard(recipe));
+      insertBefore.previousElementSibling?.classList.add('card-entering');
+    } else {
+      grid.insertAdjacentHTML('beforeend', renderCard(recipe));
+      grid.lastElementChild?.classList.add('card-entering');
+    }
   });
 }
 async function triggerSearch(start = 1) {
@@ -705,7 +725,7 @@ function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#c75b2e';
   return `
-    <article class="card" data-action="card" data-url="${r.url}">
+    <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
           onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-initial\\'>${escHtml(r.blog.charAt(0))}</span></div>'">` : ''}
@@ -923,7 +943,7 @@ document.addEventListener('click', async (e) => {
           state.recipes.slice(0, state.discoverRenderLimit).forEach(r => _streamAppendedSet.add(r.url));
         }
       } else {
-        appendStreamCards(batch);
+        insertSortedStreamCards(batch);
       }
     }, true);
     _streamAppendedSet.clear();
@@ -1135,11 +1155,11 @@ async function init() {
       state.streamingMore = true;
       if (!state.searchMode && !state.selected) {
         renderApp();
-        // Track what just rendered so appendStreamCards skips them.
+        // Track what just rendered so insertSortedStreamCards skips them.
         state.recipes.slice(0, state.discoverRenderLimit).forEach(r => _streamAppendedSet.add(r.url));
       }
     } else {
-      appendStreamCards(batch);
+      insertSortedStreamCards(batch);
     }
   });
   _streamAppendedSet.clear();
