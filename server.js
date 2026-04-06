@@ -299,6 +299,16 @@ const ROUNDUP_PATTERNS = [
   /\bwhy\s+(i|we)('(ll|ve|m|d|re)|m)?\s/i,                // "Why I'll Never…", "Why We Always…"
   /\bthe\s+truth\s+about\b/i,                              // "The Truth About X" editorial posts
   /\b(stop|quit|give\s+up)\s+(buying|ordering|eating|using|making)\b/i, // "Stop Buying X"
+  // Editorial / feature / lifestyle series
+  /\bbehind.the.scenes\b/i,                                             // "A Behind-the-Scenes Look at..."
+  /\bbar\s+program\b/i,                                                 // "Chicago's Most Exciting New Bar Program"
+  /^i\s+finally\b/i,                                                    // "I Finally Stopped Using K-Cups..."
+  /\bvol\.?\s*\d+\b/i,                                                  // "A Week In The Life, Vol 14." — recurring series
+  /\bweek\s+in\s+(my\s+|the\s+)?life\b/i,                              // "A Week In The Life"
+  /\bday\s+in\s+(my\s+|the\s+)?life\b/i,                               // "A Day In The Life"
+  /\b(brilliant|genius|clever)\s+(find|hack|trick|solution|discovery)\b/i, // "Thanks to This Brilliant Find"
+  /\b(new|exciting|hottest?|must.visit)\s+(bar|restaurant|spot|place)\b/i, // bar/restaurant features
+  /\bbar\s+(scene|guide|hop)\b/i,                                       // bar scene guides
 ];
 
 function isRoundup(title = '', url = '') {
