@@ -1072,14 +1072,18 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Search input — debounce API search, preserve focus
+// Search input — update state and debounce the API call.
+// We do NOT call renderApp() here — doing so destroys and recreates the input
+// element on every keystroke, causing focus loss after ~1 second of typing.
+// The only visible UI change while typing is the clear (×) button, so we
+// toggle that directly instead of a full re-render.
 document.addEventListener('input', (e) => {
   if (e.target.dataset.action !== 'search') return;
   state.searchQuery = e.target.value;
-  const cursor = e.target.selectionStart;
-  renderApp();
-  const input = document.querySelector('[data-action="search"]');
-  if (input) { input.focus(); input.setSelectionRange(cursor, cursor); }
+
+  // Toggle clear button visibility in-place — no re-render needed.
+  const clearBtn = document.querySelector('[data-action="search-clear"]');
+  if (clearBtn) clearBtn.style.display = state.searchQuery ? '' : 'none';
 
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => triggerSearch(), 400);
