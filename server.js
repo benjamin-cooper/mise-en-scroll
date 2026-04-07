@@ -316,6 +316,15 @@ const ROUNDUP_PATTERNS = [
   /\bthe\s+one\s+(thing|mistake|trick|rule|secret|reason)\b/i,          // "The One Thing You Should Always..."
   /\byou('ve)?\s+(been\s+doing|never\s+knew|didn'?t\s+know|always\s+wondered)\b/i, // "You've Been Doing X Wrong"
   /\b(doing|making|using|storing|eating|cooking)\s+[\w\s]{2,30}wrong\b/i, // "You've Been Making Scrambled Eggs Wrong"
+  // Subtitle editorial questions: "Topic: Does X Count?", "Spirits: Is This Real?"
+  /:\s*(does|is|are|should|can|will|would|has|have|did)\s.+\?$/i,
+  // Industry news: distillery/brewery closures, acquisitions
+  /\b(closes?|closing|closed|shut\s+down)\b.{0,30}\b(distillery|brewery|winery|bar|restaurant|cafe)\b/i,
+  /\b(distillery|brewery|winery)\b.{0,30}\b(closes?|closing|closed|news|acquired|sold)\b/i,
+  // Interactive / promo posts
+  /\bmatchmaker\b/i,                                                    // "Easter Lamb Matchmaker!"
+  /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+things?\b/i, // "Tuesday Things."
+  /\b\w+day\s+things?\b/i,                                             // catches variations like "Weekday Things"
 ];
 
 function isRoundup(title = '', url = '') {
