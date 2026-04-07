@@ -325,6 +325,36 @@ const ROUNDUP_PATTERNS = [
   /\bmatchmaker\b/i,                                                    // "Easter Lamb Matchmaker!"
   /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+things?\b/i, // "Tuesday Things."
   /\b\w+day\s+things?\b/i,                                             // catches variations like "Weekday Things"
+  // Spirits / drinks editorial (Alcademics, Punch)
+  /\btasting\s+notes?\b/i,                                              // "Tasting Notes: X"
+  /\b(spirits?|whiskey|whisky|bourbon|gin|rum|vodka|tequila|mezcal|beer|wine)\b.{0,25}\b(review|tasting|notes?)\b/i,
+  /^review\b/i,                                                         // title starts with "Review:"
+  /\bthe\s+history\s+of\b/i,                                           // "The History of Bourbon"
+  /\bguide\s+to\b/i,                                                   // "A Guide to Natural Wine"
+  // X vs Y comparisons — always editorial, never a recipe title
+  /\bvs\.?\s+\w/i,                                                     // "Tamari vs Soy Sauce", "Butter vs Oil"
+  // Educational / tips (The Kitchn style)
+  /\bthe\s+difference\s+between\b/i,                                   // "The Difference Between X and Y"
+  /\beverything\s+you\s+(need\s+to\s+)?know\s+(about|on)\b/i,         // "Everything You Need to Know About X"
+  /\bwhat\s+is\s+(a\s+|an\s+)?\w[\w\s]{1,20}\?/i,                    // "What Is a Tagine?"
+  /\bhow\s+to\s+(store|clean|organize|choose|buy|pick|select|sharpen|care\s+for|get\s+rid\s+of)\b/i,
+  /\b(pantry|kitchen)\s+(staples?|essentials?|must.?haves?|basics?)\b/i, // pantry/kitchen essentials lists
+  // Taste tests and comparative reviews
+  /\b(we|i)\s+(tried|tested|tasted)\s+(every|all|\d+)\b/i,            // "We Tried Every Hot Sauce", "I Tested 10 Butters"
+  /\bwe\s+made\s+.{3,35}\s+\d+\s+(different\s+)?ways?\b/i,           // "We Made Pasta 6 Different Ways"
+  // Clickbait
+  /\byou\s+won'?t\s+believe\b/i,
+  /\bgoing\s+viral\b/i,
+  /\bthe\s+internet\s+(is\s+)?(obsessed|loves?|can'?t\s+stop)\b/i,
+  /\beveryone\s+is\s+(making|talking\s+about|obsessed\s+with)\b/i,
+  /\b(changed|will\s+change)\s+(my|your|our)\s+(life|world|everything)\b/i, // "This Changed My Life"
+  /\bwhat\s+happens\s+when\s+you\b/i,                                 // experiment/editorial
+  /\bthe\s+real\s+reason\s+(why\s+)?\w/i,                             // "The Real Reason Your Cake Falls Flat"
+  /\bhere'?s?\s+why\s+(you\s+should|we|i)\b/i,                        // "Here's Why You Should..."
+  /\b(so\s+)?i\s+ate\s+.{3,30}\s+(for\s+a?\s*\d+|for\s+(a\s+)?(week|month|year|day))\b/i, // "I Ate X for a Week"
+  /\bmy\s+honest\s+(review|opinion|thoughts?)\b/i,                    // "My Honest Review of X"
+  /\bworth\s+(it|the\s+hype|buying|trying)\b/i,                       // "Is X Worth the Hype?"
+  /\bis\s+it\s+worth\b/i,
 ];
 
 function isRoundup(title = '', url = '') {
