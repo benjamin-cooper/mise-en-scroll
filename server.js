@@ -366,6 +366,13 @@ const ROUNDUP_PATTERNS = [
   /\bwe\s+asked\b.{5,60}\band\s+they\b/i,                             // "We Asked 3 Grandmas...and They All Said"
   /\bthey\s+all\s+said\b/i,                                           // "...and They All Said the Same Thing"
   /^this\s+and\s+that\b/i,                                            // "This and That" lifestyle catch-all
+  // Beauty / fashion / lifestyle shopping (How Sweet Eats, etc.)
+  /\b(sephora|ulta|nordstrom|net.a.porter|revolve|anthropologie)\b/i,
+  /\b(beauty|skincare|makeup|fragrance|perfume|moisturizer|serum|foundation)\b.{0,30}\b(sale|haul|favorites?|picks?|finds?)\b/i,
+  /\b(sale|haul|favorites?|picks?|finds?)\b.{0,30}\b(beauty|skincare|makeup|fashion|style|outfit)\b/i,
+  /\bspring\s+sale\b/i,
+  /\b(outfit|wardrobe|clothing|clothes)\b/i,                         // non-food lifestyle content
+  /\b(fashion|style)\s+(haul|finds?|picks?|favorites?|inspo|inspiration|post)\b/i,
 ];
 
 function isRoundup(title = '', url = '') {
