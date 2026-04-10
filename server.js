@@ -170,8 +170,6 @@ const BLOGS = [
   { name: 'Eating European',       feed: 'https://eatingeuropean.com/feed/',                color: '#e65100' },
   // --- Nordic / Scandinavian ---
   { name: 'Nordic Kitchen Stories',feed: 'https://www.nordickitchenstories.co.uk/feed/',    color: '#558b2f' },
-  // --- General (large) ---
-  { name: 'The Kitchn',            feed: 'https://feeds.feedburner.com/thekitchn',          color: '#e53935' },
 ];
 
 function decodeHtml(str) {
