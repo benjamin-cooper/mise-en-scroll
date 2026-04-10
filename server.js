@@ -355,6 +355,19 @@ const ROUNDUP_PATTERNS = [
   /\bmy\s+honest\s+(review|opinion|thoughts?)\b/i,                    // "My Honest Review of X"
   /\bworth\s+(it|the\s+hype|buying|trying)\b/i,                       // "Is X Worth the Hype?"
   /\bis\s+it\s+worth\b/i,
+  // Shopping / product launch / deals (The Kitchn publishes heavily)
+  /\b\d+\s+(best|top)\b/i,                                             // "The 32 Best..." (number before best)
+  /\bdeals?\s+to\s+shop\b/i,                                          // "32 Best Kitchen Deals to Shop"
+  /,\s*and\s+more\.?\s*$/i,                                           // "...from Williams Sonoma, Momofuku, and More"
+  /\bnew\s+collection\b/i,                                            // "Dollar General's New Collection"
+  /\bnewest\s+(pieces?|products?|items?|collection|arrivals?|line)\b/i, // "Le Creuset's Newest Pieces"
+  /\bfrozen\s+(pizza|meal|food|dinner|entree)s?\b/i,                  // frozen product reviews
+  /\bperfect\s+in\s+a\s+pinch\b/i,
+  /\b\w+'?s\s+(trick|tip|hack|secret)\s+(for|to)\b/i,                // "Martha Stewart's Trick for Making..."
+  /\b\d+x\s+more\b/i,                                                 // "100x More Tasty"
+  /\bwe\s+asked\b.{5,60}\band\s+they\b/i,                             // "We Asked 3 Grandmas...and They All Said"
+  /\bthey\s+all\s+said\b/i,                                           // "...and They All Said the Same Thing"
+  /^this\s+and\s+that\b/i,                                            // "This and That" lifestyle catch-all
 ];
 
 function isRoundup(title = '', url = '') {
