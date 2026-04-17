@@ -448,9 +448,51 @@ app.get('/api/blogs', (req, res) => {
   res.json(BLOGS.map(({ name, color }) => ({ name, color })));
 });
 
-// Cache feed results for 1 hour to avoid hammering 65 feeds on every load
+// Cache feed results for 1 hour to avoid hammering feeds on every load
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const CACHE_FILE = path.join(__dirname, '.feed-cache.json');
+
+// Persist cache to disk so Render restarts don't cold-start every blog
+let _persistTimer = null;
+function persistFeedCache() {
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    const data = {};
+    feedCache.forEach((v, k) => { data[k] = v; });
+    fs.writeFile(CACHE_FILE, JSON.stringify(data), () => {});
+  }, 2000);
+}
+
+// Load persisted cache on startup
+try {
+  const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+  const data = JSON.parse(raw);
+  for (const [name, entry] of Object.entries(data)) feedCache.set(name, entry);
+  console.log(`Feed cache loaded from disk (${feedCache.size} entries)`);
+} catch {}
+
+// Try to extract totalTime in minutes from JSON-LD embedded in RSS content
+function extractCookTimeMinutes(item) {
+  const html = item.contentEncoded || item.content || '';
+  if (!html) return null;
+  try {
+    const m = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (!m) return null;
+    const json = JSON.parse(m[1]);
+    const schemas = Array.isArray(json) ? json : (json['@graph'] ? json['@graph'] : [json]);
+    for (const s of schemas) {
+      const t = s['@type'];
+      if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
+        const dur = s.totalTime || s.cookTime;
+        if (!dur) return null;
+        const d = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
+        if (d) return (parseInt(d[1] || 0) * 60) + parseInt(d[2] || 0);
+      }
+    }
+  } catch {}
+  return null;
+}
 
 async function fetchBlogFeed(blog) {
   const cached = feedCache.get(blog.name);
@@ -462,6 +504,7 @@ async function fetchBlogFeed(blog) {
       typeof c === 'string' ? c : (c._ || c['#text'] || '')
     ).filter(Boolean);
     const searchText = [item.title || '', ...categories, item.contentSnippet || ''].join(' ').toLowerCase();
+    const cookTimeMinutes = extractCookTimeMinutes(item);
     return {
       id: Buffer.from(item.link || item.guid || '').toString('base64'),
       title: decodeHtml(item.title?.trim()),
@@ -473,10 +516,12 @@ async function fetchBlogFeed(blog) {
       excerpt: item.contentSnippet ? decodeHtml(item.contentSnippet.slice(0, 140).trim()) + '…' : '',
       categories,
       searchText,
+      ...(cookTimeMinutes !== null ? { cookTimeMinutes } : {}),
     };
   });
 
   feedCache.set(blog.name, { recipes, fetchedAt: Date.now() });
+  persistFeedCache();
   return recipes;
 }
 
