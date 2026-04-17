@@ -1005,3 +1005,337 @@ ul, ol { padding-left: 1.25rem; }
   .drawer.is-open { transform: translateY(0); }
   .drawer-content { padding: 20px 20px 48px; }
 }
+
+/* === Back to top === */
+.back-to-top {
+  position: fixed;
+  bottom: 28px;
+  right: 24px;
+  z-index: 250;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--text);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.back-to-top.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+.back-to-top:hover { background: var(--accent); }
+
+/* === Surprise Me button === */
+.surprise-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  transition: all var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.surprise-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+.surprise-btn span { display: none; }
+@media (min-width: 700px) { .surprise-btn span { display: inline; } }
+
+/* === Servings scaler === */
+.servings-scaler {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+.servings-scaler-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.servings-scaler-btns {
+  display: flex;
+  gap: 4px;
+}
+.scale-btn {
+  padding: 3px 10px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: all var(--transition);
+}
+.scale-btn:hover { border-color: var(--accent); color: var(--accent); }
+.scale-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* === Add to Plan === */
+.add-to-plan-wrap {
+  margin: 20px 0;
+}
+.btn-plan {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1.5px dashed var(--border);
+  color: var(--muted);
+  background: none;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-plan:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.add-to-plan-picker {
+  padding: 14px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plan-picker-days {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.plan-day-btn {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: all var(--transition);
+}
+.plan-day-btn:hover { border-color: var(--text); color: var(--text); }
+.plan-day-btn.is-active { background: var(--accent); border-color: var(--accent); color: white; }
+.plan-picker-slots {
+  display: flex;
+  gap: 8px;
+}
+.plan-slot-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: all var(--transition);
+}
+.plan-slot-btn:hover { border-color: var(--accent); color: var(--accent); }
+.plan-slot-btn.is-taken { border-color: #2d7a44; color: #2d7a44; background: #edf7f1; }
+.plan-picker-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* === Meal Planner === */
+.meal-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .meal-plan-grid { grid-template-columns: repeat(7, minmax(110px, 1fr)); }
+}
+@media (max-width: 600px) {
+  .meal-plan-grid {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+}
+.meal-plan-day {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.meal-plan-day.is-today {
+  border-color: var(--accent);
+}
+.meal-plan-day-header {
+  padding: 8px 10px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.meal-plan-day-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+.meal-plan-today-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+.meal-plan-slot {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--border);
+  min-height: 60px;
+  position: relative;
+}
+.meal-plan-slot:last-child { border-bottom: none; }
+.meal-plan-slot-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-shrink: 0;
+  padding-top: 3px;
+  min-width: 12px;
+}
+.meal-plan-recipe {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+.meal-plan-recipe img {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.meal-plan-no-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.meal-plan-recipe-title {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.meal-plan-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.meal-plan-slot:hover .meal-plan-remove { opacity: 1; }
+.meal-plan-empty-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.meal-plan-empty-label {
+  font-size: 0.75rem;
+  color: var(--border);
+}
+
+/* === SW update toast === */
+.sw-update-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  animation: toast-in 0.18s ease;
+  /* Don't auto-dismiss */
+}
+.sw-reload-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* === Dark mode === */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1714;
+    --surface: #242220;
+    --text: #f5f0eb;
+    --muted: #9a9490;
+    --border: #38342f;
+    --accent: #d9764a;
+    --accent-light: #2d1e15;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2);
+    --shadow-hover: 0 4px 12px rgba(0,0,0,0.4), 0 16px 32px rgba(0,0,0,0.3);
+  }
+  .skeleton .card-image,
+  .skeleton-line {
+    background: linear-gradient(90deg, #2a2622 25%, #342e28 50%, #2a2622 75%);
+    background-size: 600px 100%;
+  }
+  .card-image { background: #2a2622; }
+  .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
+  .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
+  .search-clear:hover { background: var(--border); }
+}

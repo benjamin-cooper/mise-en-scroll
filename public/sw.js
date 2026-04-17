@@ -8,12 +8,20 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// Activate: delete old caches
+// Activate: delete old caches, then notify open tabs if this was an upgrade
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys => {
+      const old = keys.filter(k => k !== CACHE);
+      const isUpgrade = old.length > 0;
+      return Promise.all(old.map(k => caches.delete(k))).then(() => {
+        if (isUpgrade) {
+          return self.clients.matchAll({ type: 'window' }).then(clients =>
+            clients.forEach(c => c.postMessage({ type: 'sw-updated' }))
+          );
+        }
+      });
+    })
   );
   self.clients.claim();
 });

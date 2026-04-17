@@ -1,6 +1,6 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 97 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 96 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 

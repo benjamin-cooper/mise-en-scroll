@@ -92,6 +92,12 @@ const state = {
   streamingMore: false,   // true while SSE stream is active after first batch
   discoverRenderLimit: 60, // virtualized card window
   recentSearches: [],
+  // Drawer servings scaler
+  scaleFactor: 1,
+  // Meal planner
+  mealPlan: {},           // { 'Monday': { Breakfast: recipe|null, Lunch: recipe|null, Dinner: recipe|null } }
+  mealPlanPickerOpen: false,
+  mealPlanPickDay: null,  // day currently chosen in the in-drawer picker
 };
 
 // --- API ---
@@ -134,13 +140,16 @@ function refreshFavorites() {
 // --- Filter persistence (localStorage) ---
 const FILTERS_KEY = 'mise-en-scroll-filters';
 function saveFilters() {
-  try {
-    localStorage.setItem(FILTERS_KEY, JSON.stringify({
-      cuisine: state.cuisineFilters, protein: state.proteinFilters,
-      time: state.timeFilters, meal: state.mealFilters, dietary: state.dietaryFilters,
-      method: state.methodFilters,
-    }));
-  } catch {}
+  clearTimeout(_saveFiltersTimer);
+  _saveFiltersTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify({
+        cuisine: state.cuisineFilters, protein: state.proteinFilters,
+        time: state.timeFilters, meal: state.mealFilters, dietary: state.dietaryFilters,
+        method: state.methodFilters,
+      }));
+    } catch {}
+  }, 300);
 }
 function loadSavedFilters() {
   try { return JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null'); } catch { return null; }
@@ -156,6 +165,43 @@ function saveSearchToHistory(q) {
 }
 function loadSearchHistory() {
   try { return JSON.parse(localStorage.getItem(SEARCHES_KEY) || '[]'); } catch { return []; }
+}
+
+// --- Meal Planner (localStorage) ---
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const MEAL_SLOTS = ['Breakfast','Lunch','Dinner'];
+const MEAL_PLAN_KEY = 'mise-en-scroll-meal-plan';
+function loadMealPlan() {
+  try { return JSON.parse(localStorage.getItem(MEAL_PLAN_KEY) || '{}'); } catch { return {}; }
+}
+function saveMealPlan() {
+  try { localStorage.setItem(MEAL_PLAN_KEY, JSON.stringify(state.mealPlan)); } catch {}
+}
+
+// --- Ingredient scaling helpers ---
+const UNICODE_FRACTIONS = { '½':0.5,'⅓':1/3,'⅔':2/3,'¼':0.25,'¾':0.75,'⅕':0.2,'⅖':0.4,'⅗':0.6,'⅘':0.8,'⅙':1/6,'⅚':5/6,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875 };
+const NICE_FRACS = [[3,4,'¾'],[2,3,'⅔'],[1,2,'½'],[1,3,'⅓'],[1,4,'¼']];
+function toNiceFrac(n) {
+  if (Number.isInteger(n)) return String(n);
+  const w = Math.floor(n), f = n - w;
+  for (const [num, den, sym] of NICE_FRACS) {
+    if (Math.abs(f - num/den) < 0.04) return w > 0 ? `${w} ${sym}` : sym;
+  }
+  return String(Math.round(n * 100) / 100);
+}
+function scaleIngredient(text, factor) {
+  if (factor === 1) return text;
+  let t = text;
+  for (const [f, v] of Object.entries(UNICODE_FRACTIONS)) t = t.replaceAll(f, v.toString());
+  // Replace leading quantities: "1 1/2", "1/2", "3", "1.5" at word boundary
+  return t.replace(/\b(\d+)\s+(\d+)\/(\d+)\b|\b(\d+)\/(\d+)\b|\b(\d*\.?\d+)\b/, (m, w, nf, df, n2, d2, dec) => {
+    let val;
+    if (w !== undefined)   val = parseInt(w) + parseInt(nf)/parseInt(df);
+    else if (n2 !== undefined) val = parseInt(n2)/parseInt(d2);
+    else val = parseFloat(dec);
+    if (isNaN(val) || val === 0) return m;
+    return toNiceFrac(val * factor);
+  });
 }
 
 // --- Helpers ---
@@ -209,10 +255,14 @@ function buildSearchQuery() {
 }
 
 let searchDebounceTimer = null;
+let _saveFiltersTimer = null;
 let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 let _discoverScrollObserver = null;
+// Hover-prefetch cache: url -> Promise<detail>
+const _prefetchCache = new Map();
+let _prefetchTimer = null;
 
 // Sorted insertion streaming — each incoming batch is inserted into the grid at
 // its correct date-sorted position rather than appending to the bottom or
@@ -233,14 +283,15 @@ function insertSortedStreamCards(batch) {
     .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
   if (!toAdd.length) return;
 
+  // Snapshot card list once — avoids O(n²) querySelectorAll inside the loop.
+  let cardList = [...grid.querySelectorAll('.card')];
   toAdd.forEach(recipe => {
     _streamAppendedSet.add(recipe.url);
     const recipeDate = new Date(recipe.date || 0);
 
     // Find the first existing card whose date is older — insert before it.
-    const cards = grid.querySelectorAll('.card');
     let insertBefore = null;
-    for (const card of cards) {
+    for (const card of cardList) {
       if (new Date(card.dataset.date || 0) < recipeDate) {
         insertBefore = card;
         break;
@@ -249,10 +300,16 @@ function insertSortedStreamCards(batch) {
 
     if (insertBefore) {
       insertBefore.insertAdjacentHTML('beforebegin', renderCard(recipe));
-      insertBefore.previousElementSibling?.classList.add('card-entering');
+      const inserted = insertBefore.previousElementSibling;
+      inserted?.classList.add('card-entering');
+      // Update snapshot: splice inserted card in before its reference
+      const idx = cardList.indexOf(insertBefore);
+      if (inserted) cardList.splice(idx, 0, inserted);
     } else {
       grid.insertAdjacentHTML('beforeend', renderCard(recipe));
-      grid.lastElementChild?.classList.add('card-entering');
+      const inserted = grid.lastElementChild;
+      inserted?.classList.add('card-entering');
+      if (inserted) cardList.push(inserted);
     }
   });
 }
@@ -349,8 +406,19 @@ function applyFilters(recipes) {
       if (!kws.some(kw => full.includes(kw))) return false;
     }
     if (state.timeFilters.length) {
-      const kws = state.timeFilters.flatMap(label => FILTERS.time.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (r.cookTimeMinutes != null) {
+        // Use actual cook time when the server extracted it from RSS JSON-LD
+        const passes = state.timeFilters.some(label => {
+          if (label === 'Quick (≤30m)') return r.cookTimeMinutes <= 30;
+          if (label === '~1 Hour')      return r.cookTimeMinutes > 30 && r.cookTimeMinutes <= 75;
+          if (label === '2+ Hours')     return r.cookTimeMinutes > 75;
+          return false;
+        });
+        if (!passes) return false;
+      } else {
+        const kws = state.timeFilters.flatMap(label => FILTERS.time.find(f => f.label === label)?.keywords || []);
+        if (!kws.some(kw => full.includes(kw))) return false;
+      }
     }
     if (state.mealFilters.length) {
       const kws = state.mealFilters.flatMap(label => FILTERS.meal.find(f => f.label === label)?.keywords || []);
@@ -391,11 +459,14 @@ function renderApp() {
 
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
-    ${renderSearchSection()}
+    ${state.view !== 'mealplan' ? renderSearchSection() : ''}
     <div class="grid-section">
       ${renderContent()}
     </div>
     ${renderDrawer()}
+    <button class="back-to-top" id="back-to-top" data-action="back-to-top" aria-label="Back to top">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
   `;
 
   if (!drawerNowOpen) {
@@ -457,7 +528,15 @@ function renderHeader() {
           <button class="header-tab ${state.view === 'favorites' ? 'is-active' : ''}" data-action="tab" data-view="favorites">
             Saved ${state.favorites.length ? `<span class="tab-count">${state.favorites.length}</span>` : ''}
           </button>
+          <button class="header-tab ${state.view === 'mealplan' ? 'is-active' : ''}" data-action="tab" data-view="mealplan">
+            Meal Plan
+          </button>
         </nav>
+        ${state.view === 'discover' && !state.loading && state.recipes.length ? `
+          <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
+            🎲 <span>Surprise me</span>
+          </button>
+        ` : ''}
       </div>
     </header>
   `;
@@ -634,7 +713,57 @@ function renderSearchSection() {
   `;
 }
 
+function renderMealPlan() {
+  const today = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+  return `
+    <div class="container">
+      <div class="meal-plan-grid">
+        ${DAYS.map(day => {
+          const slots = state.mealPlan[day] || {};
+          const isToday = day === today;
+          return `
+            <div class="meal-plan-day ${isToday ? 'is-today' : ''}">
+              <div class="meal-plan-day-header">
+                <span class="meal-plan-day-name">${day.slice(0,3)}</span>
+                ${isToday ? `<span class="meal-plan-today-badge">Today</span>` : ''}
+              </div>
+              ${MEAL_SLOTS.map(slot => {
+                const recipe = slots[slot];
+                return `
+                  <div class="meal-plan-slot">
+                    <span class="meal-plan-slot-label">${slot.charAt(0)}</span>
+                    ${recipe ? `
+                      <div class="meal-plan-recipe" data-action="card" data-url="${recipe.url}">
+                        ${recipe.image ? `<img src="${recipe.image}" alt="" loading="lazy">` : `<div class="meal-plan-no-img" style="background:${recipe.blogColor}22;color:${recipe.blogColor}">${recipe.blog.charAt(0)}</div>`}
+                        <span class="meal-plan-recipe-title">${escHtml(recipe.title)}</span>
+                      </div>
+                      <button class="meal-plan-remove" data-action="remove-from-plan" data-day="${day}" data-slot="${slot}" aria-label="Remove">✕</button>
+                    ` : `
+                      <div class="meal-plan-empty-slot">
+                        <span class="meal-plan-empty-label">${slot}</span>
+                      </div>
+                    `}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }).join('')}
+      </div>
+      ${Object.values(state.mealPlan).every(d => !d || MEAL_SLOTS.every(s => !d[s])) ? `
+        <div class="empty" style="padding:60px 20px">
+          <div class="empty-icon">📅</div>
+          <p>Your meal plan is empty. Open any recipe and tap <strong>Add to Plan</strong> to schedule it.</p>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function renderContent() {
+  // --- Meal plan view ---
+  if (state.view === 'mealplan') return renderMealPlan();
+
   // --- Search API mode ---
   if (state.view === 'discover' && state.searchMode) {
     if (state.searchLoading && !state.searchResults.length) {
@@ -783,14 +912,52 @@ function renderDrawer() {
       </div>
     `;
   } else if (d) {
+    // Servings scaler
+    const baseServings = d.servings ? String(d.servings).replace(/[^\d.]/g, '') : null;
+    const scaleOptions = [{ label: '½×', v: 0.5 }, { label: '1×', v: 1 }, { label: '2×', v: 2 }, { label: '3×', v: 3 }, { label: '4×', v: 4 }];
+    const scalerHtml = d.ingredients?.length ? `
+      <div class="servings-scaler">
+        <span class="servings-scaler-label">Scale${baseServings ? ` (${Math.round(parseFloat(baseServings) * state.scaleFactor)} serves)` : ''}</span>
+        <div class="servings-scaler-btns">
+          ${scaleOptions.map(o => `<button class="scale-btn ${state.scaleFactor === o.v ? 'is-active' : ''}" data-action="scale-servings" data-factor="${o.v}">${o.label}</button>`).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // Add to Plan picker
+    const addToPlanHtml = `
+      <div class="add-to-plan-wrap">
+        ${state.mealPlanPickerOpen ? `
+          <div class="add-to-plan-picker">
+            <div class="plan-picker-days">
+              ${DAYS.map(day => `<button class="plan-day-btn ${state.mealPlanPickDay === day ? 'is-active' : ''}" data-action="plan-pick-day" data-day="${day}">${day.slice(0,3)}</button>`).join('')}
+            </div>
+            ${state.mealPlanPickDay ? `
+              <div class="plan-picker-slots">
+                ${MEAL_SLOTS.map(slot => {
+                  const taken = state.mealPlan[state.mealPlanPickDay]?.[slot];
+                  return `<button class="plan-slot-btn ${taken ? 'is-taken' : ''}" data-action="confirm-add-to-plan" data-day="${state.mealPlanPickDay}" data-slot="${slot}">
+                    ${slot}${taken ? ' ✓' : ''}
+                  </button>`;
+                }).join('')}
+              </div>
+            ` : `<p class="plan-picker-hint">Pick a day above</p>`}
+          </div>
+        ` : `
+          <button class="btn btn-plan" data-action="open-plan-picker">📅 Add to Meal Plan</button>
+        `}
+      </div>
+    `;
+
     body = `
       ${d.description ? `<p class="drawer-description">${escHtml(d.description)}</p>` : ''}
       ${timeChips(d)}
+      ${scalerHtml}
       ${d.ingredients?.length ? `
         <section class="recipe-section">
           <h3>Ingredients</h3>
           <ul class="ingredients">
-            ${d.ingredients.map(i => `<li>${escHtml(i)}</li>`).join('')}
+            ${d.ingredients.map(i => `<li>${escHtml(scaleIngredient(i, state.scaleFactor))}</li>`).join('')}
           </ul>
         </section>
       ` : ''}
@@ -802,6 +969,7 @@ function renderDrawer() {
           </ol>
         </section>
       ` : ''}
+      ${addToPlanHtml}
       <div class="drawer-actions">
         <button class="btn btn-primary ${fav ? 'is-saved' : ''}" data-action="${fav ? 'unsave' : 'save'}">
           ${fav ? 'Saved ✓' : 'Save Recipe'}
@@ -919,8 +1087,10 @@ document.addEventListener('click', async (e) => {
     if (!url) return;
     if (navigator.share) {
       navigator.share({ title: title || 'Recipe', url }).catch(() => {});
+    } else if (navigator.clipboard && location.protocol === 'https:') {
+      navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => copyFallback(url));
     } else {
-      navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => showToast('Could not copy link'));
+      copyFallback(url);
     }
   }
 
@@ -952,6 +1122,84 @@ document.addEventListener('click', async (e) => {
     state.loading = false;
     if (state.recipes.length) state.feedLastLoaded = Date.now();
     if (!state.searchMode && !state.selected) renderApp();
+    return;
+  }
+
+  if (action === 'back-to-top') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  if (action === 'surprise-me') {
+    const pool = applyFilters(state.recipes);
+    if (!pool.length) return;
+    const r = pool[Math.floor(Math.random() * pool.length)];
+    state.selected = { url: r.url, preview: r };
+    state.detail = null;
+    state.detailLoading = true;
+    state.detailError = null;
+    state.scaleFactor = 1;
+    state.mealPlanPickerOpen = false;
+    renderApp();
+    try {
+      const data = _prefetchCache.has(r.url) ? await _prefetchCache.get(r.url) : await api.recipe(r.url);
+      if (data?.error) throw new Error(data.error);
+      state.detail = data;
+    } catch (err) {
+      state.detailError = err.message || 'Failed to load recipe.';
+    } finally {
+      state.detailLoading = false;
+      renderApp();
+    }
+    return;
+  }
+
+  if (action === 'scale-servings') {
+    state.scaleFactor = parseFloat(el.dataset.factor);
+    renderApp();
+    return;
+  }
+
+  if (action === 'open-plan-picker') {
+    state.mealPlanPickerOpen = true;
+    state.mealPlanPickDay = null;
+    renderApp();
+    return;
+  }
+
+  if (action === 'plan-pick-day') {
+    state.mealPlanPickDay = el.dataset.day;
+    renderApp();
+    return;
+  }
+
+  if (action === 'confirm-add-to-plan') {
+    const { day, slot } = el.dataset;
+    if (!state.selected) return;
+    const p = state.selected.preview;
+    if (!state.mealPlan[day]) state.mealPlan[day] = {};
+    state.mealPlan[day][slot] = {
+      url: state.selected.url,
+      title: state.detail?.name || p.title,
+      image: state.detail?.image || p.image,
+      blog: p.blog,
+      blogColor: p.blogColor,
+    };
+    saveMealPlan();
+    state.mealPlanPickerOpen = false;
+    state.mealPlanPickDay = null;
+    showToast(`Added to ${day} ${slot.toLowerCase()}`);
+    renderApp();
+    return;
+  }
+
+  if (action === 'remove-from-plan') {
+    const { day, slot } = el.dataset;
+    if (state.mealPlan[day]) {
+      state.mealPlan[day][slot] = null;
+      saveMealPlan();
+      renderApp();
+    }
     return;
   }
 
@@ -1026,7 +1274,8 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'card') {
     const url = el.dataset.url;
-    const pool = [...state.recipes, ...state.favorites, ...state.searchResults];
+    const pool = [...state.recipes, ...state.favorites, ...state.searchResults,
+      ...Object.values(state.mealPlan).flatMap(d => d ? Object.values(d).filter(Boolean) : [])];
     const preview = pool.find(r => r.url === url);
     if (!preview) return;
 
@@ -1034,11 +1283,14 @@ document.addEventListener('click', async (e) => {
     state.detail = null;
     state.detailLoading = true;
     state.detailError = null;
+    state.scaleFactor = 1;
+    state.mealPlanPickerOpen = false;
+    state.mealPlanPickDay = null;
     renderApp();
 
     try {
-      const data = await api.recipe(url);
-      if (data.error) throw new Error(data.error);
+      const data = _prefetchCache.has(url) ? await _prefetchCache.get(url) : await api.recipe(url);
+      if (data?.error) throw new Error(data.error);
       state.detail = data;
     } catch (err) {
       state.detailError = err.message || 'Failed to load recipe.';
@@ -1089,6 +1341,40 @@ document.addEventListener('input', (e) => {
   searchDebounceTimer = setTimeout(() => triggerSearch(), 400);
 });
 
+// Hover-prefetch on desktop — fetch recipe detail 150ms after hovering a card
+// so the drawer opens instantly on click.
+document.addEventListener('mouseover', (e) => {
+  const card = e.target.closest('[data-action="card"]');
+  if (!card) return;
+  const url = card.dataset.url;
+  if (!url || _prefetchCache.has(url)) return;
+  clearTimeout(_prefetchTimer);
+  _prefetchTimer = setTimeout(() => {
+    if (!_prefetchCache.has(url)) {
+      _prefetchCache.set(url, api.recipe(url).catch(() => null));
+    }
+  }, 150);
+});
+
+// Back-to-top button visibility — pure DOM toggle, no state re-render
+window.addEventListener('scroll', () => {
+  const btn = document.getElementById('back-to-top');
+  if (btn) btn.classList.toggle('is-visible', window.scrollY > 400);
+}, { passive: true });
+
+// Service worker update toast
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'sw-updated') {
+      const toast = document.createElement('div');
+      toast.className = 'toast sw-update-toast';
+      toast.innerHTML = 'App updated — <button class="sw-reload-btn" onclick="location.reload()">reload</button>';
+      document.body.appendChild(toast);
+      // Don't auto-remove; let the user decide
+    }
+  });
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.selected) { closeDrawer(); return; }
   if (e.key === 'Tab' && state.selected) {
@@ -1105,10 +1391,28 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function copyFallback(url) {
+  try {
+    const el = document.createElement('textarea');
+    el.value = url;
+    Object.assign(el.style, { position: 'fixed', opacity: '0', pointerEvents: 'none' });
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    showToast('Link copied!');
+  } catch {
+    showToast('Could not copy link');
+  }
+}
+
 function closeDrawer() {
   state.selected = null;
   state.detail = null;
   state.detailError = null;
+  state.scaleFactor = 1;
+  state.mealPlanPickerOpen = false;
+  state.mealPlanPickDay = null;
   renderApp();
 }
 
@@ -1117,7 +1421,7 @@ function closeDrawer() {
 function refreshDiscoverContent() {
   const el = document.getElementById('discover-content');
   if (!el) return;
-  const base = state.recipes;
+  const base = state.view === 'favorites' ? state.favorites : state.recipes;
   const allFiltered = applyFilters(base);
   const visible = allFiltered.slice(0, state.discoverRenderLimit);
   const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
@@ -1133,6 +1437,7 @@ function refreshDiscoverContent() {
 async function init() {
   refreshFavorites();
   state.recentSearches = loadSearchHistory();
+  state.mealPlan = loadMealPlan();
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
     state.cuisineFilters = savedFilters.cuisine  || [];
