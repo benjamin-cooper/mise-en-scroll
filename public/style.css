@@ -1315,9 +1315,11 @@ ul, ol { padding-left: 1.25rem; }
   cursor: pointer;
 }
 
-/* === Dark mode === */
+/* === Dark mode ===
+   Applied when: system prefers dark AND user hasn't forced light,
+   OR user has explicitly forced dark via the toggle button.        */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #1a1714;
     --surface: #242220;
     --text: #f5f0eb;
@@ -1328,14 +1330,56 @@ ul, ol { padding-left: 1.25rem; }
     --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2);
     --shadow-hover: 0 4px 12px rgba(0,0,0,0.4), 0 16px 32px rgba(0,0,0,0.3);
   }
-  .skeleton .card-image,
-  .skeleton-line {
+  :root:not([data-theme="light"]) .skeleton .card-image,
+  :root:not([data-theme="light"]) .skeleton-line {
     background: linear-gradient(90deg, #2a2622 25%, #342e28 50%, #2a2622 75%);
     background-size: 600px 100%;
   }
-  .card-image { background: #2a2622; }
-  .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
-  .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
-  .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
-  .search-clear:hover { background: var(--border); }
+  :root:not([data-theme="light"]) .card-image { background: #2a2622; }
+  :root:not([data-theme="light"]) .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
+  :root:not([data-theme="light"]) .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  :root:not([data-theme="light"]) .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
+  :root:not([data-theme="light"]) .search-clear:hover { background: var(--border); }
+}
+
+/* Explicit dark override (user toggled on regardless of system) */
+:root[data-theme="dark"] {
+  --bg: #1a1714;
+  --surface: #242220;
+  --text: #f5f0eb;
+  --muted: #9a9490;
+  --border: #38342f;
+  --accent: #d9764a;
+  --accent-light: #2d1e15;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2);
+  --shadow-hover: 0 4px 12px rgba(0,0,0,0.4), 0 16px 32px rgba(0,0,0,0.3);
+}
+:root[data-theme="dark"] .skeleton .card-image,
+:root[data-theme="dark"] .skeleton-line {
+  background: linear-gradient(90deg, #2a2622 25%, #342e28 50%, #2a2622 75%);
+  background-size: 600px 100%;
+}
+:root[data-theme="dark"] .card-image { background: #2a2622; }
+:root[data-theme="dark"] .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
+:root[data-theme="dark"] .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+:root[data-theme="dark"] .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
+:root[data-theme="dark"] .search-clear:hover { background: var(--border); }
+
+/* === Theme toggle button === */
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.theme-toggle:hover {
+  border-color: var(--text);
+  color: var(--text);
 }

@@ -117,6 +117,23 @@ const api = {
   ingredientSearch: (ingredients, page) => fetch(`/api/ingredient-search?ingredients=${encodeURIComponent(ingredients)}&page=${page || 1}`).then(r => r.json()),
 };
 
+// --- Theme (localStorage) ---
+const THEME_KEY = 'mise-en-scroll-theme';
+function loadThemePref() {
+  try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+}
+function applyThemePref(pref) {
+  if (pref === 'dark')  document.documentElement.setAttribute('data-theme', 'dark');
+  else if (pref === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+}
+function isDark() {
+  const pref = loadThemePref();
+  if (pref === 'dark')  return true;
+  if (pref === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
 // --- Favorites (localStorage) ---
 const FAV_KEY = 'mise-en-scroll-favs';
 function loadFavs() {
@@ -532,11 +549,19 @@ function renderHeader() {
             Meal Plan
           </button>
         </nav>
-        ${state.view === 'discover' && !state.loading && state.recipes.length ? `
-          <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
-            🎲 <span>Surprise me</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${state.view === 'discover' && !state.loading && state.recipes.length ? `
+            <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
+              🎲 <span>Surprise me</span>
+            </button>
+          ` : ''}
+          <button class="theme-toggle" data-action="toggle-theme" aria-label="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}" title="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}">
+            ${isDark()
+              ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`
+              : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+            }
           </button>
-        ` : ''}
+        </div>
       </div>
     </header>
   `;
@@ -1125,6 +1150,15 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'toggle-theme') {
+    const next = isDark() ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+    applyThemePref(next);
+    // Re-render header only to flip the sun/moon icon
+    renderApp();
+    return;
+  }
+
   if (action === 'back-to-top') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
@@ -1435,6 +1469,7 @@ function refreshDiscoverContent() {
 
 // --- Init ---
 async function init() {
+  applyThemePref(loadThemePref()); // apply before first paint
   refreshFavorites();
   state.recentSearches = loadSearchHistory();
   state.mealPlan = loadMealPlan();
