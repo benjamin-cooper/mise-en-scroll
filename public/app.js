@@ -294,8 +294,14 @@ function insertSortedStreamCards(batch) {
   if (!grid) return;
   if (_streamAppendedSet.size >= state.discoverRenderLimit) return;
 
+  // Use the live DOM as the source of truth for what's already rendered.
+  // _streamAppendedSet can fall out of sync when refreshDiscoverContent()
+  // expands the virtual window (e.g. infinite scroll), inserting cards that
+  // were never tracked by insertSortedStreamCards — leading to duplicates.
+  const domUrls = new Set([...grid.querySelectorAll('.card[data-url]')].map(c => c.dataset.url));
+
   const toAdd = [...batch]
-    .filter(r => !_streamAppendedSet.has(r.url))
+    .filter(r => !_streamAppendedSet.has(r.url) && !domUrls.has(r.url))
     .sort((a, b) => new Date(b.date) - new Date(a.date)) // newest first within batch
     .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
   if (!toAdd.length) return;
@@ -1129,7 +1135,7 @@ document.addEventListener('click', async (e) => {
     renderApp();
     _streamAppendedSet.clear();
     await api.recipesStream((batch) => {
-      state.recipes = [...state.recipes, ...batch].sort((a, b) => new Date(b.date) - new Date(a.date));
+      state.recipes = [...new Map([...state.recipes, ...batch].map(r => [r.url, r])).values()].sort((a, b) => new Date(b.date) - new Date(a.date));
       if (state.loading) {
         state.loading = false;
         state.streamingMore = true;
@@ -1492,7 +1498,7 @@ async function init() {
   // Final render when stream finishes: one clean sorted renderApp().
   _streamAppendedSet.clear();
   await api.recipesStream((batch) => {
-    state.recipes = [...state.recipes, ...batch]
+    state.recipes = [...new Map([...state.recipes, ...batch].map(r => [r.url, r])).values()]
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (state.loading) {
       state.loading = false;
