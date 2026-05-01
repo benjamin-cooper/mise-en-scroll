@@ -373,6 +373,16 @@ const ROUNDUP_PATTERNS = [
   /\bspring\s+sale\b/i,
   /\b(outfit|wardrobe|clothing|clothes)\b/i,                         // non-food lifestyle content
   /\b(fashion|style)\s+(haul|finds?|picks?|favorites?|inspo|inspiration|post)\b/i,
+  // Q&A / interview editorial
+  /^we\s+asked\b/i,                                  // "We Asked: What's Your Best Advice..."
+  // Travel / lifestyle content
+  /\bthings\s+to\s+do\b/i,                           // "Things To Do in the South of France"
+  // Awards / industry recognition
+  /\bnominees?\s+(for|of)\b/i,                        // "Final Nominees for Best New Bartenders"
+  /\bintroducing\s+the\s+(final|new|latest|top)\b/i, // "Introducing the Final Nominees..."
+  /\bbest\s+new\s+(bartenders?|chefs?|sommeliers?|distillers?)\b/i,
+  // Survey / research questions (not recipes)
+  /^how\s+(?!to\s)\w+\s+(are|is|do|does)\b/i,       // "How Confident Are Americans..."
 ];
 
 function isRoundup(title = '', url = '') {
