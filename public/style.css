@@ -1006,6 +1006,128 @@ ul, ol { padding-left: 1.25rem; }
   .drawer-content { padding: 20px 20px 48px; }
 }
 
+/* === Nutrition chips === */
+.nutrition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+.nutrition-chips span {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.nutrition-chips strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.nutrition-chips span:not(:last-child)::after {
+  content: '·';
+  margin-left: 8px;
+  opacity: 0.4;
+}
+
+/* === Copy ingredients button === */
+.recipe-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.recipe-section-header h3 {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.copy-ingredients-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.copy-ingredients-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* === Notes section === */
+.notes-section { margin-bottom: 12px; }
+.recipe-notes {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--bg);
+  resize: vertical;
+  min-height: 70px;
+  transition: border-color var(--transition);
+  outline: none;
+  line-height: 1.5;
+}
+.recipe-notes::placeholder { color: var(--muted); opacity: 0.7; }
+.recipe-notes:focus { border-color: var(--accent); }
+
+/* === Cooked log === */
+.cooked-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.btn-cooked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  transition: all var(--transition);
+}
+.btn-cooked:hover { border-color: #2d7a44; color: #2d7a44; background: #edf7f1; }
+.cooked-count-pill {
+  background: #2d7a44;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.cooked-last {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* === Cooked badge on saved cards === */
+.cooked-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #2d7a44;
+  white-space: nowrap;
+}
+
 /* === Back to top === */
 .back-to-top {
   position: fixed;

@@ -170,6 +170,15 @@ const BLOGS = [
   { name: 'Eating European',       feed: 'https://eatingeuropean.com/feed/',                color: '#e65100' },
   // --- Nordic / Scandinavian ---
   { name: 'Nordic Kitchen Stories',feed: 'https://www.nordickitchenstories.co.uk/feed/',    color: '#558b2f' },
+  // --- New additions ---
+  { name: 'I Am A Food Blog',      feed: 'https://iamafoodblog.com/feed/',                  color: '#d4526e' },
+  { name: "Leite's Culinaria",     feed: 'https://leitesculinaria.com/feed',                color: '#2e6b4f' },
+  { name: 'Culinary Hill',         feed: 'https://www.culinaryhill.com/feed/',               color: '#c07830' },
+  { name: 'Salt & Lavender',       feed: 'https://www.saltandlavender.com/feed/',            color: '#8b5e8a' },
+  { name: 'No Recipes',            feed: 'https://norecipes.com/feed/',                      color: '#2a6496' },
+  { name: "Swasthi's Recipes",     feed: 'https://www.indianhealthyrecipes.com/feed/',       color: '#c0692b' },
+  { name: 'Chili Pepper Madness',  feed: 'https://www.chilipeppermadness.com/feed/',         color: '#c0211a' },
+  { name: 'Foolproof Living',      feed: 'https://foolproofliving.com/feed/',                color: '#5a8a6a' },
 ];
 
 function decodeHtml(str) {
@@ -614,6 +623,16 @@ app.get('/api/recipe', async (req, res) => {
     const schemaImage = typeof img === 'string' ? img : Array.isArray(img) ? img[0] : img?.url;
     const image = ogImage || schemaImage;
 
+    // Parse nutrition facts if available
+    const n = recipeData.nutrition || {};
+    const cleanNum = s => s ? String(s).match(/[\d.]+/)?.[0] : null;
+    const nutrition = {};
+    if (cleanNum(n.calories))           nutrition.calories = cleanNum(n.calories);
+    if (cleanNum(n.proteinContent))     nutrition.protein  = cleanNum(n.proteinContent);
+    if (cleanNum(n.carbohydrateContent))nutrition.carbs    = cleanNum(n.carbohydrateContent);
+    if (cleanNum(n.fatContent))         nutrition.fat      = cleanNum(n.fatContent);
+    if (cleanNum(n.fiberContent))       nutrition.fiber    = cleanNum(n.fiberContent);
+
     res.json({
       name: decodeHtml(recipeData.name),
       description: decodeHtml(recipeData.description),
@@ -628,6 +647,7 @@ app.get('/api/recipe', async (req, res) => {
       instructions: (recipeData.recipeInstructions || []).map((s) =>
         decodeHtml(typeof s === 'string' ? s : s.text || '')
       ).filter(Boolean),
+      nutrition: Object.keys(nutrition).length ? nutrition : null,
       category: recipeData.recipeCategory,
       cuisine: recipeData.recipeCuisine,
       url,

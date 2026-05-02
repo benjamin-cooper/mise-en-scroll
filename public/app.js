@@ -147,6 +147,24 @@ function saveFav(data) {
 function removeFav(url) {
   localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => f.url !== url)));
 }
+function updateFavField(url, fields) {
+  const favs = loadFavs().map(f => f.url === url ? { ...f, ...fields } : f);
+  localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+  state.favorites = favs;
+  _favSet = new Set(favs.map(f => f.url));
+}
+function markCooked(url) {
+  const date = new Date().toISOString().slice(0, 10);
+  const f = loadFavs().find(f => f.url === url);
+  if (!f) return;
+  updateFavField(url, { cookedDates: [...(f.cookedDates || []), date] });
+}
+function getCookedCount(url) {
+  return state.favorites.find(f => f.url === url)?.cookedDates?.length || 0;
+}
+function getFavData(url) {
+  return state.favorites.find(f => f.url === url);
+}
 let _favSet = new Set();
 function isFav(url) { return _favSet.has(url); }
 function refreshFavorites() {
@@ -239,6 +257,18 @@ function escHtml(str) {
 function badge(name, color) {
   return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${name}</span>`;
 }
+function nutritionChips(d) {
+  if (!d.nutrition) return '';
+  const n = d.nutrition;
+  const parts = [];
+  if (n.calories) parts.push(`<span><strong>${n.calories}</strong> cal</span>`);
+  if (n.protein)  parts.push(`<span><strong>${Math.round(n.protein)}g</strong> protein</span>`);
+  if (n.carbs)    parts.push(`<span><strong>${Math.round(n.carbs)}g</strong> carbs</span>`);
+  if (n.fat)      parts.push(`<span><strong>${Math.round(n.fat)}g</strong> fat</span>`);
+  if (n.fiber)    parts.push(`<span><strong>${Math.round(n.fiber)}g</strong> fiber</span>`);
+  return parts.length ? `<div class="nutrition-chips">${parts.join('')}</div>` : '';
+}
+
 function timeChips(d) {
   const parts = [];
   if (d.prepTime)  parts.push(`<span>Prep: ${d.prepTime}</span>`);
@@ -273,6 +303,7 @@ function buildSearchQuery() {
 
 let searchDebounceTimer = null;
 let _saveFiltersTimer = null;
+let _noteTimer = null;
 let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
@@ -869,6 +900,15 @@ function renderContent() {
           </button>
         </div>
       ` : ''}
+      ${state.view === 'favorites' && state.favorites.length ? `
+        <div class="feed-meta-bar">
+          <span class="feed-updated">${state.favorites.length} saved recipe${state.favorites.length !== 1 ? 's' : ''}</span>
+          <button class="feed-refresh-btn" data-action="export-saved">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+        </div>
+      ` : ''}
       <div id="discover-content">
         ${countNote}
         <div class="grid">
@@ -899,7 +939,10 @@ function renderCard(r) {
       <div class="card-body">
         <div class="card-meta">
           ${badge(r.blog, r.blogColor)}
-          <span class="card-date">${formatDate(r.date)}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${state.view === 'favorites' && getCookedCount(r.url) > 0 ? `<span class="cooked-badge" title="Cooked ${getCookedCount(r.url)} time${getCookedCount(r.url)>1?'s':''}">🍳 ${getCookedCount(r.url)}×</span>` : ''}
+            <span class="card-date">${formatDate(r.date)}</span>
+          </div>
         </div>
         <h3 class="card-title">${escHtml(r.title)}</h3>
       </div>
@@ -980,13 +1023,23 @@ function renderDrawer() {
       </div>
     `;
 
+    const favData = getFavData(url);
+    const cookedCount = getCookedCount(url);
+
     body = `
       ${d.description ? `<p class="drawer-description">${escHtml(d.description)}</p>` : ''}
       ${timeChips(d)}
+      ${nutritionChips(d)}
       ${scalerHtml}
       ${d.ingredients?.length ? `
         <section class="recipe-section">
-          <h3>Ingredients</h3>
+          <div class="recipe-section-header">
+            <h3>Ingredients</h3>
+            <button class="copy-ingredients-btn" data-action="copy-ingredients" title="Copy as shopping list">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy list
+            </button>
+          </div>
           <ul class="ingredients">
             ${d.ingredients.map(i => `<li>${escHtml(scaleIngredient(i, state.scaleFactor))}</li>`).join('')}
           </ul>
@@ -999,6 +1052,18 @@ function renderDrawer() {
             ${d.instructions.map(s => `<li>${escHtml(s)}</li>`).join('')}
           </ol>
         </section>
+      ` : ''}
+      ${fav ? `
+        <section class="recipe-section notes-section">
+          <h3>My Notes</h3>
+          <textarea class="recipe-notes" data-action="recipe-note" placeholder="Add your notes, substitutions, tips…" rows="3">${escHtml(favData?.notes || '')}</textarea>
+        </section>
+        <div class="cooked-row">
+          <button class="btn-cooked" data-action="mark-cooked">
+            🍳 Mark as cooked${cookedCount > 0 ? ` <span class="cooked-count-pill">${cookedCount}×</span>` : ''}
+          </button>
+          ${cookedCount > 0 ? `<span class="cooked-last">Last cooked ${favData?.cookedDates?.slice(-1)[0] || ''}</span>` : ''}
+        </div>
       ` : ''}
       ${addToPlanHtml}
       <div class="drawer-actions">
@@ -1118,10 +1183,8 @@ document.addEventListener('click', async (e) => {
     if (!url) return;
     if (navigator.share) {
       navigator.share({ title: title || 'Recipe', url }).catch(() => {});
-    } else if (navigator.clipboard && location.protocol === 'https:') {
-      navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => copyFallback(url));
     } else {
-      copyFallback(url);
+      copyText(url, 'Link copied!');
     }
   }
 
@@ -1153,6 +1216,38 @@ document.addEventListener('click', async (e) => {
     state.loading = false;
     if (state.recipes.length) state.feedLastLoaded = Date.now();
     if (!state.searchMode && !state.selected) renderApp();
+    return;
+  }
+
+  if (action === 'copy-ingredients') {
+    if (!state.detail?.ingredients?.length) return;
+    const title = state.detail.name || state.selected?.preview?.title || 'Recipe';
+    const list = state.detail.ingredients.map(i => `• ${scaleIngredient(i, state.scaleFactor)}`).join('\n');
+    copyText(`${title}\n\n${list}`, 'Ingredients copied!');
+    return;
+  }
+
+  if (action === 'mark-cooked') {
+    const url = state.selected?.url;
+    if (!url || !isFav(url)) { showToast('Save this recipe first'); return; }
+    markCooked(url);
+    showToast('Marked as cooked! 🍳');
+    renderApp();
+    return;
+  }
+
+  if (action === 'export-saved') {
+    const data = state.favorites.map(f => ({
+      title: f.title, blog: f.blog, url: f.url, date: f.date,
+      notes: f.notes || '', cookedDates: f.cookedDates || [],
+    }));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `mise-en-scroll-saved-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Saved recipes exported!');
     return;
   }
 
@@ -1370,6 +1465,15 @@ document.addEventListener('click', async (e) => {
 // The only visible UI change while typing is the clear (×) button, so we
 // toggle that directly instead of a full re-render.
 document.addEventListener('input', (e) => {
+  // Recipe notes — debounced save
+  if (e.target.dataset.action === 'recipe-note') {
+    const url = state.selected?.url;
+    if (!url) return;
+    clearTimeout(_noteTimer);
+    _noteTimer = setTimeout(() => updateFavField(url, { notes: e.target.value }), 600);
+    return;
+  }
+
   if (e.target.dataset.action !== 'search') return;
   state.searchQuery = e.target.value;
 
@@ -1380,6 +1484,35 @@ document.addEventListener('input', (e) => {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => triggerSearch(), 400);
 });
+
+// Swipe down to dismiss drawer on mobile
+let _touchStartY = 0;
+let _swipeActive = false;
+document.addEventListener('touchstart', (e) => {
+  const drawer = document.getElementById('drawer');
+  if (!drawer?.classList.contains('is-open') || window.innerWidth > 600) return;
+  if (!e.target.closest('#drawer')) return;
+  if (drawer.scrollTop > 10) return; // only from top of scroll
+  _touchStartY = e.touches[0].clientY;
+  _swipeActive = true;
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!_swipeActive) return;
+  const drawer = document.getElementById('drawer');
+  if (!drawer) return;
+  const dy = Math.max(0, e.touches[0].clientY - _touchStartY);
+  drawer.style.transition = 'none';
+  drawer.style.transform = `translateY(${dy}px)`;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!_swipeActive) return;
+  _swipeActive = false;
+  const drawer = document.getElementById('drawer');
+  if (!drawer) return;
+  drawer.style.transition = '';
+  drawer.style.transform = '';
+  if (e.changedTouches[0].clientY - _touchStartY > 100) closeDrawer();
+}, { passive: true });
 
 // Hover-prefetch on desktop — fetch recipe detail 150ms after hovering a card
 // so the drawer opens instantly on click.
@@ -1431,18 +1564,25 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-function copyFallback(url) {
+function copyFallback(text, successMsg = 'Copied!') {
   try {
     const el = document.createElement('textarea');
-    el.value = url;
+    el.value = text;
     Object.assign(el.style, { position: 'fixed', opacity: '0', pointerEvents: 'none' });
     document.body.appendChild(el);
     el.select();
     document.execCommand('copy');
     document.body.removeChild(el);
-    showToast('Link copied!');
+    showToast(successMsg);
   } catch {
-    showToast('Could not copy link');
+    showToast('Could not copy');
+  }
+}
+function copyText(text, successMsg = 'Copied!') {
+  if (navigator.clipboard && location.protocol === 'https:') {
+    navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => copyFallback(text, successMsg));
+  } else {
+    copyFallback(text, successMsg);
   }
 }
 
