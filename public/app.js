@@ -266,6 +266,7 @@ function nutritionChips(d) {
   if (n.carbs)    parts.push(`<span><strong>${Math.round(n.carbs)}g</strong> carbs</span>`);
   if (n.fat)      parts.push(`<span><strong>${Math.round(n.fat)}g</strong> fat</span>`);
   if (n.fiber)    parts.push(`<span><strong>${Math.round(n.fiber)}g</strong> fiber</span>`);
+  if (n.sodium)   parts.push(`<span><strong>${Math.round(n.sodium)}mg</strong> sodium</span>`);
   return parts.length ? `<div class="nutrition-chips">${parts.join('')}</div>` : '';
 }
 

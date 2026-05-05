@@ -632,6 +632,7 @@ app.get('/api/recipe', async (req, res) => {
     if (cleanNum(n.carbohydrateContent))nutrition.carbs    = cleanNum(n.carbohydrateContent);
     if (cleanNum(n.fatContent))         nutrition.fat      = cleanNum(n.fatContent);
     if (cleanNum(n.fiberContent))       nutrition.fiber    = cleanNum(n.fiberContent);
+    if (cleanNum(n.sodiumContent))      nutrition.sodium   = cleanNum(n.sodiumContent);
 
     res.json({
       name: decodeHtml(recipeData.name),
