@@ -76,7 +76,8 @@ const state = {
   detail: null,          // full recipe from /api/recipe
   detailLoading: false,
   detailError: null,
-  nutritionLoading: false, // true while Edamam analysis is in-flight
+  nutritionLoading: false, // true while CalorieNinjas analysis is in-flight
+  nutritionView: 'blog',  // 'blog' | 'calc' — which source to show in the toggle
   loading: true,
   openFilterDropdown: null, // mobile filter panel: 'cuisine' | 'protein' | 'time' | 'meal' | null
   // Search API state
@@ -264,24 +265,49 @@ function badge(name, color) {
   return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${name}</span>`;
 }
 function nutritionChips(d) {
-  if (state.nutritionLoading) {
-    return `<div class="nutrition-chips nutrition-chips--loading"><span class="nutrition-loading-text">Analysing nutrition…</span></div>`;
+  const hasBlog = !!d.nutrition;
+  const hasCalc = !!d.nutritionCalc;
+
+  if (!hasBlog && !hasCalc) {
+    if (state.nutritionLoading) {
+      return `<div class="nutrition-chips nutrition-chips--loading"><span class="nutrition-loading-text">Analysing nutrition…</span></div>`;
+    }
+    return '';
   }
-  if (!d.nutrition) return '';
-  const n = d.nutrition;
-  const parts = [];
-  if (n.calories) parts.push(`<span><strong>${n.calories}</strong> cal</span>`);
-  if (n.protein)  parts.push(`<span><strong>${Math.round(n.protein)}g</strong> protein</span>`);
-  if (n.carbs)    parts.push(`<span><strong>${Math.round(n.carbs)}g</strong> carbs</span>`);
-  if (n.fat)      parts.push(`<span><strong>${Math.round(n.fat)}g</strong> fat</span>`);
-  if (n.fiber)    parts.push(`<span><strong>${Math.round(n.fiber)}g</strong> fiber</span>`);
-  if (n.sodium)   parts.push(`<span><strong>${Math.round(n.sodium)}mg</strong> sodium</span>`);
-  if (!parts.length) return '';
-  const perServing = `<span class="nutrition-per-serving">per serving</span>`;
-  const source = n._source === 'calorieninjas'
-    ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Estimated · Powered by CalorieNinjas</a>`
+
+  // Determine which data to show
+  const showCalc = (state.nutritionView === 'calc' && hasCalc) || (!hasBlog && hasCalc);
+  const n = showCalc ? d.nutritionCalc : d.nutrition;
+  if (!n) return '';
+
+  const chips = [];
+  if (n.calories) chips.push(`<span><strong>${n.calories}</strong> cal</span>`);
+  if (n.protein)  chips.push(`<span><strong>${Math.round(n.protein)}g</strong> protein</span>`);
+  if (n.carbs)    chips.push(`<span><strong>${Math.round(n.carbs)}g</strong> carbs</span>`);
+  if (n.fat)      chips.push(`<span><strong>${Math.round(n.fat)}g</strong> fat</span>`);
+  if (n.fiber)    chips.push(`<span><strong>${Math.round(n.fiber)}g</strong> fiber</span>`);
+  if (n.sodium)   chips.push(`<span><strong>${Math.round(n.sodium)}mg</strong> sodium</span>`);
+  if (!chips.length) return '';
+
+  // Toggle — only shown when both sources available
+  const toggle = (hasBlog && hasCalc) ? `
+    <div class="nutrition-toggle">
+      <button class="nutrition-tab${!showCalc ? ' active' : ''}" data-action="toggle-nutrition-source" data-source="blog">Blog</button>
+      <button class="nutrition-tab${showCalc ? ' active' : ''}" data-action="toggle-nutrition-source" data-source="calc">Calculated</button>
+    </div>` : '';
+
+  const loading = state.nutritionLoading
+    ? `<span class="nutrition-loading-inline">calculating…</span>` : '';
+
+  const source = showCalc
+    ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Estimated · CalorieNinjas</a>`
     : `<span class="nutrition-source">Published by ${d.blog || 'recipe author'}</span>`;
-  return `<div class="nutrition-chips">${parts.join('')}${perServing}${source}</div>`;
+
+  return `<div class="nutrition-chips">
+    ${toggle}
+    <div class="nutrition-chips-row">${chips.join('')}<span class="nutrition-per-serving">per serving</span></div>
+    ${loading}${source}
+  </div>`;
 }
 
 function timeChips(d) {
@@ -1117,20 +1143,14 @@ function showToast(msg) {
   setTimeout(() => el.remove(), 2350);
 }
 
-// --- Edamam nutrition auto-fetch ---
-// Called after a recipe detail loads. If the page had no Schema.org nutrition data
-// but we have ingredients, request Edamam analysis and patch state.detail.nutrition.
+// --- CalorieNinjas nutrition fetch ---
+// Always fetches CalorieNinjas and stores it as nutritionCalc alongside any
+// Schema.org nutrition the blog published. The drawer shows a toggle when both exist.
 const NUTRITION_FULL_FIELDS = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium'];
-function nutritionIsComplete(n) {
-  if (!n) return false;
-  // All 6 fields must be present — if any are missing, CalorieNinjas fills the gaps
-  return NUTRITION_FULL_FIELDS.every(k => n[k] != null);
-}
 
 async function fetchNutritionIfNeeded() {
   const d = state.detail;
   if (!d || !d.ingredients?.length) return;
-  if (nutritionIsComplete(d.nutrition)) return; // already have good data
 
   state.nutritionLoading = true;
   renderApp();
@@ -1139,12 +1159,13 @@ async function fetchNutritionIfNeeded() {
     const servingsNum = d.servings ? parseInt(String(d.servings).match(/\d+/)?.[0]) : null;
     const result = await api.nutrition(d.ingredients, servingsNum || undefined);
     if (result?.nutrition && Object.keys(result.nutrition).length) {
-      // Merge: Schema.org values take precedence over CalorieNinjas (they're recipe-specific)
-      const merged = { ...result.nutrition, ...(d.nutrition || {}), _source: 'calorieninjas' };
-      state.detail = { ...state.detail, nutrition: merged };
+      result.nutrition._source = 'calorieninjas';
+      state.detail = { ...state.detail, nutritionCalc: result.nutrition };
+      // Default to calc view if there's no blog nutrition at all
+      if (!state.detail.nutrition) state.nutritionView = 'calc';
     }
   } catch {
-    // Non-critical — just leave nutrition as-is
+    // Non-critical — leave nutrition as-is
   } finally {
     state.nutritionLoading = false;
     renderApp();
@@ -1322,8 +1343,10 @@ document.addEventListener('click', async (e) => {
     state.detail = null;
     state.detailLoading = true;
     state.detailError = null;
+    state.nutritionView = 'blog';
     state.scaleFactor = 1;
     state.mealPlanPickerOpen = false;
+    history.replaceState(null, '', `#${encodeURIComponent(r.url)}`);
     renderApp();
     try {
       const data = _prefetchCache.has(r.url) ? await _prefetchCache.get(r.url) : await api.recipe(r.url);
@@ -1336,6 +1359,12 @@ document.addEventListener('click', async (e) => {
       renderApp();
     }
     fetchNutritionIfNeeded();
+    return;
+  }
+
+  if (action === 'toggle-nutrition-source') {
+    state.nutritionView = el.dataset.source;
+    renderApp();
     return;
   }
 
@@ -1468,9 +1497,11 @@ document.addEventListener('click', async (e) => {
     state.detail = null;
     state.detailLoading = true;
     state.detailError = null;
+    state.nutritionView = 'blog';
     state.scaleFactor = 1;
     state.mealPlanPickerOpen = false;
     state.mealPlanPickDay = null;
+    history.replaceState(null, '', `#${encodeURIComponent(url)}`);
     renderApp();
 
     try {
@@ -1642,9 +1673,11 @@ function closeDrawer() {
   state.detail = null;
   state.detailError = null;
   state.nutritionLoading = false;
+  state.nutritionView = 'blog';
   state.scaleFactor = 1;
   state.mealPlanPickerOpen = false;
   state.mealPlanPickDay = null;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
   renderApp();
 }
 
@@ -1681,6 +1714,19 @@ async function init() {
     state.methodFilters  = savedFilters.method   || [];
   }
   BLOGS = await api.blogs();
+
+  // Restore recipe drawer from URL hash (e.g. after a page refresh)
+  const hashUrl = (() => {
+    try {
+      const h = decodeURIComponent(window.location.hash.slice(1));
+      return h.startsWith('http') ? h : null;
+    } catch { return null; }
+  })();
+  if (hashUrl) {
+    state.selected = { url: hashUrl, preview: { url: hashUrl, title: '', blog: '', blogColor: '#888', image: null } };
+    state.detailLoading = true;
+  }
+
   renderApp();
 
   // Stream recipes in as each blog loads.
@@ -1688,6 +1734,23 @@ async function init() {
   // Subsequent batches: append new cards directly to the grid — no re-sort, no
   // full replacement — so existing cards never jump position mid-load.
   // Final render when stream finishes: one clean sorted renderApp().
+  // If we're restoring a recipe from hash, fetch it in the background while the feed loads
+  if (hashUrl) {
+    (async () => {
+      try {
+        const data = await api.recipe(hashUrl);
+        if (data?.error) throw new Error(data.error);
+        state.detail = data;
+      } catch (err) {
+        state.detailError = err.message || 'Failed to load recipe.';
+      } finally {
+        state.detailLoading = false;
+        renderApp();
+      }
+      fetchNutritionIfNeeded();
+    })();
+  }
+
   _streamAppendedSet.clear();
   await api.recipesStream((batch) => {
     state.recipes = [...new Map([...state.recipes, ...batch].map(r => [r.url, r])).values()]

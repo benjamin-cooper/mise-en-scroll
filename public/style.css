@@ -1010,7 +1010,7 @@ ul, ol { padding-left: 1.25rem; }
 .nutrition-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 20px;
   padding: 12px 16px;
   background: var(--bg);
@@ -1030,6 +1030,42 @@ ul, ol { padding-left: 1.25rem; }
   margin-left: 8px;
   opacity: 0.4;
 }
+/* Blog / Calculated toggle */
+.nutrition-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+.nutrition-tab {
+  padding: 3px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.nutrition-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.nutrition-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.nutrition-loading-inline {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+  width: 100%;
+  margin-top: 2px;
+}
+
 /* "per serving" label — muted, no dot */
 .nutrition-chips .nutrition-per-serving {
   font-size: 0.75rem;
