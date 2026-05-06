@@ -1123,8 +1123,8 @@ function showToast(msg) {
 const NUTRITION_FULL_FIELDS = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium'];
 function nutritionIsComplete(n) {
   if (!n) return false;
-  const filled = NUTRITION_FULL_FIELDS.filter(k => n[k] != null).length;
-  return filled >= 4; // consider "complete" if at least 4 of 6 fields present
+  // All 6 fields must be present — if any are missing, CalorieNinjas fills the gaps
+  return NUTRITION_FULL_FIELDS.every(k => n[k] != null);
 }
 
 async function fetchNutritionIfNeeded() {
