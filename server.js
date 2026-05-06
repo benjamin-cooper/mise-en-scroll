@@ -788,8 +788,21 @@ app.post('/api/nutrition', async (req, res) => {
   }
 
   try {
+    // Strip unquantified seasonings — "salt and pepper", "salt to taste", etc.
+    // CalorieNinjas defaults to ~100g when no amount is given, wildly inflating sodium.
+    const STRIP_PATTERNS = [
+      /^salt\s+and\s+(black\s+)?pepper$/i,
+      /^(kosher\s+|sea\s+|coarse\s+)?salt(\s+to\s+taste)?$/i,
+      /^(black\s+|white\s+|ground\s+)?pepper(\s+to\s+taste)?$/i,
+      /^salt\s+(and\s+pepper|to\s+taste|as\s+needed)(\s+to\s+taste)?$/i,
+      /^(freshly\s+)?ground\s+(black\s+)?pepper(\s+to\s+taste)?$/i,
+    ];
+    const filtered = ingredients.filter(ing =>
+      !STRIP_PATTERNS.some(p => p.test(ing.trim()))
+    );
+
     // Join ingredients into one natural-language query string
-    const query = ingredients.join(', ');
+    const query = filtered.join(', ');
 
     const r = await fetch(
       `https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
