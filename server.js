@@ -831,8 +831,10 @@ app.post('/api/nutrition', async (req, res) => {
     );
 
     if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      return res.status(r.status).json({ error: `CalorieNinjas error ${r.status}: ${txt.slice(0, 200)}` });
+      // Don't propagate CalorieNinjas error codes — return empty so the client
+      // silently skips the toggle rather than logging a scary 502 in the console.
+      console.warn(`CalorieNinjas ${r.status}`);
+      return res.json({ nutrition: null });
     }
 
     const data = await r.json();
