@@ -825,6 +825,18 @@ app.post('/api/nutrition', async (req, res) => {
       );
     }
 
+    // Strip parenthetical notes — "(drained)", "(+ ½ cup extra if needed)", "(divided)"
+    // These confuse CalorieNinjas without adding nutritional value.
+    function stripParens(ing) {
+      return ing.replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    // Convert unicode fractions to decimals CalorieNinjas handles reliably
+    const UNICODE_FRACS = { '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅛': '1/8', '⅜': '3/8', '⅝': '5/8', '⅞': '7/8' };
+    function normaliseFractions(ing) {
+      return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
+    }
+
     // Strip unquantified seasonings — "salt and pepper", "salt to taste", etc.
     // CalorieNinjas defaults to ~100g when no amount is given, wildly inflating sodium.
     const STRIP_PATTERNS = [
@@ -837,8 +849,11 @@ app.post('/api/nutrition', async (req, res) => {
 
     const processed = ingredients
       .flatMap(expandEach)
+      .map(stripParens)
+      .map(normaliseFractions)
       .map(normaliseRange)
-      .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())));
+      .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
+      .filter(Boolean);
 
     // Join ingredients into one natural-language query string
     const query = processed.join(', ');
