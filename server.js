@@ -776,6 +776,27 @@ app.get('/api/ingredient-search', async (req, res) => {
   }
 });
 
+// In-memory cache for CalorieNinjas results (keyed by query string)
+const nutritionCache = new Map(); // query -> nutrition object
+const NUTRITION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function callCalorieNinjas(query, apiKey, retries = 1) {
+  const r = await fetch(
+    `https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
+    { headers: { 'X-Api-Key': apiKey }, signal: AbortSignal.timeout(10000) }
+  );
+  if (!r.ok) {
+    if (r.status >= 500 && retries > 0) {
+      // Wait 1.5s then retry once on server errors
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return callCalorieNinjas(query, apiKey, retries - 1);
+    }
+    console.warn(`CalorieNinjas ${r.status}`);
+    return null;
+  }
+  return r.json();
+}
+
 // CalorieNinjas Nutrition Analysis — calculates nutrition from ingredient strings
 app.post('/api/nutrition', async (req, res) => {
   const { ingredients, servings } = req.body;
@@ -822,26 +843,16 @@ app.post('/api/nutrition', async (req, res) => {
     // Join ingredients into one natural-language query string
     const query = processed.join(', ');
 
-    const r = await fetch(
-      `https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
-      {
-        headers: { 'X-Api-Key': apiKey },
-        signal: AbortSignal.timeout(10000),
-      }
-    );
-
-    if (!r.ok) {
-      // Don't propagate CalorieNinjas error codes — return empty so the client
-      // silently skips the toggle rather than logging a scary 502 in the console.
-      console.warn(`CalorieNinjas ${r.status}`);
-      return res.json({ nutrition: null });
+    // Return cached result if we have a recent one for this exact query
+    const cached = nutritionCache.get(query);
+    if (cached && Date.now() - cached.ts < NUTRITION_CACHE_TTL) {
+      return res.json({ nutrition: cached.nutrition, servings: cached.servings, source: 'calorieninjas' });
     }
 
-    const data = await r.json();
+    const data = await callCalorieNinjas(query, apiKey);
+    if (!data) return res.json({ nutrition: null });
     const items = data.items || [];
-    if (!items.length) {
-      return res.status(422).json({ error: 'Could not analyse these ingredients.' });
-    }
+    if (!items.length) return res.json({ nutrition: null });
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
@@ -869,6 +880,9 @@ app.post('/api/nutrition', async (req, res) => {
       fiber:    String(perServing(sum('fiber_g'))),
       sodium:   String(Math.round(sum('sodium_mg') / estimatedYld)),
     };
+
+    // Cache successful result for 24h so rerequests are instant
+    nutritionCache.set(query, { nutrition, servings: estimatedYld, ts: Date.now() });
 
     res.json({ nutrition, servings: estimatedYld, source: 'calorieninjas' });
   } catch (err) {
