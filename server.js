@@ -392,6 +392,8 @@ const ROUNDUP_PATTERNS = [
   /\bbest\s+new\s+(bartenders?|chefs?|sommeliers?|distillers?)\b/i,
   // Gift guides
   /\bgifts?\s+(for|ideas?|guide)\b/i,                // "Gifts for Mom", "Gift Ideas for Dad"
+  /\b\d+\s+\w[\w\s]{0,20}gifts?\b/i,                // "10 Cocktail Gifts Mom Will..."
+  /\bgifts?\s+(mom|dad|him|her|them|anyone|every|the\s+cook|the\s+baker|the\s+host)\b/i,
   /\bgift\s+list\b/i,
   /\bwhat\s+to\s+(get|buy|give)\b/i,                 // "What to Get the Cook in Your Life"
   // Survey / research questions (not recipes)
