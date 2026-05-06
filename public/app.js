@@ -279,8 +279,8 @@ function nutritionChips(d) {
   if (!parts.length) return '';
   const perServing = `<span class="nutrition-per-serving">per serving</span>`;
   const source = n._source === 'calorieninjas'
-    ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Powered by CalorieNinjas</a>`
-    : '';
+    ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Estimated · Powered by CalorieNinjas</a>`
+    : `<span class="nutrition-source">Published by ${d.blog || 'recipe author'}</span>`;
   return `<div class="nutrition-chips">${parts.join('')}${perServing}${source}</div>`;
 }
 
