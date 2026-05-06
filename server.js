@@ -810,19 +810,36 @@ app.post('/api/nutrition', async (req, res) => {
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
-    const yld = (servings && parseInt(servings) > 0) ? parseInt(servings) : 1;
+
+    // Parse servings robustly — "Serves 6", "6 servings", "8", etc.
+    const yld = (() => {
+      if (!servings) return null;
+      const n = parseInt(String(servings).match(/\d+/)?.[0]);
+      return (n > 0 && n <= 100) ? n : null;
+    })();
+
+    // If no servings were passed, estimate from calorie density:
+    // total recipe calories / 500kcal per serving ≈ a rough serving count
+    const totalCal = sum('calories');
+    const estimatedYld = yld || Math.max(1, Math.round(totalCal / 500));
+
     const round1 = n => Math.round(n * 10) / 10;
+    const perServing = (val) => round1(val / estimatedYld);
+
+    // Sanity-check sodium: >3500mg/serving is almost certainly a servings error
+    const sodiumTotal = sum('sodium_mg');
+    const sodiumPerServing = sodiumTotal / estimatedYld;
 
     const nutrition = {
-      calories: String(Math.round(sum('calories') / yld)),
-      protein:  String(round1(sum('protein_g') / yld)),
-      carbs:    String(round1(sum('carbohydrates_total_g') / yld)),
-      fat:      String(round1(sum('fat_total_g') / yld)),
-      fiber:    String(round1(sum('fiber_g') / yld)),
-      sodium:   String(Math.round(sum('sodium_mg') / yld)),
+      calories: String(Math.round(sum('calories') / estimatedYld)),
+      protein:  String(perServing(sum('protein_g'))),
+      carbs:    String(perServing(sum('carbohydrates_total_g'))),
+      fat:      String(perServing(sum('fat_total_g'))),
+      fiber:    String(perServing(sum('fiber_g'))),
+      ...(sodiumPerServing <= 3500 ? { sodium: String(Math.round(sodiumPerServing)) } : {}),
     };
 
-    res.json({ nutrition, servings: yld, source: 'calorieninjas' });
+    res.json({ nutrition, servings: estimatedYld, source: 'calorieninjas' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
