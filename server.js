@@ -770,6 +770,60 @@ app.get('/api/ingredient-search', async (req, res) => {
   }
 });
 
+// CalorieNinjas Nutrition Analysis — calculates nutrition from ingredient strings
+app.post('/api/nutrition', async (req, res) => {
+  const { ingredients, servings } = req.body;
+  if (!Array.isArray(ingredients) || !ingredients.length) {
+    return res.status(400).json({ error: 'ingredients array is required' });
+  }
+  const apiKey = process.env.CALORIENINJAS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Nutrition analysis not configured. Add CALORIENINJAS_API_KEY.' });
+  }
+
+  try {
+    // Join ingredients into one natural-language query string
+    const query = ingredients.join(', ');
+
+    const r = await fetch(
+      `https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
+      {
+        headers: { 'X-Api-Key': apiKey },
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: `CalorieNinjas error ${r.status}: ${txt.slice(0, 200)}` });
+    }
+
+    const data = await r.json();
+    const items = data.items || [];
+    if (!items.length) {
+      return res.status(422).json({ error: 'Could not analyse these ingredients.' });
+    }
+
+    // Sum totals across all ingredient items
+    const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
+    const yld = (servings && parseInt(servings) > 0) ? parseInt(servings) : 1;
+    const round1 = n => Math.round(n * 10) / 10;
+
+    const nutrition = {
+      calories: String(Math.round(sum('calories') / yld)),
+      protein:  String(round1(sum('protein_g') / yld)),
+      carbs:    String(round1(sum('carbohydrates_total_g') / yld)),
+      fat:      String(round1(sum('fat_total_g') / yld)),
+      fiber:    String(round1(sum('fiber_g') / yld)),
+      sodium:   String(Math.round(sum('sodium_mg') / yld)),
+    };
+
+    res.json({ nutrition, servings: yld, source: 'calorieninjas' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  Recipe Finder → http://localhost:${PORT}\n`);

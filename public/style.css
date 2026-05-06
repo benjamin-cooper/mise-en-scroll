@@ -1030,6 +1030,36 @@ ul, ol { padding-left: 1.25rem; }
   margin-left: 8px;
   opacity: 0.4;
 }
+/* "per serving" label — muted, no dot */
+.nutrition-chips .nutrition-per-serving {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.7;
+  margin-left: auto;
+}
+.nutrition-chips .nutrition-per-serving::after { content: none; }
+/* Edamam attribution link */
+.nutrition-source {
+  display: block;
+  width: 100%;
+  font-size: 0.7rem;
+  color: var(--muted);
+  opacity: 0.55;
+  text-decoration: none;
+  margin-top: 4px;
+}
+.nutrition-source:hover { opacity: 0.85; text-decoration: underline; }
+/* Loading state */
+.nutrition-chips--loading {
+  border-left-color: var(--muted);
+  opacity: 0.7;
+}
+.nutrition-loading-text {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.nutrition-loading-text::after { content: none; }
 
 /* === Copy ingredients button === */
 .recipe-section-header {
