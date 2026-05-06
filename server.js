@@ -390,6 +390,10 @@ const ROUNDUP_PATTERNS = [
   /\bnominees?\s+(for|of)\b/i,                        // "Final Nominees for Best New Bartenders"
   /\bintroducing\s+the\s+(final|new|latest|top)\b/i, // "Introducing the Final Nominees..."
   /\bbest\s+new\s+(bartenders?|chefs?|sommeliers?|distillers?)\b/i,
+  // Gift guides
+  /\bgifts?\s+(for|ideas?|guide)\b/i,                // "Gifts for Mom", "Gift Ideas for Dad"
+  /\bgift\s+list\b/i,
+  /\bwhat\s+to\s+(get|buy|give)\b/i,                 // "What to Get the Cook in Your Life"
   // Survey / research questions (not recipes)
   /^how\s+(?!to\s)\w+\s+(are|is|do|does)\b/i,       // "How Confident Are Americans..."
 ];
