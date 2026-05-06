@@ -826,17 +826,13 @@ app.post('/api/nutrition', async (req, res) => {
     const round1 = n => Math.round(n * 10) / 10;
     const perServing = (val) => round1(val / estimatedYld);
 
-    // Sanity-check sodium: >3500mg/serving is almost certainly a servings error
-    const sodiumTotal = sum('sodium_mg');
-    const sodiumPerServing = sodiumTotal / estimatedYld;
-
     const nutrition = {
       calories: String(Math.round(sum('calories') / estimatedYld)),
       protein:  String(perServing(sum('protein_g'))),
       carbs:    String(perServing(sum('carbohydrates_total_g'))),
       fat:      String(perServing(sum('fat_total_g'))),
       fiber:    String(perServing(sum('fiber_g'))),
-      ...(sodiumPerServing <= 3500 ? { sodium: String(Math.round(sodiumPerServing)) } : {}),
+      sodium:   String(Math.round(sum('sodium_mg') / estimatedYld)),
     };
 
     res.json({ nutrition, servings: estimatedYld, source: 'calorieninjas' });
