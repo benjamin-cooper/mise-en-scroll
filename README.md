@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 96 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 104 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 97 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 104 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
 - **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
@@ -184,6 +184,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
 - **Search** — Serper.dev (Google results, 2,500 free queries/month)
 - **Ingredient AI** — Claude Haiku converts fridge-contents descriptions into optimised search queries
+- **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
 - **Streaming** — Server-Sent Events so recipes appear as each feed loads
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant
 - **Frontend** — vanilla JS, no framework
@@ -196,6 +197,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - Node.js 18+
 - A [Serper.dev](https://serper.dev) account (free tier: 2,500 searches/month)
 - An [Anthropic](https://console.anthropic.com) API key (for ingredient search)
+- A [CalorieNinjas](https://calorieninjas.com/api) account (free tier available)
 
 ### Install
 
@@ -212,6 +214,7 @@ Create a `.env` file in the project root:
 ```
 SERPER_API_KEY=your_serper_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
+CALORIENINJAS_API_KEY=your_calorieninjas_api_key_here
 ```
 
 ### Run

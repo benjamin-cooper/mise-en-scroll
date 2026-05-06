@@ -76,6 +76,7 @@ const state = {
   detail: null,          // full recipe from /api/recipe
   detailLoading: false,
   detailError: null,
+  nutritionLoading: false, // true while Edamam analysis is in-flight
   loading: true,
   openFilterDropdown: null, // mobile filter panel: 'cuisine' | 'protein' | 'time' | 'meal' | null
   // Search API state
@@ -115,6 +116,11 @@ const api = {
   recipe:           (url)               => fetch(`/api/recipe?url=${encodeURIComponent(url)}`).then(r => r.json()),
   search:           (q, page)           => fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
   ingredientSearch: (ingredients, page) => fetch(`/api/ingredient-search?ingredients=${encodeURIComponent(ingredients)}&page=${page || 1}`).then(r => r.json()),
+  nutrition:        (ingredients, servings) => fetch('/api/nutrition', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ingredients, servings }),
+  }).then(r => r.json()),
 };
 
 // --- Theme (localStorage) ---
@@ -258,6 +264,9 @@ function badge(name, color) {
   return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${name}</span>`;
 }
 function nutritionChips(d) {
+  if (state.nutritionLoading) {
+    return `<div class="nutrition-chips nutrition-chips--loading"><span class="nutrition-loading-text">Analysing nutrition…</span></div>`;
+  }
   if (!d.nutrition) return '';
   const n = d.nutrition;
   const parts = [];
@@ -267,7 +276,12 @@ function nutritionChips(d) {
   if (n.fat)      parts.push(`<span><strong>${Math.round(n.fat)}g</strong> fat</span>`);
   if (n.fiber)    parts.push(`<span><strong>${Math.round(n.fiber)}g</strong> fiber</span>`);
   if (n.sodium)   parts.push(`<span><strong>${Math.round(n.sodium)}mg</strong> sodium</span>`);
-  return parts.length ? `<div class="nutrition-chips">${parts.join('')}</div>` : '';
+  if (!parts.length) return '';
+  const perServing = `<span class="nutrition-per-serving">per serving</span>`;
+  const source = n._source === 'calorieninjas'
+    ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Powered by CalorieNinjas</a>`
+    : '';
+  return `<div class="nutrition-chips">${parts.join('')}${perServing}${source}</div>`;
 }
 
 function timeChips(d) {
@@ -1103,6 +1117,40 @@ function showToast(msg) {
   setTimeout(() => el.remove(), 2350);
 }
 
+// --- Edamam nutrition auto-fetch ---
+// Called after a recipe detail loads. If the page had no Schema.org nutrition data
+// but we have ingredients, request Edamam analysis and patch state.detail.nutrition.
+const NUTRITION_FULL_FIELDS = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium'];
+function nutritionIsComplete(n) {
+  if (!n) return false;
+  const filled = NUTRITION_FULL_FIELDS.filter(k => n[k] != null).length;
+  return filled >= 4; // consider "complete" if at least 4 of 6 fields present
+}
+
+async function fetchNutritionIfNeeded() {
+  const d = state.detail;
+  if (!d || !d.ingredients?.length) return;
+  if (nutritionIsComplete(d.nutrition)) return; // already have good data
+
+  state.nutritionLoading = true;
+  renderApp();
+
+  try {
+    const servingsNum = d.servings ? parseInt(String(d.servings).match(/\d+/)?.[0]) : null;
+    const result = await api.nutrition(d.ingredients, servingsNum || undefined);
+    if (result?.nutrition && Object.keys(result.nutrition).length) {
+      // Merge: Schema.org values take precedence over CalorieNinjas (they're recipe-specific)
+      const merged = { ...result.nutrition, ...(d.nutrition || {}), _source: 'calorieninjas' };
+      state.detail = { ...state.detail, nutrition: merged };
+    }
+  } catch {
+    // Non-critical — just leave nutrition as-is
+  } finally {
+    state.nutritionLoading = false;
+    renderApp();
+  }
+}
+
 // --- Events ---
 document.addEventListener('click', async (e) => {
   const overlay = document.getElementById('drawer-overlay');
@@ -1287,6 +1335,7 @@ document.addEventListener('click', async (e) => {
       state.detailLoading = false;
       renderApp();
     }
+    fetchNutritionIfNeeded();
     return;
   }
 
@@ -1434,6 +1483,7 @@ document.addEventListener('click', async (e) => {
       state.detailLoading = false;
     }
     renderApp();
+    fetchNutritionIfNeeded();
   }
 
   if (action === 'save') {
@@ -1591,6 +1641,7 @@ function closeDrawer() {
   state.selected = null;
   state.detail = null;
   state.detailError = null;
+  state.nutritionLoading = false;
   state.scaleFactor = 1;
   state.mealPlanPickerOpen = false;
   state.mealPlanPickDay = null;
