@@ -788,6 +788,22 @@ app.post('/api/nutrition', async (req, res) => {
   }
 
   try {
+    // Expand "1/4 tsp EACH onion powder, garlic powder, salt" into separate lines
+    // so CalorieNinjas sees proper quantities for each item.
+    function expandEach(ing) {
+      const m = ing.match(/^([\d\s\/\-\.]+\s+(?:tsp|tbsp|tablespoons?|teaspoons?|cups?|oz|ounces?|pounds?|lbs?|g|grams?|ml)\b\.?)\s+EACH\s+(.+)$/i);
+      if (!m) return [ing];
+      const qty = m[1].trim();
+      return m[2].split(',').map(s => `${qty} ${s.trim()}`).filter(s => s.trim());
+    }
+
+    // Normalise ranges like "4-6 cloves" → "5 cloves" (midpoint)
+    function normaliseRange(ing) {
+      return ing.replace(/\b(\d+)\s*[-–]\s*(\d+)\b/, (_, a, b) =>
+        String(Math.round((parseInt(a) + parseInt(b)) / 2))
+      );
+    }
+
     // Strip unquantified seasonings — "salt and pepper", "salt to taste", etc.
     // CalorieNinjas defaults to ~100g when no amount is given, wildly inflating sodium.
     const STRIP_PATTERNS = [
@@ -797,12 +813,14 @@ app.post('/api/nutrition', async (req, res) => {
       /^salt\s+(and\s+pepper|to\s+taste|as\s+needed)(\s+to\s+taste)?$/i,
       /^(freshly\s+)?ground\s+(black\s+)?pepper(\s+to\s+taste)?$/i,
     ];
-    const filtered = ingredients.filter(ing =>
-      !STRIP_PATTERNS.some(p => p.test(ing.trim()))
-    );
+
+    const processed = ingredients
+      .flatMap(expandEach)
+      .map(normaliseRange)
+      .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())));
 
     // Join ingredients into one natural-language query string
-    const query = filtered.join(', ');
+    const query = processed.join(', ');
 
     const r = await fetch(
       `https://api.calorieninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
