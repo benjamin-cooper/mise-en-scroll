@@ -54,6 +54,7 @@ const FILTERS = {
     { label: 'Dairy-Free',  icon: '🥛', keywords: ['dairy-free', 'dairy free', 'non-dairy', 'lactose-free', 'lactose free'] },
     { label: 'Keto',        icon: '🥑', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly'] },
     { label: 'Paleo',       icon: '🍖', keywords: ['paleo', 'primal', 'whole30', 'grain-free', 'grain free'] },
+    { label: 'Low Sodium',  icon: '🧂', keywords: ['low sodium', 'low-sodium', 'low salt', 'heart healthy', 'heart-healthy', 'reduced sodium'] },
   ],
 };
 
