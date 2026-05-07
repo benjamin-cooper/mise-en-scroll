@@ -179,6 +179,9 @@ const BLOGS = [
   { name: "Swasthi's Recipes",     feed: 'https://www.indianhealthyrecipes.com/feed/',       color: '#c0692b' },
   { name: 'Chili Pepper Madness',  feed: 'https://www.chilipeppermadness.com/feed/',         color: '#c0211a' },
   { name: 'Foolproof Living',      feed: 'https://foolproofliving.com/feed/',                color: '#5a8a6a' },
+  // --- Low Sodium / Heart-Healthy ---
+  { name: 'Sodium Girl',          feed: 'https://www.sodiumgirl.com/feed/',                  color: '#e05080' },
+  { name: 'Forks Over Knives',    feed: 'https://www.forksoverknives.com/feed/',             color: '#4a8a3a' },
 ];
 
 function decodeHtml(str) {
@@ -831,10 +834,25 @@ app.post('/api/nutrition', async (req, res) => {
       return ing.replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
     }
 
-    // Convert unicode fractions to decimals CalorieNinjas handles reliably
+    // Convert unicode fractions to ASCII so CalorieNinjas parses quantities reliably
     const UNICODE_FRACS = { '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅛': '1/8', '⅜': '3/8', '⅝': '5/8', '⅞': '7/8' };
     function normaliseFractions(ing) {
       return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
+    }
+
+    // Collapse "1 tbsp + 1 tsp butter" → "1 tbsp butter" (take the larger unit)
+    function collapseCompound(ing) {
+      return ing.replace(/(\d[\d\s\/]*\s+\w+)\s*\+\s*[\d\s\/]+\s+\w+/g, '$1');
+    }
+
+    // Strip "or X" alternative ingredients — keep only the first option
+    function stripOrAlternative(ing) {
+      return ing.replace(/\s*,?\s+or\s+.+$/i, '');
+    }
+
+    // Strip trailing texture/temp descriptors after comma: ", softened", ", room temperature"
+    function stripTrailingDescriptors(ing) {
+      return ing.replace(/,\s*(softened|melted|room\s+temperature|cold|chilled|warmed?|beaten|whisked|sifted|toasted|divided|optional).*$/i, '').trim();
     }
 
     // Strip unquantified seasonings — "salt and pepper", "salt to taste", etc.
@@ -845,6 +863,10 @@ app.post('/api/nutrition', async (req, res) => {
       /^(black\s+|white\s+|ground\s+)?pepper(\s+to\s+taste)?$/i,
       /^salt\s+(and\s+pepper|to\s+taste|as\s+needed)(\s+to\s+taste)?$/i,
       /^(freshly\s+)?ground\s+(black\s+)?pepper(\s+to\s+taste)?$/i,
+      /\bto\s+taste$/i,        // "hot sauce to taste", "seasoning to taste"
+      /\bas\s+needed$/i,        // "flour as needed"
+      /\bas\s+desired$/i,
+      /^(a\s+)?(pinch|dash|drizzle|splash|handful)\b/i, // vague quantities
     ];
 
     const processed = ingredients
@@ -852,6 +874,9 @@ app.post('/api/nutrition', async (req, res) => {
       .map(stripParens)
       .map(normaliseFractions)
       .map(normaliseRange)
+      .map(collapseCompound)
+      .map(stripOrAlternative)
+      .map(stripTrailingDescriptors)
       .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
       .filter(Boolean);
 
