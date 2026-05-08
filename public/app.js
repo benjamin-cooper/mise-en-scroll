@@ -80,6 +80,7 @@ const state = {
   nutritionLoading: false, // true while CalorieNinjas analysis is in-flight
   nutritionView: 'blog',  // 'blog' | 'calc' — which source to show in the toggle
   loading: true,
+  serverWakingUp: false,    // true if first SSE batch hasn't arrived after ~8s (Render cold start)
   openFilterDropdown: null, // mobile filter panel: 'cuisine' | 'protein' | 'time' | 'meal' | null
   // Search API state
   searchMode: false,   // true when using Google API results
@@ -901,7 +902,10 @@ function renderContent() {
   const recipes = applyFilters(base);
 
   if (state.loading && state.view === 'discover' && !state.recipes.length) {
-    return `<div class="container"><div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
+    const wakeMsg = state.serverWakingUp
+      ? `<div class="wake-banner"><span class="wake-spinner"></span>Waking up the server — recipes will appear shortly…</div>`
+      : '';
+    return `<div class="container">${wakeMsg}<div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
   }
 
   if (!recipes.length) {
@@ -1753,10 +1757,18 @@ async function init() {
   }
 
   _streamAppendedSet.clear();
+  const wakeTimeout = setTimeout(() => {
+    if (state.loading && !state.recipes.length) {
+      state.serverWakingUp = true;
+      renderApp();
+    }
+  }, 8000);
   await api.recipesStream((batch) => {
     state.recipes = [...new Map([...state.recipes, ...batch].map(r => [r.url, r])).values()]
       .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (state.loading) {
+      clearTimeout(wakeTimeout);
+      state.serverWakingUp = false;
       state.loading = false;
       state.streamingMore = true;
       if (!state.searchMode && !state.selected) {
@@ -1768,6 +1780,8 @@ async function init() {
       insertSortedStreamCards(batch);
     }
   });
+  clearTimeout(wakeTimeout);
+  state.serverWakingUp = false;
   _streamAppendedSet.clear();
   state.streamingMore = false;
   state.feedLastLoaded = Date.now();
