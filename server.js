@@ -840,6 +840,15 @@ app.post('/api/nutrition', async (req, res) => {
       return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
     }
 
+    // Strip trailing period from unit abbreviations so CalorieNinjas parses them correctly:
+    // "28 oz. can tomatoes" → "28 oz can tomatoes"  (without this, "oz." is unrecognised
+    // and CalorieNinjas treats the leading number as a count of "cans" → 28× overcount)
+    function normaliseUnits(ing) {
+      return ing
+        .replace(/\b(oz|tbsp|tsp|cup|lb|lbs|g|ml)\./gi, '$1') // strip trailing period
+        .replace(/\b(\d[\d\.]*\s*(?:oz|g|lb|lbs|pound|ounce|tbsp|tsp|cup|cups))\s+cans?\s+/gi, '$1 '); // "15 oz can beans" → "15 oz beans"
+    }
+
     // Collapse "1 tbsp + 1 tsp butter" → "1 tbsp butter" (take the larger unit)
     function collapseCompound(ing) {
       return ing.replace(/(\d[\d\s\/]*\s+\w+)\s*\+\s*[\d\s\/]+\s+\w+/g, '$1');
@@ -872,6 +881,7 @@ app.post('/api/nutrition', async (req, res) => {
     const processed = ingredients
       .flatMap(expandEach)
       .map(stripParens)
+      .map(normaliseUnits)
       .map(normaliseFractions)
       .map(normaliseRange)
       .map(collapseCompound)
