@@ -1047,6 +1047,9 @@ app.post('/api/nutrition', async (req, res) => {
       return item;
     });
 
+    console.log('[nutrition] query:', query);
+    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal sodium=${i.sodium_mg.toFixed(0)}mg serving_size_g=${i.serving_size_g}`));
+
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
 
