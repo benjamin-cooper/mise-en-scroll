@@ -349,10 +349,18 @@ function buildSearchQuery() {
   for (const { vals, group } of filterMap) {
     for (const val of vals) {
       const f = FILTERS[group].find(f => f.label === val);
-      // Use only the label (not all synonyms) for the Serper query — expanding
-      // 20+ keywords per filter makes the query too long and causes silent failures.
-      // The full keyword list is still used for local RSS-cache filtering.
-      if (f) parts.push(f.label.toLowerCase());
+      if (!f) continue;
+      // Use only the label for Serper — expanding all 20+ synonyms makes
+      // the query too long and causes silent failures from Serper/Google.
+      // Sanitise: strip parentheticals like "(≤30m)", replace non-word
+      // chars with spaces, collapse whitespace.  Skip "Other" (too generic).
+      const term = f.label
+        .replace(/\s*\([^)]*\)/g, '')   // "(≤30m)" → ""
+        .replace(/[^\w\s-]/g, ' ')       // ~, +, / → space
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+      if (term && term !== 'other') parts.push(term);
     }
   }
   if (!parts.some(p => p.includes('recipe'))) parts.push('recipe');
