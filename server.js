@@ -828,6 +828,21 @@ app.post('/api/nutrition', async (req, res) => {
       );
     }
 
+    // Convert "N (X oz.) can FOOD" → "total_oz oz FOOD" before parens are stripped.
+    // e.g. "1 (15.5 oz.) can pinto beans" → "15.5 oz pinto beans"
+    //      "2 (14.5 oz.) cans diced tomatoes" → "29 oz diced tomatoes"
+    // Without this, stripParens eats the oz measurement and leaves "1 can pinto beans",
+    // which CalorieNinjas cannot parse and returns wildly inflated values for.
+    function extractCanSize(ing) {
+      return ing.replace(
+        /^(\d+(?:\.\d+)?)\s+\((\d+(?:\.\d+)?)\s*oz\.?\)\s+cans?\s+(.+)$/i,
+        (_, count, ozPer, food) => {
+          const totalOz = Math.round(+count * +ozPer * 10) / 10;
+          return `${totalOz} oz ${food}`;
+        }
+      );
+    }
+
     // Strip parenthetical notes — "(drained)", "(+ ½ cup extra if needed)", "(divided)"
     // These confuse CalorieNinjas without adding nutritional value.
     // Handles nested parens like "(finely shredded (optional))" by iterating until stable,
@@ -963,6 +978,7 @@ app.post('/api/nutrition', async (req, res) => {
 
     const processed = ingredients
       .flatMap(expandEach)
+      .map(extractCanSize)
       .map(stripParens)
       .map(normaliseUnits)
       .map(normaliseFractions)
