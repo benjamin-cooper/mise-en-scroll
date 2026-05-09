@@ -875,30 +875,63 @@ app.post('/api/nutrition', async (req, res) => {
           String(Math.round(+n / +d * 1000) / 1000));
     }
 
-    // Convert liquid condiments from tsp/tbsp to grams so CalorieNinjas receives
-    // whole-number gram quantities rather than fractional volume ones.
+    // Condiment bypass: calculate nutrition directly from USDA-accurate per-100g values
+    // instead of sending to CalorieNinjas, whose condiment database has large errors
+    // (e.g. oyster sauce reported at 2,754mg Na/100g vs actual ~1,300mg Na/100g).
     //
-    // CalorieNinjas strips the leading "0." from decimals < 1, so "0.25 tsp dark
-    // soy sauce" is read as "25 tsp" → serving_size_g=400 → 21,615mg sodium.
-    // Sending "2g dark soy sauce" gives a whole-number quantity the API can scale
-    // correctly (or that the serving_size_g rescaler can fix if it still miscounts).
+    // Also fixes CalorieNinjas's decimal-stripping bug: "0.25 tsp dark soy sauce" is
+    // read as "25 tsp" → serving_size_g=400 → 21,615mg sodium. By calculating here,
+    // we never send fractional condiment quantities to the API at all.
+    //
+    // g/tsp: density × 5ml/tsp. Tablespoon = 3× tsp.
     const CONDIMENT_G_PER_TSP = {
-      // Soy-family
       'soy sauce': 6, 'light soy sauce': 6, 'dark soy sauce': 6,
       'tamari': 6, 'coconut aminos': 6, 'liquid aminos': 6,
-      // Fish / shellfish sauces
-      'fish sauce': 6, 'oyster sauce': 8,
-      // Asian condiments
-      'hoisin sauce': 9, 'plum sauce': 9, 'chili garlic sauce': 7,
-      'sambal oelek': 7, 'gochujang': 8, 'doubanjiang': 8,
+      'fish sauce': 6, 'oyster sauce': 6, 'shrimp paste': 7,
+      'hoisin sauce': 7, 'plum sauce': 7, 'chili garlic sauce': 7,
+      'sambal oelek': 7, 'gochujang': 7, 'doubanjiang': 7,
       'mirin': 6, 'sake': 5, 'rice wine': 6, 'shaoxing wine': 5,
-      // Western condiments
       'worcestershire sauce': 6, 'hot sauce': 5, 'sriracha': 5.5,
-      // Oils & vinegars (volume → grams matters for calories)
       'sesame oil': 4.5, 'chili oil': 4.5,
       'rice vinegar': 5, 'balsamic vinegar': 6,
       'apple cider vinegar': 5, 'white vinegar': 5, 'red wine vinegar': 5,
     };
+    // Nutrition per 100g — USDA FoodData Central / standard references
+    const CONDIMENT_PER_100G = {
+      'soy sauce':            { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
+      'light soy sauce':      { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
+      'dark soy sauce':       { cal: 55,  pro: 7.0,  fat: 0.1, carb: 4.8,  fib: 0,   na: 4600 },
+      'tamari':               { cal: 61,  pro: 10.9, fat: 0,   carb: 2.0,  fib: 0,   na: 4580 },
+      'coconut aminos':       { cal: 60,  pro: 0,    fat: 0,   carb: 14,   fib: 0,   na: 700  },
+      'liquid aminos':        { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
+      'fish sauce':           { cal: 35,  pro: 5.0,  fat: 0,   carb: 3.7,  fib: 0,   na: 5690 },
+      'oyster sauce':         { cal: 93,  pro: 2.7,  fat: 0.3, carb: 21,   fib: 0,   na: 1300 },
+      'shrimp paste':         { cal: 180, pro: 21,   fat: 3,   carb: 14,   fib: 0,   na: 8800 },
+      'hoisin sauce':         { cal: 220, pro: 4.0,  fat: 4.0, carb: 40,   fib: 3,   na: 2100 },
+      'plum sauce':           { cal: 215, pro: 0.5,  fat: 0.1, carb: 53,   fib: 1,   na: 870  },
+      'chili garlic sauce':   { cal: 60,  pro: 2,    fat: 1,   carb: 12,   fib: 2,   na: 2200 },
+      'sambal oelek':         { cal: 35,  pro: 1.5,  fat: 0.5, carb: 7,    fib: 1.5, na: 2300 },
+      'gochujang':            { cal: 190, pro: 5,    fat: 1,   carb: 40,   fib: 4,   na: 1800 },
+      'doubanjiang':          { cal: 90,  pro: 5,    fat: 4,   carb: 9,    fib: 2,   na: 5100 },
+      'mirin':                { cal: 255, pro: 0.5,  fat: 0,   carb: 54,   fib: 0,   na: 30   },
+      'sake':                 { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
+      'rice wine':            { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
+      'shaoxing wine':        { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
+      'worcestershire sauce': { cal: 78,  pro: 0,    fat: 0,   carb: 20.4, fib: 0,   na: 2580 },
+      'hot sauce':            { cal: 35,  pro: 1,    fat: 0,   carb: 7,    fib: 0,   na: 2200 },
+      'sriracha':             { cal: 93,  pro: 1.6,  fat: 2.7, carb: 17,   fib: 0,   na: 2200 },
+      'sesame oil':           { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'chili oil':            { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'rice vinegar':         { cal: 18,  pro: 0,    fat: 0,   carb: 0.9,  fib: 0,   na: 0    },
+      'balsamic vinegar':     { cal: 88,  pro: 0.5,  fat: 0,   carb: 17.2, fib: 0,   na: 23   },
+      'apple cider vinegar':  { cal: 21,  pro: 0,    fat: 0,   carb: 0.9,  fib: 0,   na: 5    },
+      'white vinegar':        { cal: 18,  pro: 0,    fat: 0,   carb: 0,    fib: 0,   na: 2    },
+      'red wine vinegar':     { cal: 19,  pro: 0.1,  fat: 0,   carb: 0.3,  fib: 0,   na: 8    },
+    };
+
+    // Convert condiment tsp/tbsp quantities to grams, then pull them OUT of the
+    // CalorieNinjas query entirely — nutrition is calculated directly from CONDIMENT_PER_100G.
+    const syntheticCondimentItems = [];
     function normaliseCondimentTsp(ing) {
       return ing.replace(
         /^(\d+(?:\.\d+)?)\s+(tsp\.?|teaspoons?|tbsp\.?|tablespoons?)\s+(.+)$/i,
@@ -911,6 +944,25 @@ app.post('/api/nutrition', async (req, res) => {
           return grams > 0 ? `${grams}g ${food.trim()}` : match;
         }
       );
+    }
+    // After the full pipeline runs, filter condiment items out of the query and
+    // compute their nutrition locally. Called after processed[] is built.
+    function extractCondimentItems(processedList) {
+      return processedList.filter(ing => {
+        const m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
+        if (!m) return true; // not a gram-quantity item, keep in query
+        const food = m[2].trim().toLowerCase();
+        const n = CONDIMENT_PER_100G[food];
+        if (!n) return true; // not a known condiment, keep in query
+        const s = parseFloat(m[1]) / 100;
+        syntheticCondimentItems.push({
+          name: food, serving_size_g: parseFloat(m[1]),
+          calories: n.cal * s, protein_g: n.pro * s,
+          fat_total_g: n.fat * s, carbohydrates_total_g: n.carb * s,
+          fiber_g: n.fib * s, sodium_mg: n.na * s,
+        });
+        return false; // remove from CalorieNinjas query
+      });
     }
 
     // Strip trailing period from unit abbreviations so CalorieNinjas parses them correctly:
@@ -1033,6 +1085,9 @@ app.post('/api/nutrition', async (req, res) => {
       .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
       .filter(Boolean);
 
+    // Strip condiments from the query; nutrition is computed via CONDIMENT_PER_100G
+    const queryIngredients = extractCondimentItems(processed);
+
     // Build an ordered list of {food, grams} for post-hoc serving_size_g correction.
     // CalorieNinjas sometimes uses the wrong quantity internally (e.g. strips "0." from
     // "0.25 tsp" and reads it as "25 tsp"). We detect this via serving_size_g and rescale.
@@ -1041,7 +1096,7 @@ app.post('/api/nutrition', async (req, res) => {
     // different quantities (e.g. "2 tsp dark soy sauce" + "0.25 tsp dark soy sauce").
     // CalorieNinjas returns items in query order, so we match them in order too.
     const gramIntentList = []; // [{food: string, grams: number}]
-    processed.forEach(ing => {
+    queryIngredients.forEach(ing => {
       let m;
       m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
       if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1])) }); return; }
@@ -1050,7 +1105,7 @@ app.post('/api/nutrition', async (req, res) => {
     });
 
     // Join ingredients into one natural-language query string
-    const query = processed.join(', ');
+    const query = queryIngredients.join(', ');
 
     // Return cached result if we have a recent one for this exact query
     const cached = nutritionCache.get(query);
@@ -1095,11 +1150,14 @@ app.post('/api/nutrition', async (req, res) => {
       return item;
     });
 
+    // Merge CalorieNinjas items with locally-calculated condiment items
+    const allItems = [...syntheticCondimentItems, ...items];
+
     console.log('[nutrition] query:', query);
-    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal sodium=${i.sodium_mg.toFixed(0)}mg serving_size_g=${i.serving_size_g}`));
+    allItems.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal sodium=${i.sodium_mg.toFixed(0)}mg serving_size_g=${i.serving_size_g}`));
 
     // Sum totals across all ingredient items
-    const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
+    const sum = (key) => allItems.reduce((acc, item) => acc + (item[key] || 0), 0);
 
     // Parse servings robustly — "Serves 6", "6 servings", "8", etc.
     const yld = (() => {
