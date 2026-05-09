@@ -190,6 +190,35 @@ const BLOGS = [
   { name: 'Forks Over Knives',    feed: 'https://www.forksoverknives.com/feed/',             color: '#4a8a3a' },
 ];
 
+// Shared blogging platforms where subdomains are different sites — require
+// an exact subdomain match, not just the root domain.
+const SHARED_PLATFORMS = new Set([
+  'typepad.com', 'blogspot.com', 'wordpress.com',
+  'squarespace.com', 'substack.com', 'ghost.io',
+]);
+
+/**
+ * Returns true if `itemLink` belongs to the same site as `feedUrl`.
+ * Handles www-prefix differences and same-root-domain cases, but
+ * prevents a typepad/blogspot blog from accepting items from a
+ * completely different site on the same platform.
+ */
+function itemBelongsToFeed(feedUrl, itemLink) {
+  if (!itemLink) return false;
+  try {
+    const feedHost = new URL(feedUrl).hostname.replace(/^www\./, '');
+    const itemHost = new URL(itemLink).hostname.replace(/^www\./, '');
+    // Exact match (after stripping www)
+    if (itemHost === feedHost) return true;
+    // Same registrable root (e.g. blog.example.com ↔ example.com)
+    // but not on a shared platform where root is meaningless
+    const feedRoot = feedHost.split('.').slice(-2).join('.');
+    const itemRoot = itemHost.split('.').slice(-2).join('.');
+    if (!SHARED_PLATFORMS.has(feedRoot) && feedRoot === itemRoot) return true;
+    return false;
+  } catch { return false; }
+}
+
 function decodeHtml(str) {
   if (!str) return '';
   return str
@@ -537,7 +566,9 @@ async function fetchBlogFeed(blog) {
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
 
   const feed = await parser.parseURL(blog.feed);
-  const recipes = feed.items.filter(item => !isRoundup(item.title, item.link)).slice(0, 20).map((item) => {
+  const recipes = feed.items
+    .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link))
+    .slice(0, 20).map((item) => {
     const categories = (item.categories || []).map(c =>
       typeof c === 'string' ? c : (c._ || c['#text'] || '')
     ).filter(Boolean);
