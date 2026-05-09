@@ -704,7 +704,7 @@ function renderBlogPicker() {
 }
 
 function renderSearchSection() {
-  const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length;
+  const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.methodFilters.length;
   const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
 
   const mobileCats = [
@@ -1059,7 +1059,7 @@ function renderDrawer() {
     `;
   } else if (d) {
     // Servings scaler
-    const baseServings = d.servings ? String(d.servings).replace(/[^\d.]/g, '') : null;
+    const baseServings = d.servings ? (String(d.servings).match(/\d+/)?.[0] || null) : null;
     const scaleOptions = [{ label: '½×', v: 0.5 }, { label: '1×', v: 1 }, { label: '2×', v: 2 }, { label: '3×', v: 3 }, { label: '4×', v: 4 }];
     const scalerHtml = d.ingredients?.length ? `
       <div class="servings-scaler">
@@ -1134,7 +1134,7 @@ function renderDrawer() {
           <button class="btn-cooked" data-action="mark-cooked">
             🍳 Mark as cooked${cookedCount > 0 ? ` <span class="cooked-count-pill">${cookedCount}×</span>` : ''}
           </button>
-          ${cookedCount > 0 ? `<span class="cooked-last">Last cooked ${favData?.cookedDates?.slice(-1)[0] || ''}</span>` : ''}
+          ${cookedCount > 0 ? `<span class="cooked-last">Last cooked ${formatDate(favData?.cookedDates?.slice(-1)[0]) || ''}</span>` : ''}
         </div>
       ` : ''}
       ${addToPlanHtml}
