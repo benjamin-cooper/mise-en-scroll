@@ -830,8 +830,13 @@ app.post('/api/nutrition', async (req, res) => {
 
     // Strip parenthetical notes — "(drained)", "(+ ½ cup extra if needed)", "(divided)"
     // These confuse CalorieNinjas without adding nutritional value.
+    // Handles nested parens like "(finely shredded (optional))" by iterating until stable,
+    // then scrubbing any orphaned ( or ) that remain.
     function stripParens(ing) {
-      return ing.replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+      let s = ing;
+      let prev;
+      do { prev = s; s = s.replace(/\([^)]*\)/g, ''); } while (s !== prev);
+      return s.replace(/[()]/g, '').replace(/\s{2,}/g, ' ').trim();
     }
 
     // Convert unicode fractions to ASCII so CalorieNinjas parses quantities reliably
