@@ -268,7 +268,7 @@ function extractImage(item) {
         const t = s['@type'];
         if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
           const img = s.image;
-          if (!img) break;
+          if (!img) continue;
           const candidate = Array.isArray(img) ? img[0] : img;
           const url = typeof candidate === 'string' ? candidate : (candidate?.url || candidate?.contentUrl);
           if (url && typeof url === 'string') return url;
@@ -306,7 +306,7 @@ function parseISO8601Duration(str) {
 }
 
 const ROUNDUP_PATTERNS = [
-  /^\d+\s+\w/i,                          // "14 Leftover Ham Recipes", "25 Best..."
+  /^\d{2,}\s+(best|top|easy|quick|simple|delicious|healthy|amazing|must-?try|perfect|great|tasty|favorite|cozy|festive|holiday|budget|copycat|leftover|make-ahead|weeknight|seasonal)\b/i, // "14 Best...", "25 Easy..." — not "1 Pan", "2 Pound"
   /\b(best|top)\s+\d+\b/i,               // "Best 10 Recipes"
   /\bround.?up\b/i,
   /\bmeal\s+plan\b/i,
@@ -585,7 +585,7 @@ function extractCookTimeMinutes(item) {
       const t = s['@type'];
       if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
         const dur = s.totalTime || s.cookTime;
-        if (!dur) return null;
+        if (!dur) continue;
         const d = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
         if (d) return (parseInt(d[1] || 0) * 60) + parseInt(d[2] || 0);
       }
@@ -648,7 +648,9 @@ app.get('/api/recipes/stream', async (req, res) => {
       try {
         const recipes = await fetchBlogFeed(blog);
         send({ type: 'batch', recipes });
-      } catch {}
+      } catch (err) {
+        console.error(`Feed fetch failed for ${blog.name}:`, err.message || err);
+      }
     }));
   }
 
@@ -762,7 +764,7 @@ async function runSerperSearch(q, page) {
       headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ q: `${q} (${siteQuery})`, num: 10, page: parseInt(page) }),
       signal: AbortSignal.timeout(10000),
-    }).then(r => r.json()).catch(() => ({}));
+    }).then(r => r.json()).catch(err => { console.error('Serper fetch error:', err.message || err); return {}; });
   }));
 
   // Normalise URLs for dedup: strip protocol, www, trailing slash, lowercased
@@ -883,7 +885,7 @@ async function runSerperSearch(q, page) {
     }));
   }
 
-  return { results, totalResults: totalResults || results.length, nextStart: allOrganic.length > 0 ? parseInt(page) + 1 : null };
+  return { results, totalResults: totalResults || results.length, nextStart: results.length > 0 ? parseInt(page) + 1 : null };
 }
 
 // Serper.dev keyword search
