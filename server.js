@@ -747,6 +747,9 @@ async function runSerperSearch(q, page) {
     }).then(r => r.json()).catch(() => ({}));
   }));
 
+  // Normalise URLs for dedup: strip protocol, www, trailing slash, lowercased
+  const normUrl = u => u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
+
   const seen = new Set();
   const allOrganic = [];
   let totalResults = 0;
@@ -755,7 +758,8 @@ async function runSerperSearch(q, page) {
     const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
     totalResults += t;
     for (const item of (data.organic || [])) {
-      if (!seen.has(item.link)) { seen.add(item.link); allOrganic.push(item); }
+      const key = normUrl(item.link || '');
+      if (!seen.has(key)) { seen.add(key); allOrganic.push(item); }
     }
   }
 
@@ -790,6 +794,10 @@ async function runSerperSearch(q, page) {
       } catch {}
 
       if (item.title) {
+        // All-lowercase title = almost certainly a category/tag page, not a real recipe
+        // (real recipe titles use Title Case or Sentence case)
+        if (item.title === item.title.toLowerCase() && /\brecipes\b/.test(item.title)) return false;
+
         // Split on common title separators including the middle-dot (·) used by some blogs
         const parts = item.title.split(/\s+[-–·|]\s+/);
         if (parts.length > 1) {
@@ -798,13 +806,14 @@ async function runSerperSearch(q, page) {
 
           if (blogNameSet.has(suffix)) {
             // Drop URL-slug titles: "japanese-breakfast-recipe-7955 · i am a food blog"
-            // A slug has no spaces and is all lowercase-hyphenated with optional trailing digits.
             if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(prefix.replace(/\s/g, ''))) return false;
 
-            // Drop short generic category pages: "Breakfast and Brunch - Fifteen Spatulas"
             const wordCount = prefix.split(/\s+/).length;
+            // Drop short generic category pages by lead word OR trailing "recipes":
+            // "Breakfast and Brunch - Fifteen Spatulas", "Mexican Breakfast Recipes - Isabel Eats"
             const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
-            if (wordCount <= 4 && categoryLead.test(prefix)) return false;
+            const categoryTrail = /\brecipes\b/i; // "Mexican Breakfast Recipes", "Indian Breakfast Recipes"
+            if (wordCount <= 4 && (categoryLead.test(prefix) || categoryTrail.test(prefix))) return false;
           }
         }
       }
@@ -820,7 +829,10 @@ async function runSerperSearch(q, page) {
     let cleanTitle = item.title || '';
     if (blog) {
       const escapedName = blog.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      cleanTitle = cleanTitle.replace(new RegExp(`\\s*[-–·|]\\s*${escapedName}\\s*$`, 'i'), '').trim();
+      cleanTitle = cleanTitle
+        .replace(new RegExp(`\\s*[-–·|]\\s*${escapedName}\\s*$`, 'i'), '')
+        .replace(/\s*[-–·|]+\s*$/, '') // strip any stray trailing separator e.g. "Title |"
+        .trim();
     }
 
     return {
