@@ -881,18 +881,25 @@ app.post('/api/nutrition', async (req, res) => {
       return ing.replace(/,\s*(softened|melted|room\s+temperature|cold|chilled|warmed?|beaten|whisked|sifted|toasted|divided|optional).*$/i, '').trim();
     }
 
-    // Strip unquantified seasonings — "salt and pepper", "salt to taste", etc.
-    // CalorieNinjas defaults to ~100g when no amount is given, wildly inflating sodium.
+    // Strip ingredients CalorieNinjas can't reliably calculate.
+    // - Plain salt (any type, any quantity): CalorieNinjas defaults to 100g when it
+    //   can't parse fractional/decimal quantities, inflating sodium by ~2,000mg/serving.
+    //   Celery salt, soy sauce, fish sauce etc. are kept — they're measured flavour
+    //   ingredients that CalorieNinjas handles correctly.
+    // - Black/white/ground pepper: negligible nutrition, consistently overcounted.
     const STRIP_PATTERNS = [
-      /^salt\s+and\s+(black\s+)?pepper$/i,
-      /^(kosher\s+|sea\s+|coarse\s+)?salt(\s+to\s+taste)?$/i,
-      /^(black\s+|white\s+|ground\s+)?pepper(\s+to\s+taste)?$/i,
-      /^salt\s+(and\s+pepper|to\s+taste|as\s+needed)(\s+to\s+taste)?$/i,
-      /^(freshly\s+)?ground\s+(black\s+)?pepper(\s+to\s+taste)?$/i,
-      /\bto\s+taste$/i,        // "hot sauce to taste", "seasoning to taste"
-      /\bas\s+needed$/i,        // "flour as needed"
+      // All plain salt — any quantity, any type (but NOT celery/garlic/onion salt)
+      /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?|cups?)?\s*(?:kosher\s+|sea\s+|coarse\s+|table\s+|iodized\s+|pink\s+|fine\s+)?salt$/i,
+      // Salt-and-pepper combos
+      /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)?\s*salt\s+and\s+(black\s+)?pepper$/i,
+      // All black / white / ground pepper (any quantity)
+      /\b(?:black|white|freshly\s+ground)\s+pepper\b/i,
+      /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)?\s*(?:freshly\s+)?ground\s+pepper$/i,
+      // Vague / unquantified seasonings
+      /\bto\s+taste$/i,
+      /\bas\s+needed$/i,
       /\bas\s+desired$/i,
-      /^(a\s+)?(pinch|dash|drizzle|splash|handful)\b/i, // vague quantities
+      /^(a\s+)?(pinch|dash|drizzle|splash|handful)\b/i,
     ];
 
     const processed = ingredients
@@ -921,10 +928,6 @@ app.post('/api/nutrition', async (req, res) => {
     if (!data) return res.json({ nutrition: null });
     const items = data.items || [];
     if (!items.length) return res.json({ nutrition: null });
-
-    // Debug: log per-item sodium so we can spot which ingredient is inflating totals
-    console.log('[nutrition] query:', query);
-    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories}cal fat=${i.fat_total_g}g carbs=${i.carbohydrates_total_g}g sodium=${i.sodium_mg}mg`));
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
