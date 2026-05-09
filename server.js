@@ -767,6 +767,9 @@ async function runSerperSearch(q, page) {
   // Build a set of known blog root-domains for fast validation
   const blogDomainSet = new Set(domains.map(d => d.split('.').slice(-2).join('.')));
 
+  // Blog names lowercased for detecting "Category - Blog Name" titles
+  const blogNameSet = new Set(BLOGS.map(b => b.name.toLowerCase()));
+
   const results = allOrganic
     .filter(item => {
       if (!item.link) return false;
@@ -776,8 +779,25 @@ async function runSerperSearch(q, page) {
       try {
         const h = new URL(item.link).hostname.replace(/^www\./, '');
         const root = h.split('.').slice(-2).join('.');
-        return blogDomainSet.has(root) || blogDomainSet.has(h);
+        if (!blogDomainSet.has(root) && !blogDomainSet.has(h)) return false;
       } catch { return false; }
+      // Drop category/archive pages Google returns for broad queries.
+      // Pattern: "Category Name - Blog Name" where the prefix is short and
+      // looks like a meal/cuisine category rather than a recipe title.
+      if (item.title) {
+        const parts = item.title.split(/\s+[-–|]\s+/);
+        if (parts.length > 1) {
+          const suffix = parts[parts.length - 1].trim().toLowerCase();
+          const prefix = parts.slice(0, -1).join(' - ').trim();
+          const wordCount = prefix.split(/\s+/).length;
+          // Only filter if the suffix is a known blog name AND the prefix is
+          // a short generic category phrase (≤4 words starting with a meal/
+          // cuisine/diet category word) — not a real recipe title.
+          const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
+          if (blogNameSet.has(suffix) && wordCount <= 4 && categoryLead.test(prefix)) return false;
+        }
+      }
+      return true;
     })
     .map(item => {
     const blog = BLOGS.find(b => {
