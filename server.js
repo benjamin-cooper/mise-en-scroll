@@ -729,9 +729,11 @@ async function runSerperSearch(q, page) {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
 
-  // Keep chunks small — too many OR site: operators in one query causes
-  // Google to silently ignore the site restriction and return unrelated results.
-  const CHUNK = 20;
+  // 40 sites per chunk → 3 concurrent Serper requests for ~86 blogs.
+  // Domain validation (below) is the real quality guard against Google
+  // ignoring site: constraints; keeping chunks large avoids rate-limit
+  // failures from too many parallel requests.
+  const CHUNK = 40;
   const chunks = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
 
