@@ -783,20 +783,29 @@ async function runSerperSearch(q, page) {
         const root = h.split('.').slice(-2).join('.');
         if (!blogDomainSet.has(root) && !blogDomainSet.has(h)) return false;
       } catch { return false; }
-      // Drop category/archive pages Google returns for broad queries.
-      // Pattern: "Category Name - Blog Name" where the prefix is short and
-      // looks like a meal/cuisine category rather than a recipe title.
+      // Drop pagination/archive pages (e.g. "Recipes – tagged "recipe" – Page 196")
+      if (/\bpage\s+\d+\b/i.test(item.title)) return false;
+      try {
+        if (/[?&/]page[=/]\d+/i.test(new URL(item.link).pathname + new URL(item.link).search)) return false;
+      } catch {}
+
       if (item.title) {
-        const parts = item.title.split(/\s+[-–|]\s+/);
+        // Split on common title separators including the middle-dot (·) used by some blogs
+        const parts = item.title.split(/\s+[-–·|]\s+/);
         if (parts.length > 1) {
           const suffix = parts[parts.length - 1].trim().toLowerCase();
           const prefix = parts.slice(0, -1).join(' - ').trim();
-          const wordCount = prefix.split(/\s+/).length;
-          // Only filter if the suffix is a known blog name AND the prefix is
-          // a short generic category phrase (≤4 words starting with a meal/
-          // cuisine/diet category word) — not a real recipe title.
-          const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
-          if (blogNameSet.has(suffix) && wordCount <= 4 && categoryLead.test(prefix)) return false;
+
+          if (blogNameSet.has(suffix)) {
+            // Drop URL-slug titles: "japanese-breakfast-recipe-7955 · i am a food blog"
+            // A slug has no spaces and is all lowercase-hyphenated with optional trailing digits.
+            if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(prefix.replace(/\s/g, ''))) return false;
+
+            // Drop short generic category pages: "Breakfast and Brunch - Fifteen Spatulas"
+            const wordCount = prefix.split(/\s+/).length;
+            const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
+            if (wordCount <= 4 && categoryLead.test(prefix)) return false;
+          }
         }
       }
       return true;
