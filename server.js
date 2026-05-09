@@ -729,7 +729,9 @@ async function runSerperSearch(q, page) {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
 
-  const CHUNK = 40;
+  // Keep chunks small — too many OR site: operators in one query causes
+  // Google to silently ignore the site restriction and return unrelated results.
+  const CHUNK = 20;
   const chunks = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
 
@@ -762,7 +764,22 @@ async function runSerperSearch(q, page) {
     }
   }
 
-  const results = allOrganic.filter(item => !isRoundup(item.title, item.link)).map(item => {
+  // Build a set of known blog root-domains for fast validation
+  const blogDomainSet = new Set(domains.map(d => d.split('.').slice(-2).join('.')));
+
+  const results = allOrganic
+    .filter(item => {
+      if (!item.link) return false;
+      if (isRoundup(item.title, item.link)) return false;
+      // Drop any result whose domain isn't one of our known blogs —
+      // guards against Google ignoring site: constraints on complex queries
+      try {
+        const h = new URL(item.link).hostname.replace(/^www\./, '');
+        const root = h.split('.').slice(-2).join('.');
+        return blogDomainSet.has(root) || blogDomainSet.has(h);
+      } catch { return false; }
+    })
+    .map(item => {
     const blog = BLOGS.find(b => {
       const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
       return item.link.includes(domain);
