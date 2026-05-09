@@ -397,7 +397,7 @@ function insertSortedStreamCards(batch) {
   // were never tracked by insertSortedStreamCards — leading to duplicates.
   const domUrls = new Set([...grid.querySelectorAll('.card[data-url]')].map(c => c.dataset.url));
 
-  const toAdd = [...batch]
+  const toAdd = applyFilters([...batch])
     .filter(r => !_streamAppendedSet.has(r.url) && !domUrls.has(r.url))
     .sort((a, b) => new Date(b.date) - new Date(a.date)) // newest first within batch
     .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
