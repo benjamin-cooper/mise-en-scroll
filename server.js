@@ -947,9 +947,9 @@ app.post('/api/nutrition', async (req, res) => {
       return ing.replace(/\s*,?\s+or\s+.+$/i, '');
     }
 
-    // Strip trailing texture/temp descriptors after comma: ", softened", ", room temperature"
+    // Strip trailing texture/temp/prep descriptors after comma: ", softened", ", drained and rinsed"
     function stripTrailingDescriptors(ing) {
-      return ing.replace(/,\s*(softened|melted|room\s+temperature|cold|chilled|warmed?|beaten|whisked|sifted|toasted|divided|optional).*$/i, '').trim();
+      return ing.replace(/,\s*(softened|melted|room\s+temperature|cold|chilled|warmed?|beaten|whisked|sifted|toasted|divided|optional|drained|rinsed|patted\s+dry|squeezed\s+dry|cooked|thawed|peeled|seeded|cored|trimmed|halved|quartered|sliced|chopped|minced|grated|shredded|crumbled).*$/i, '').trim();
     }
 
     // Strip ingredients CalorieNinjas can't reliably calculate.
