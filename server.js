@@ -911,10 +911,7 @@ app.post('/api/nutrition', async (req, res) => {
 
     // Debug: log per-item sodium so we can spot which ingredient is inflating totals
     console.log('[nutrition] query:', query);
-    console.log('[nutrition] items:', JSON.stringify(items.map(i => ({
-      name: i.name, calories: i.calories, fat: i.fat_total_g,
-      carbs: i.carbohydrates_total_g, sodium_mg: i.sodium_mg
-    })), null, 2));
+    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories}cal fat=${i.fat_total_g}g carbs=${i.carbohydrates_total_g}g sodium=${i.sodium_mg}mg`));
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
