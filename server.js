@@ -884,29 +884,63 @@ app.post('/api/nutrition', async (req, res) => {
     // we never send fractional condiment quantities to the API at all.
     //
     // g/tsp: density × 5ml/tsp. Tablespoon = 3× tsp.
+    // Covers any ingredient commonly measured in tsp/tbsp where CalorieNinjas either
+    // has wrong database values or can't handle fractional decimal quantities.
     const CONDIMENT_G_PER_TSP = {
+      // --- Soy / umami sauces ---
       'soy sauce': 6, 'light soy sauce': 6, 'dark soy sauce': 6,
       'tamari': 6, 'coconut aminos': 6, 'liquid aminos': 6,
+      // --- Fish / shellfish sauces ---
       'fish sauce': 6, 'oyster sauce': 6, 'shrimp paste': 7,
+      // --- Asian condiments ---
       'hoisin sauce': 7, 'plum sauce': 7, 'chili garlic sauce': 7,
       'sambal oelek': 7, 'gochujang': 7, 'doubanjiang': 7,
       'mirin': 6, 'sake': 5, 'rice wine': 6, 'shaoxing wine': 5,
+      // --- Western condiments ---
       'worcestershire sauce': 6, 'hot sauce': 5, 'sriracha': 5.5,
-      'sesame oil': 4.5, 'chili oil': 4.5,
+      'ketchup': 5.7, 'mustard': 5, 'yellow mustard': 5, 'dijon mustard': 5,
+      'tomato paste': 5.4, 'tomato sauce': 5,
+      'bbq sauce': 6, 'teriyaki sauce': 6,
+      // --- Oils (all ~4.5g/tsp — density ~0.9g/ml × 5ml) ---
+      'olive oil': 4.5, 'extra virgin olive oil': 4.5,
+      'vegetable oil': 4.5, 'canola oil': 4.5, 'avocado oil': 4.5,
+      'coconut oil': 4.5, 'grapeseed oil': 4.5, 'sunflower oil': 4.5,
+      'sesame oil': 4.5, 'chili oil': 4.5, 'peanut oil': 4.5,
+      // --- Butter & solid fats (4.7g/tsp, 14.2g/tbsp) ---
+      'butter': 4.7, 'salted butter': 4.7, 'unsalted butter': 4.7,
+      'ghee': 4.5,
+      // --- Vinegars ---
       'rice vinegar': 5, 'balsamic vinegar': 6,
       'apple cider vinegar': 5, 'white vinegar': 5, 'red wine vinegar': 5,
+      'sherry vinegar': 5, 'champagne vinegar': 5,
+      // --- Dairy spreads ---
+      'cream cheese': 5, 'sour cream': 5, 'creme fraiche': 5,
+      // --- Nut butters & spreads ---
+      'peanut butter': 5.4, 'almond butter': 5.4, 'cashew butter': 5.4,
+      'sunflower butter': 5, 'tahini': 5.7, 'nutella': 6,
+      // --- Liquid sweeteners ---
+      'honey': 7, 'maple syrup': 6.8, 'agave': 6.9, 'agave nectar': 6.9,
+      'molasses': 7, 'corn syrup': 7,
+      // --- Mayonnaise ---
+      'mayonnaise': 4.7, 'mayo': 4.7,
     };
-    // Nutrition per 100g — USDA FoodData Central / standard references
+
+    // Nutrition per 100g — USDA FoodData Central / standard references.
+    // Any food in this table is bypassed from CalorieNinjas entirely; nutrition
+    // is calculated directly so we're never exposed to their DB errors.
     const CONDIMENT_PER_100G = {
+      // --- Soy / umami sauces ---
       'soy sauce':            { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
       'light soy sauce':      { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
       'dark soy sauce':       { cal: 55,  pro: 7.0,  fat: 0.1, carb: 4.8,  fib: 0,   na: 4600 },
       'tamari':               { cal: 61,  pro: 10.9, fat: 0,   carb: 2.0,  fib: 0,   na: 4580 },
       'coconut aminos':       { cal: 60,  pro: 0,    fat: 0,   carb: 14,   fib: 0,   na: 700  },
       'liquid aminos':        { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
+      // --- Fish / shellfish sauces ---
       'fish sauce':           { cal: 35,  pro: 5.0,  fat: 0,   carb: 3.7,  fib: 0,   na: 5690 },
       'oyster sauce':         { cal: 93,  pro: 2.7,  fat: 0.3, carb: 21,   fib: 0,   na: 1300 },
       'shrimp paste':         { cal: 180, pro: 21,   fat: 3,   carb: 14,   fib: 0,   na: 8800 },
+      // --- Asian condiments ---
       'hoisin sauce':         { cal: 220, pro: 4.0,  fat: 4.0, carb: 40,   fib: 3,   na: 2100 },
       'plum sauce':           { cal: 215, pro: 0.5,  fat: 0.1, carb: 53,   fib: 1,   na: 870  },
       'chili garlic sauce':   { cal: 60,  pro: 2,    fat: 1,   carb: 12,   fib: 2,   na: 2200 },
@@ -917,16 +951,64 @@ app.post('/api/nutrition', async (req, res) => {
       'sake':                 { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
       'rice wine':            { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
       'shaoxing wine':        { cal: 134, pro: 0.5,  fat: 0,   carb: 5,    fib: 0,   na: 5    },
+      // --- Western condiments ---
       'worcestershire sauce': { cal: 78,  pro: 0,    fat: 0,   carb: 20.4, fib: 0,   na: 2580 },
       'hot sauce':            { cal: 35,  pro: 1,    fat: 0,   carb: 7,    fib: 0,   na: 2200 },
       'sriracha':             { cal: 93,  pro: 1.6,  fat: 2.7, carb: 17,   fib: 0,   na: 2200 },
+      'ketchup':              { cal: 100, pro: 1.2,  fat: 0.1, carb: 27,   fib: 0.3, na: 1040 },
+      'mustard':              { cal: 60,  pro: 3.7,  fat: 3.3, carb: 5.8,  fib: 0,   na: 1135 },
+      'yellow mustard':       { cal: 60,  pro: 3.7,  fat: 3.3, carb: 5.8,  fib: 0,   na: 1135 },
+      'dijon mustard':        { cal: 66,  pro: 3.7,  fat: 3.6, carb: 5.8,  fib: 0,   na: 1125 },
+      'tomato paste':         { cal: 82,  pro: 4.3,  fat: 0.5, carb: 19.4, fib: 4.1, na: 59   },
+      'tomato sauce':         { cal: 29,  pro: 1.2,  fat: 0.4, carb: 7,    fib: 1.5, na: 402  },
+      'bbq sauce':            { cal: 172, pro: 0.8,  fat: 0.5, carb: 41,   fib: 0.4, na: 818  },
+      'teriyaki sauce':       { cal: 89,  pro: 5.5,  fat: 0.1, carb: 17,   fib: 0.1, na: 2780 },
+      // --- Oils ---
+      'olive oil':            { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 2    },
+      'extra virgin olive oil':{ cal: 884, pro: 0,   fat: 100, carb: 0,    fib: 0,   na: 2    },
+      'vegetable oil':        { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'canola oil':           { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'avocado oil':          { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'coconut oil':          { cal: 892, pro: 0,    fat: 99.1,carb: 0,    fib: 0,   na: 0    },
+      'grapeseed oil':        { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'sunflower oil':        { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      'peanut oil':           { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
       'sesame oil':           { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
       'chili oil':            { cal: 884, pro: 0,    fat: 100, carb: 0,    fib: 0,   na: 0    },
+      // --- Butter & solid fats ---
+      'butter':               { cal: 717, pro: 0.9,  fat: 81.1,carb: 0.1,  fib: 0,   na: 643  },
+      'salted butter':        { cal: 717, pro: 0.9,  fat: 81.1,carb: 0.1,  fib: 0,   na: 643  },
+      'unsalted butter':      { cal: 717, pro: 0.9,  fat: 81.1,carb: 0.1,  fib: 0,   na: 11   },
+      'ghee':                 { cal: 900, pro: 0,    fat: 99.8,carb: 0,    fib: 0,   na: 2    },
+      // --- Vinegars ---
       'rice vinegar':         { cal: 18,  pro: 0,    fat: 0,   carb: 0.9,  fib: 0,   na: 0    },
       'balsamic vinegar':     { cal: 88,  pro: 0.5,  fat: 0,   carb: 17.2, fib: 0,   na: 23   },
       'apple cider vinegar':  { cal: 21,  pro: 0,    fat: 0,   carb: 0.9,  fib: 0,   na: 5    },
       'white vinegar':        { cal: 18,  pro: 0,    fat: 0,   carb: 0,    fib: 0,   na: 2    },
       'red wine vinegar':     { cal: 19,  pro: 0.1,  fat: 0,   carb: 0.3,  fib: 0,   na: 8    },
+      'sherry vinegar':       { cal: 39,  pro: 0.1,  fat: 0,   carb: 1.9,  fib: 0,   na: 10   },
+      'champagne vinegar':    { cal: 18,  pro: 0,    fat: 0,   carb: 0,    fib: 0,   na: 5    },
+      // --- Dairy spreads ---
+      'cream cheese':         { cal: 342, pro: 5.9,  fat: 34.2,carb: 2.7,  fib: 0,   na: 321  },
+      'sour cream':           { cal: 198, pro: 2.4,  fat: 19.4,carb: 4.6,  fib: 0,   na: 53   },
+      'creme fraiche':        { cal: 292, pro: 2.1,  fat: 30,  carb: 2.4,  fib: 0,   na: 40   },
+      // --- Nut butters & spreads ---
+      'peanut butter':        { cal: 598, pro: 22.2, fat: 51.4,carb: 14.1, fib: 5,   na: 429  },
+      'almond butter':        { cal: 614, pro: 20.5, fat: 55.5,carb: 18.8, fib: 10.3,na: 7    },
+      'cashew butter':        { cal: 587, pro: 17,   fat: 47,  carb: 28,   fib: 2,   na: 12   },
+      'sunflower butter':     { cal: 617, pro: 19.3, fat: 56,  carb: 13,   fib: 6,   na: 12   },
+      'tahini':               { cal: 595, pro: 17,   fat: 53.8,carb: 21.2, fib: 9.3, na: 37   },
+      'nutella':              { cal: 541, pro: 6.3,  fat: 30.9,carb: 57.9, fib: 3.4, na: 47   },
+      // --- Liquid sweeteners ---
+      'honey':                { cal: 304, pro: 0.3,  fat: 0,   carb: 82.4, fib: 0.2, na: 4    },
+      'maple syrup':          { cal: 260, pro: 0,    fat: 0.1, carb: 67,   fib: 0,   na: 12   },
+      'agave':                { cal: 310, pro: 0.1,  fat: 0.5, carb: 76,   fib: 0.2, na: 4    },
+      'agave nectar':         { cal: 310, pro: 0.1,  fat: 0.5, carb: 76,   fib: 0.2, na: 4    },
+      'molasses':             { cal: 290, pro: 0,    fat: 0.1, carb: 74.7, fib: 0,   na: 37   },
+      'corn syrup':           { cal: 282, pro: 0,    fat: 0.2, carb: 76.8, fib: 0,   na: 109  },
+      // --- Mayonnaise ---
+      'mayonnaise':           { cal: 680, pro: 1.0,  fat: 74.9,carb: 0.6,  fib: 0,   na: 635  },
+      'mayo':                 { cal: 680, pro: 1.0,  fat: 74.9,carb: 0.6,  fib: 0,   na: 635  },
     };
 
     // Convert condiment tsp/tbsp quantities to grams, then pull them OUT of the
@@ -1067,6 +1149,12 @@ app.post('/api/nutrition', async (req, res) => {
       /\bas\s+needed$/i,
       /\bas\s+desired$/i,
       /^(a\s+)?(pinch|dash|drizzle|splash|handful)\b/i,
+      // Fractional tsp/tbsp of non-condiment spices/flavourings — CalorieNinjas strips
+      // the leading "0." and reads "0.25 tsp cumin" as "25 tsp cumin", wildly overcounting.
+      // Known condiments (soy sauce, fish sauce, oils, etc.) are already bypassed via
+      // CONDIMENT_PER_100G before they reach this filter. The remainder are trace spices
+      // (cumin, paprika, cayenne, cinnamon, etc.) with negligible nutritional impact.
+      /^0\.\d+\s+(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)\s+/i,
     ];
 
     const processed = ingredients
@@ -1101,7 +1189,9 @@ app.post('/api/nutrition', async (req, res) => {
       m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
       if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1])) }); return; }
       m = ing.match(/^(\d+(?:\.\d+)?)\s+oz\.?\s+(.+)$/i);
-      if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1]) * 28.35) }); }
+      if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1]) * 28.35) }); return; }
+      m = ing.match(/^(\d+(?:\.\d+)?)\s+(?:lb|lbs|pound|pounds)\.?\s+(.+)$/i);
+      if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1]) * 453.6) }); }
     });
 
     // Join ingredients into one natural-language query string
@@ -1156,7 +1246,6 @@ app.post('/api/nutrition', async (req, res) => {
             };
           }
         }
-        matchedRawItemIndices.add(rawIdx); // still matched even if no scaling needed
       }
       return item;
     }).filter((item, rawIdx) => {
