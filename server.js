@@ -96,6 +96,10 @@ const BLOGS = [
   { name: 'Rasa Malaysia',         feed: 'https://rasamalaysia.com/feed/',                  color: '#c07020' },
   { name: "Omnivore's Cookbook",   feed: 'https://omnivorescookbook.com/feed/',             color: '#20908a' },
   { name: 'Hot Thai Kitchen',      feed: 'https://hot-thai-kitchen.com/feed/',              color: '#2a9a3a' },
+  // --- Vietnamese ---
+  { name: 'Viet World Kitchen',    feed: 'https://vietworldkitchen.typepad.com/blog/atom.xml', color: '#d4382a' },
+  // --- SE Asian ---
+  { name: 'Roti n Rice',           feed: 'https://rotinrice.com/feed/',                    color: '#c07840' },
   // --- General (continued) ---
   { name: 'RecipeTin Eats',        feed: 'https://www.recipetineats.com/feed/',             color: '#c0392b' },
   { name: 'How Sweet Eats',        feed: 'https://www.howsweeteats.com/feed/',              color: '#e91e8c' },
@@ -127,6 +131,7 @@ const BLOGS = [
   { name: 'Mexico in My Kitchen',  feed: 'https://www.mexicoinmykitchen.com/feed/',         color: '#27ae60' },
   { name: "Laylita's Recipes",     feed: 'https://laylita.com/recipes/feed/',               color: '#e67e22' },
   { name: 'Isabel Eats',           feed: 'https://www.isabeleats.com/feed/',                color: '#c75b2e' },
+  { name: 'My Colombian Recipes',  feed: 'https://www.mycolombianrecipes.com/feed/',        color: '#f4c430' },
   // --- Middle Eastern ---
   { name: 'Give Recipe',           feed: 'https://giverecipe.com/feed/',                    color: '#c0392b' },
   { name: "Ozlem's Turkish Table", feed: 'https://ozlemsturkishtable.com/feed/',             color: '#e67e22' },
@@ -342,8 +347,12 @@ const ROUNDUP_PATTERNS = [
   /^review\b/i,                                                         // title starts with "Review:"
   /\bthe\s+history\s+of\b/i,                                           // "The History of Bourbon"
   /\bguide\s+to\b/i,                                                   // "A Guide to Natural Wine"
-  // X vs Y comparisons — always editorial, never a recipe title
-  /\bvs\.?\s+\w/i,                                                     // "Tamari vs Soy Sauce", "Butter vs Oil"
+  // X vs Y comparisons — editorial, not a recipe title.
+  // Require ≤1 word after Y before end-of-string or punctuation, so short
+  // comparisons like "Tamari vs Soy Sauce" and "Butter vs Oil: Which?" are
+  // caught while longer recipe-embedded titles like "Red vs White Wine Pasta"
+  // (3+ words after vs) are left through.
+  /\bvs\.?\s+\w+(?:\s+\w+){0,1}(?=\s*[?!:,]|\s*$)/i,               // "Tamari vs Soy Sauce", "Butter vs Oil: Which Is Better?"
   // Educational / tips (The Kitchn style)
   /\bthe\s+difference\s+between\b/i,                                   // "The Difference Between X and Y"
   /\beverything\s+you\s+(need\s+to\s+)?know\s+(about|on)\b/i,         // "Everything You Need to Know About X"
@@ -528,7 +537,7 @@ async function fetchBlogFeed(blog) {
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
 
   const feed = await parser.parseURL(blog.feed);
-  const recipes = feed.items.filter(item => !isRoundup(item.title, item.link)).slice(0, 8).map((item) => {
+  const recipes = feed.items.filter(item => !isRoundup(item.title, item.link)).slice(0, 20).map((item) => {
     const categories = (item.categories || []).map(c =>
       typeof c === 'string' ? c : (c._ || c['#text'] || '')
     ).filter(Boolean);
