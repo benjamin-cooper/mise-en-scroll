@@ -349,7 +349,10 @@ function buildSearchQuery() {
   for (const { vals, group } of filterMap) {
     for (const val of vals) {
       const f = FILTERS[group].find(f => f.label === val);
-      if (f) parts.push(`(${f.keywords.join(' OR ')})`);
+      // Use only the label (not all synonyms) for the Serper query — expanding
+      // 20+ keywords per filter makes the query too long and causes silent failures.
+      // The full keyword list is still used for local RSS-cache filtering.
+      if (f) parts.push(f.label.toLowerCase());
     }
   }
   if (!parts.some(p => p.includes('recipe'))) parts.push('recipe');
