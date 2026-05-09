@@ -993,6 +993,16 @@ app.post('/api/nutrition', async (req, res) => {
       .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
       .filter(Boolean);
 
+    // Build a map of food name → intended grams for "Xg foodname" query components.
+    // CalorieNinjas sometimes ignores the unit and treats the number as a serving count,
+    // causing huge over-counts (e.g. "440g pinto beans" → uses 4394g internally at 10×).
+    // We detect this via serving_size_g in the response and scale the macros back down.
+    const gramIntentMap = {};
+    processed.forEach(ing => {
+      const m = ing.match(/^(\d+)g\s+(.+)$/i);
+      if (m) gramIntentMap[m[2].trim().toLowerCase()] = parseInt(m[1], 10);
+    });
+
     // Join ingredients into one natural-language query string
     const query = processed.join(', ');
 
@@ -1004,11 +1014,37 @@ app.post('/api/nutrition', async (req, res) => {
 
     const data = await callCalorieNinjas(query, apiKey);
     if (!data) return res.json({ nutrition: null });
-    const items = data.items || [];
-    if (!items.length) return res.json({ nutrition: null });
+    const rawItems = data.items || [];
+    if (!rawItems.length) return res.json({ nutrition: null });
+
+    // Scale items where CalorieNinjas used the wrong quantity.
+    // When serving_size_g differs from our intended grams by >50%, the per-gram
+    // nutrition values are still correct — we just need to rescale to the right total.
+    const SCALE_THRESHOLD = 1.5;
+    const items = rawItems.map(item => {
+      const key = item.name.toLowerCase().trim();
+      const intended = gramIntentMap[key];
+      if (intended && item.serving_size_g > 0) {
+        const ratio = item.serving_size_g / intended;
+        if (ratio > SCALE_THRESHOLD || ratio < 1 / SCALE_THRESHOLD) {
+          const scale = intended / item.serving_size_g;
+          console.log(`[nutrition]  scaling "${item.name}": serving_size_g=${item.serving_size_g} intended=${intended}g ratio=${ratio.toFixed(1)}x scale=${scale.toFixed(4)}`);
+          return {
+            ...item,
+            calories:                  item.calories                  * scale,
+            protein_g:                 item.protein_g                 * scale,
+            fat_total_g:               item.fat_total_g               * scale,
+            carbohydrates_total_g:     item.carbohydrates_total_g     * scale,
+            fiber_g:                   item.fiber_g                   * scale,
+            sodium_mg:                 item.sodium_mg                 * scale,
+          };
+        }
+      }
+      return item;
+    });
 
     console.log('[nutrition] query:', query);
-    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories}cal fat=${i.fat_total_g}g carbs=${i.carbohydrates_total_g}g protein=${i.protein_g}g sodium=${i.sodium_mg}mg serving_size_g=${i.serving_size_g}`));
+    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal fat=${i.fat_total_g}g carbs=${i.carbohydrates_total_g}g protein=${i.protein_g}g sodium=${i.sodium_mg}mg`));
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
