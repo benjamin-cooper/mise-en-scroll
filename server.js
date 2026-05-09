@@ -845,6 +845,18 @@ app.post('/api/nutrition', async (req, res) => {
       return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
     }
 
+    // Convert ASCII fractions to decimals so CalorieNinjas parses them correctly.
+    // Without this, "1/4 teaspoon salt" is unparseable and defaults to 100 g of salt
+    // (≈39,000 mg sodium). "0.25 teaspoon salt" is understood correctly.
+    // Handles mixed numbers too: "1 1/2 cups" → "1.5 cups".
+    function decimalFractions(ing) {
+      return ing
+        .replace(/\b(\d+)\s+(\d+)\/(\d+)\b/g, (_, w, n, d) =>
+          String(Math.round((+w + +n / +d) * 1000) / 1000))
+        .replace(/\b(\d+)\/(\d+)\b/g, (_, n, d) =>
+          String(Math.round(+n / +d * 1000) / 1000));
+    }
+
     // Strip trailing period from unit abbreviations so CalorieNinjas parses them correctly:
     // "28 oz. can tomatoes" → "28 oz can tomatoes"  (without this, "oz." is unrecognised
     // and CalorieNinjas treats the leading number as a count of "cans" → 28× overcount)
@@ -888,6 +900,7 @@ app.post('/api/nutrition', async (req, res) => {
       .map(stripParens)
       .map(normaliseUnits)
       .map(normaliseFractions)
+      .map(decimalFractions)
       .map(normaliseRange)
       .map(collapseCompound)
       .map(stripOrAlternative)
