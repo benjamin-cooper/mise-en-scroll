@@ -1170,9 +1170,6 @@ app.post('/api/nutrition', async (req, res) => {
     // Merge CalorieNinjas items with locally-calculated condiment items
     const allItems = [...syntheticCondimentItems, ...items];
 
-    console.log('[nutrition] query:', query);
-    allItems.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal sodium=${i.sodium_mg.toFixed(0)}mg serving_size_g=${i.serving_size_g}`));
-
     // Sum totals across all ingredient items
     const sum = (key) => allItems.reduce((acc, item) => acc + (item[key] || 0), 0);
 
