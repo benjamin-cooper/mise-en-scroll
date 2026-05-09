@@ -815,9 +815,17 @@ async function runSerperSearch(q, page) {
       const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
       return item.link.includes(domain);
     });
+    // Strip trailing "- Blog Name" / "· Blog Name" suffix that WordPress/Google
+    // appends to page titles — the blog badge already shows this information.
+    let cleanTitle = item.title || '';
+    if (blog) {
+      const escapedName = blog.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      cleanTitle = cleanTitle.replace(new RegExp(`\\s*[-–·|]\\s*${escapedName}\\s*$`, 'i'), '').trim();
+    }
+
     return {
       id: Buffer.from(item.link).toString('base64'),
-      title: item.title,
+      title: cleanTitle,
       url: item.link,
       image: cacheImageMap.get(item.link) || null,
       blog: blog?.name || item.displayLink || item.link,
