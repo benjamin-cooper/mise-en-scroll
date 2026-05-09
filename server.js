@@ -1032,7 +1032,6 @@ app.post('/api/nutrition', async (req, res) => {
         const ratio = item.serving_size_g / intended;
         if (ratio > SCALE_THRESHOLD || ratio < 1 / SCALE_THRESHOLD) {
           const scale = intended / item.serving_size_g;
-          console.log(`[nutrition]  scaling "${item.name}": serving_size_g=${item.serving_size_g} intended=${intended}g ratio=${ratio.toFixed(1)}x scale=${scale.toFixed(4)}`);
           return {
             ...item,
             calories:                  item.calories                  * scale,
@@ -1046,9 +1045,6 @@ app.post('/api/nutrition', async (req, res) => {
       }
       return item;
     });
-
-    console.log('[nutrition] query:', query);
-    items.forEach(i => console.log(`[nutrition]  ${i.name}: ${i.calories.toFixed(1)}cal fat=${i.fat_total_g}g carbs=${i.carbohydrates_total_g}g protein=${i.protein_g}g sodium=${i.sodium_mg}mg`));
 
     // Sum totals across all ingredient items
     const sum = (key) => items.reduce((acc, item) => acc + (item[key] || 0), 0);
