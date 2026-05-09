@@ -40,7 +40,7 @@ const FILTERS = {
     { label: 'Slow Cooker', icon: '🫕', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
   ],
   meal: [
-    { label: 'Breakfast',  icon: '🥞', keywords: ['breakfast', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'brunch', 'benedict', 'overnight oats', 'smoothie bowl', 'morning'] },
+    { label: 'Breakfast',  icon: '🥞', keywords: ['breakfast', 'brunch', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'benedict', 'hollandaise', 'eggs florentine', 'overnight oats', 'smoothie bowl', 'morning', 'quiche', 'crepe', 'crêpe', 'avocado toast', 'hash brown', 'hashbrown', 'strata', 'shakshuka', 'breakfast burrito', 'breakfast sandwich', 'breakfast bowl'] },
     { label: 'Lunch',      icon: '🥗', keywords: ['sandwich', 'wrap', 'grain bowl', 'lunch', 'salad', 'soup'] },
     { label: 'Dinner',     icon: '🍽️', keywords: ['dinner', 'supper', 'weeknight', 'roast', 'entrée', 'entree', 'main course', 'main dish'] },
     { label: 'Dessert',    icon: '🍰', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'tart', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'biscuit'] },
