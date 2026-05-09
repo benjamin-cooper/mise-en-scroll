@@ -875,6 +875,44 @@ app.post('/api/nutrition', async (req, res) => {
           String(Math.round(+n / +d * 1000) / 1000));
     }
 
+    // Convert liquid condiments from tsp/tbsp to grams so CalorieNinjas receives
+    // whole-number gram quantities rather than fractional volume ones.
+    //
+    // CalorieNinjas strips the leading "0." from decimals < 1, so "0.25 tsp dark
+    // soy sauce" is read as "25 tsp" → serving_size_g=400 → 21,615mg sodium.
+    // Sending "2g dark soy sauce" gives a whole-number quantity the API can scale
+    // correctly (or that the serving_size_g rescaler can fix if it still miscounts).
+    const CONDIMENT_G_PER_TSP = {
+      // Soy-family
+      'soy sauce': 6, 'light soy sauce': 6, 'dark soy sauce': 6,
+      'tamari': 6, 'coconut aminos': 6, 'liquid aminos': 6,
+      // Fish / shellfish sauces
+      'fish sauce': 6, 'oyster sauce': 8,
+      // Asian condiments
+      'hoisin sauce': 9, 'plum sauce': 9, 'chili garlic sauce': 7,
+      'sambal oelek': 7, 'gochujang': 8, 'doubanjiang': 8,
+      'mirin': 6, 'sake': 5, 'rice wine': 6, 'shaoxing wine': 5,
+      // Western condiments
+      'worcestershire sauce': 6, 'hot sauce': 5, 'sriracha': 5.5,
+      // Oils & vinegars (volume → grams matters for calories)
+      'sesame oil': 4.5, 'chili oil': 4.5,
+      'rice vinegar': 5, 'balsamic vinegar': 6,
+      'apple cider vinegar': 5, 'white vinegar': 5, 'red wine vinegar': 5,
+    };
+    function normaliseCondimentTsp(ing) {
+      return ing.replace(
+        /^(\d+(?:\.\d+)?)\s+(tsp\.?|teaspoons?|tbsp\.?|tablespoons?)\s+(.+)$/i,
+        (match, qty, unit, food) => {
+          const key = food.trim().toLowerCase().replace(/\s+/g, ' ');
+          const gPerTsp = CONDIMENT_G_PER_TSP[key];
+          if (!gPerTsp) return match;
+          const gPerUnit = /tbsp|tablespoon/i.test(unit) ? gPerTsp * 3 : gPerTsp;
+          const grams = Math.round(parseFloat(qty) * gPerUnit);
+          return grams > 0 ? `${grams}g ${food.trim()}` : match;
+        }
+      );
+    }
+
     // Strip trailing period from unit abbreviations so CalorieNinjas parses them correctly:
     // "28 oz. can tomatoes" → "28 oz can tomatoes"  (without this, "oz." is unrecognised
     // and CalorieNinjas treats the leading number as a count of "cans" → 28× overcount)
@@ -986,6 +1024,7 @@ app.post('/api/nutrition', async (req, res) => {
       .map(normaliseUnits)
       .map(normaliseFractions)
       .map(decimalFractions)
+      .map(normaliseCondimentTsp)
       .map(normaliseCups)
       .map(normaliseRange)
       .map(collapseCompound)
@@ -994,18 +1033,20 @@ app.post('/api/nutrition', async (req, res) => {
       .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
       .filter(Boolean);
 
-    // Build a map of food name → intended grams for any weight-quantified query component.
-    // CalorieNinjas sometimes ignores the unit and treats the number as a serving count,
-    // causing huge over-counts (e.g. "15.5 oz pinto beans" → uses 4394g internally, 10×).
-    // We detect this via serving_size_g in the response and scale the macros back down.
+    // Build an ordered list of {food, grams} for post-hoc serving_size_g correction.
+    // CalorieNinjas sometimes uses the wrong quantity internally (e.g. strips "0." from
+    // "0.25 tsp" and reads it as "25 tsp"). We detect this via serving_size_g and rescale.
     //
-    // Handles both "Xg foodname" and "X oz foodname" formats since recipes arrive as either.
-    const gramIntentMap = {};
+    // An ordered list (not a map) is critical: a recipe can have the same food twice at
+    // different quantities (e.g. "2 tsp dark soy sauce" + "0.25 tsp dark soy sauce").
+    // CalorieNinjas returns items in query order, so we match them in order too.
+    const gramIntentList = []; // [{food: string, grams: number}]
     processed.forEach(ing => {
-      let m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
-      if (m) { gramIntentMap[m[2].trim().toLowerCase()] = Math.round(parseFloat(m[1])); return; }
+      let m;
+      m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
+      if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1])) }); return; }
       m = ing.match(/^(\d+(?:\.\d+)?)\s+oz\.?\s+(.+)$/i);
-      if (m) { gramIntentMap[m[2].trim().toLowerCase()] = Math.round(parseFloat(m[1]) * 28.35); }
+      if (m) { gramIntentList.push({ food: m[2].trim().toLowerCase(), grams: Math.round(parseFloat(m[1]) * 28.35) }); }
     });
 
     // Join ingredients into one natural-language query string
@@ -1025,23 +1066,30 @@ app.post('/api/nutrition', async (req, res) => {
     // Scale items where CalorieNinjas used the wrong quantity.
     // When serving_size_g differs from our intended grams by >50%, the per-gram
     // nutrition values are still correct — we just need to rescale to the right total.
+    // We match CalorieNinjas items to gramIntentList entries in order (first unused match)
+    // so that two entries of the same food each get their own intended gram weight.
     const SCALE_THRESHOLD = 1.5;
+    const usedIntentIndices = new Set();
     const items = rawItems.map(item => {
       const key = item.name.toLowerCase().trim();
-      const intended = gramIntentMap[key];
-      if (intended && item.serving_size_g > 0) {
-        const ratio = item.serving_size_g / intended;
-        if (ratio > SCALE_THRESHOLD || ratio < 1 / SCALE_THRESHOLD) {
-          const scale = intended / item.serving_size_g;
-          return {
-            ...item,
-            calories:                  item.calories                  * scale,
-            protein_g:                 item.protein_g                 * scale,
-            fat_total_g:               item.fat_total_g               * scale,
-            carbohydrates_total_g:     item.carbohydrates_total_g     * scale,
-            fiber_g:                   item.fiber_g                   * scale,
-            sodium_mg:                 item.sodium_mg                 * scale,
-          };
+      const matchIdx = gramIntentList.findIndex((x, i) => !usedIntentIndices.has(i) && x.food === key);
+      if (matchIdx >= 0 && item.serving_size_g > 0) {
+        usedIntentIndices.add(matchIdx);
+        const intended = gramIntentList[matchIdx].grams;
+        if (intended > 0) {
+          const ratio = item.serving_size_g / intended;
+          if (ratio > SCALE_THRESHOLD || ratio < 1 / SCALE_THRESHOLD) {
+            const scale = intended / item.serving_size_g;
+            return {
+              ...item,
+              calories:                  item.calories                  * scale,
+              protein_g:                 item.protein_g                 * scale,
+              fat_total_g:               item.fat_total_g               * scale,
+              carbohydrates_total_g:     item.carbohydrates_total_g     * scale,
+              fiber_g:                   item.fiber_g                   * scale,
+              sodium_mg:                 item.sodium_mg                 * scale,
+            };
+          }
         }
       }
       return item;
