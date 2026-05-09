@@ -459,6 +459,12 @@ const ROUNDUP_PATTERNS = [
   /^we\s+asked\b/i,                                  // "We Asked: What's Your Best Advice..."
   // Travel / lifestyle content
   /\bthings\s+to\s+do\b/i,                           // "Things To Do in the South of France"
+  // Personal / parenting / lifestyle updates
+  /\b(motherhood|postpartum|pregnancy|maternity|parenting|newborn)\b/i, // "New Motherhood: A Brief Report..."
+  /\ba\s+brief\s+report\b/i,                         // "A Brief Report from the Trenches"
+  /\bfrom\s+the\s+trenches\b/i,
+  // Press mention posts ("A Review of my X in [Publication]")
+  /^a\s+review\s+of\s+my\b/i,                        // "A Review of my Water Tasting Classes in The Daily Pour"
   // Awards / industry recognition
   /\bnominees?\s+(for|of)\b/i,                        // "Final Nominees for Best New Bartenders"
   /\bintroducing\s+the\s+(final|new|latest|top)\b/i, // "Introducing the Final Nominees..."
@@ -550,7 +556,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_FILE = path.join(__dirname, '.feed-cache.json');
 
 // Persist cache to disk so Render restarts don't cold-start every blog
