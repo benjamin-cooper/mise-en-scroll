@@ -866,6 +866,52 @@ app.post('/api/nutrition', async (req, res) => {
         .replace(/\b(\d[\d\.]*\s*(?:oz|g|lb|lbs|pound|ounce|tbsp|tsp|cup|cups))\s+cans?\s+/gi, '$1 '); // "15 oz can beans" → "15 oz beans"
     }
 
+    // Convert "X cups <dense ingredient>" → "<grams>g <ingredient>"
+    // CalorieNinjas uses a food's standard serving size (often 1 tbsp) regardless of the
+    // volume unit given, so "1 cup mayonnaise" returns 1 tbsp worth (~95 cal) instead of
+    // ~1,440 cal. Converting to grams bypasses the serving-size lookup entirely.
+    const CUP_GRAM_MAP = {
+      // Fats & oils
+      'mayonnaise': 232, 'mayo': 232,
+      'butter': 227, 'unsalted butter': 227, 'salted butter': 227,
+      'shortening': 205,
+      'coconut oil': 218, 'olive oil': 216, 'vegetable oil': 218,
+      'canola oil': 218, 'avocado oil': 218, 'sesame oil': 218,
+      // Dairy / cream
+      'heavy cream': 238, 'heavy whipping cream': 238, 'whipping cream': 238,
+      'half and half': 242, 'half-and-half': 242,
+      'sour cream': 230,
+      'cream cheese': 232,
+      'greek yogurt': 245, 'plain yogurt': 245, 'yogurt': 245,
+      'ricotta': 246, 'ricotta cheese': 246,
+      'cottage cheese': 226,
+      // Nut butters & spreads
+      'peanut butter': 258, 'almond butter': 250, 'cashew butter': 258,
+      'sunflower butter': 245, 'tahini': 240, 'hummus': 246, 'nutella': 270,
+      // Sweeteners (liquid)
+      'honey': 340, 'maple syrup': 322, 'agave': 336, 'agave nectar': 336,
+      'corn syrup': 328, 'molasses': 337,
+      // Sweeteners (dry)
+      'sugar': 200, 'granulated sugar': 200, 'white sugar': 200,
+      'brown sugar': 220, 'powdered sugar': 120, 'confectioners sugar': 120,
+      'powdered sugar': 120, 'coconut sugar': 200,
+      // Flours & dry goods
+      'flour': 120, 'all-purpose flour': 120, 'all purpose flour': 120,
+      'bread flour': 127, 'whole wheat flour': 120, 'almond flour': 96,
+      'oat flour': 92, 'coconut flour': 112, 'cornmeal': 138,
+      'oats': 90, 'rolled oats': 90, 'quick oats': 85,
+      // Chocolate & cocoa
+      'cocoa powder': 85, 'chocolate chips': 168,
+    };
+    function normaliseCups(ing) {
+      return ing.replace(/\b(\d[\d\.]*)\s+cups?\s+(.+)$/i, (match, qty, food) => {
+        const key = food.trim().toLowerCase().replace(/\s+/g, ' ');
+        const gPerCup = CUP_GRAM_MAP[key];
+        if (!gPerCup) return match;
+        return `${Math.round(parseFloat(qty) * gPerCup)}g ${food.trim()}`;
+      });
+    }
+
     // Collapse "1 tbsp + 1 tsp butter" → "1 tbsp butter" (take the larger unit)
     function collapseCompound(ing) {
       return ing.replace(/(\d[\d\s\/]*\s+\w+)\s*\+\s*[\d\s\/]+\s+\w+/g, '$1');
@@ -908,6 +954,7 @@ app.post('/api/nutrition', async (req, res) => {
       .map(normaliseUnits)
       .map(normaliseFractions)
       .map(decimalFractions)
+      .map(normaliseCups)
       .map(normaliseRange)
       .map(collapseCompound)
       .map(stripOrAlternative)
