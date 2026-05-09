@@ -905,10 +905,18 @@ app.post('/api/nutrition', async (req, res) => {
     };
     function normaliseCups(ing) {
       return ing.replace(/\b(\d[\d\.]*)\s+cups?\s+(.+)$/i, (match, qty, food) => {
+        const q = parseFloat(qty);
         const key = food.trim().toLowerCase().replace(/\s+/g, ' ');
+        // Known dense foods: convert to grams (most accurate)
         const gPerCup = CUP_GRAM_MAP[key];
-        if (!gPerCup) return match;
-        return `${Math.round(parseFloat(qty) * gPerCup)}g ${food.trim()}`;
+        if (gPerCup) return `${Math.round(q * gPerCup)}g ${food.trim()}`;
+        // Fractional cups (< 1): CalorieNinjas misreads "0.5" as "5", so convert to
+        // tablespoons instead — whole-number tbsp quantities are parsed reliably.
+        if (q > 0 && q < 1) {
+          const tbsp = Math.round(q * 16);
+          return `${tbsp} tablespoons ${food.trim()}`;
+        }
+        return match;
       });
     }
 
