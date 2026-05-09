@@ -993,14 +993,18 @@ app.post('/api/nutrition', async (req, res) => {
       .filter(ing => !STRIP_PATTERNS.some(p => p.test(ing.trim())))
       .filter(Boolean);
 
-    // Build a map of food name → intended grams for "Xg foodname" query components.
+    // Build a map of food name → intended grams for any weight-quantified query component.
     // CalorieNinjas sometimes ignores the unit and treats the number as a serving count,
-    // causing huge over-counts (e.g. "440g pinto beans" → uses 4394g internally at 10×).
+    // causing huge over-counts (e.g. "15.5 oz pinto beans" → uses 4394g internally, 10×).
     // We detect this via serving_size_g in the response and scale the macros back down.
+    //
+    // Handles both "Xg foodname" and "X oz foodname" formats since recipes arrive as either.
     const gramIntentMap = {};
     processed.forEach(ing => {
-      const m = ing.match(/^(\d+)g\s+(.+)$/i);
-      if (m) gramIntentMap[m[2].trim().toLowerCase()] = parseInt(m[1], 10);
+      let m = ing.match(/^(\d+(?:\.\d+)?)g\s+(.+)$/i);
+      if (m) { gramIntentMap[m[2].trim().toLowerCase()] = Math.round(parseFloat(m[1])); return; }
+      m = ing.match(/^(\d+(?:\.\d+)?)\s+oz\.?\s+(.+)$/i);
+      if (m) { gramIntentMap[m[2].trim().toLowerCase()] = Math.round(parseFloat(m[1]) * 28.35); }
     });
 
     // Join ingredients into one natural-language query string
