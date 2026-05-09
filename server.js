@@ -949,6 +949,11 @@ app.post('/api/nutrition', async (req, res) => {
       // All black / white / ground pepper (any quantity)
       /\b(?:black|white|freshly\s+ground)\s+pepper\b/i,
       /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)?\s*(?:freshly\s+)?ground\s+pepper$/i,
+      // Baking soda & baking powder — very high sodium per 100g (~27,360mg and ~10,000mg).
+      // Fractional quantities like "1/2 tsp" become "0.5 tsp" which CalorieNinjas can't
+      // parse, defaulting to 100g and inflating sodium by tens of thousands of mg.
+      /\bbaking\s+soda\b/i,
+      /\bbaking\s+powder\b/i,
       // Vague / unquantified seasonings
       /\bto\s+taste$/i,
       /\bas\s+needed$/i,
