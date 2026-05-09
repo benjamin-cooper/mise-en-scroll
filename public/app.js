@@ -468,9 +468,12 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  // Keyword mode — standard Serper search
+  // Keyword mode — standard Serper search.
+  // Only enter archive-search mode when the user has typed an explicit query.
+  // Filter chips alone should just filter the local RSS feed — entering
+  // searchMode would hide fresh local recipes and replace them with Serper results.
   const q = buildSearchQuery();
-  if (!q.trim() || q.trim() === 'recipe') {
+  if (!q.trim() || q.trim() === 'recipe' || !state.searchQuery.trim()) {
     state.searchMode = false;
     state.searchResults = [];
     renderApp();

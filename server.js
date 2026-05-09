@@ -257,8 +257,26 @@ function extractImage(item) {
   }
   // media:thumbnail
   if (item.mediaThumbnail?.$?.url) return item.mediaThumbnail.$.url;
-  // og:image in content:encoded
   const html = item.contentEncoded || item.content || '';
+  // JSON-LD Recipe schema — image field (string | object | array)
+  try {
+    const ldMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (ldMatch) {
+      const json = JSON.parse(ldMatch[1]);
+      const schemas = Array.isArray(json) ? json : (json['@graph'] ? json['@graph'] : [json]);
+      for (const s of schemas) {
+        const t = s['@type'];
+        if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
+          const img = s.image;
+          if (!img) break;
+          const candidate = Array.isArray(img) ? img[0] : img;
+          const url = typeof candidate === 'string' ? candidate : (candidate?.url || candidate?.contentUrl);
+          if (url && typeof url === 'string') return url;
+        }
+      }
+    }
+  } catch {}
+  // og:image in content:encoded
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
                   html.match(/content=["']([^"']+)["'][^>]+property=["']og:image["']/);
   if (ogMatch) return ogMatch[1];
