@@ -145,6 +145,7 @@ const BLOGS = [
   { name: 'Hey Grill Hey',         feed: 'https://heygrillhey.com/feed/',                   color: '#c0392b' },
   { name: 'Sam the Cooking Guy',   feed: 'https://www.samthecookingguy.com/recipes?format=rss', color: '#1a1a2e' },
   // --- Modern / Creative ---
+  { name: 'Brian Lagerstrom',      feed: 'https://www.brianlagerstrom.com/recipes?format=rss', color: '#2c2c2c' },
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
   // --- Baking ---
   { name: "Sally's Baking Addiction", feed: 'https://sallysbakingaddiction.com/feed/',      color: '#c0607a' },
