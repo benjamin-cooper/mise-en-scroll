@@ -190,6 +190,17 @@ const BLOGS = [
   { name: 'Forks Over Knives',    feed: 'https://www.forksoverknives.com/feed/',             color: '#4a8a3a' },
 ];
 
+// Domains that should never appear as recipe cards regardless of which feed
+// they come from — social media, brand sites, aggregators, kids' edu sites, etc.
+const BLOCKED_LINK_DOMAINS = new Set([
+  'lemon8-app.com', 'tiktok.com', 'instagram.com', 'facebook.com',
+  'youtube.com', 'youtu.be', 'twitter.com', 'x.com', 'pinterest.com',
+  'delmonte.com', 'food.com', 'allrecipes.com', 'foodnetwork.com',
+  'tasteofhome.com', 'delish.com', 'bonappetit.com', 'epicurious.com',
+  'aol.com', 'yahoo.com', 'msn.com', 'buzzfeed.com', 'popsugar.com',
+  'enchantedlearning.com', 'thedailymeal.com', 'thekitchn.com',
+]);
+
 // Shared blogging platforms where subdomains are different sites — require
 // an exact subdomain match, not just the root domain.
 const SHARED_PLATFORMS = new Set([
@@ -208,12 +219,14 @@ function itemBelongsToFeed(feedUrl, itemLink) {
   try {
     const feedHost = new URL(feedUrl).hostname.replace(/^www\./, '');
     const itemHost = new URL(itemLink).hostname.replace(/^www\./, '');
+    // Hard-block known social/brand/aggregator domains
+    const itemRoot = itemHost.split('.').slice(-2).join('.');
+    if (BLOCKED_LINK_DOMAINS.has(itemHost) || BLOCKED_LINK_DOMAINS.has(itemRoot)) return false;
     // Exact match (after stripping www)
     if (itemHost === feedHost) return true;
     // Same registrable root (e.g. blog.example.com ↔ example.com)
     // but not on a shared platform where root is meaningless
     const feedRoot = feedHost.split('.').slice(-2).join('.');
-    const itemRoot = itemHost.split('.').slice(-2).join('.');
     if (!SHARED_PLATFORMS.has(feedRoot) && feedRoot === itemRoot) return true;
     return false;
   } catch { return false; }
@@ -516,8 +529,10 @@ app.get('/api/blogs', (req, res) => {
 });
 
 // Cache feed results for 1 hour to avoid hammering feeds on every load
-const feedCache = new Map(); // blogName -> { recipes, fetchedAt }
+const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+// Bump this any time a change requires old cached entries to be discarded.
+const CACHE_VERSION = 2;
 const CACHE_FILE = path.join(__dirname, '.feed-cache.json');
 
 // Persist cache to disk so Render restarts don't cold-start every blog
@@ -563,7 +578,7 @@ function extractCookTimeMinutes(item) {
 
 async function fetchBlogFeed(blog) {
   const cached = feedCache.get(blog.name);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
+  if (cached && cached.v === CACHE_VERSION && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
 
   const feed = await parser.parseURL(blog.feed);
   const recipes = feed.items
@@ -589,7 +604,7 @@ async function fetchBlogFeed(blog) {
     };
   });
 
-  feedCache.set(blog.name, { recipes, fetchedAt: Date.now() });
+  feedCache.set(blog.name, { recipes, fetchedAt: Date.now(), v: CACHE_VERSION });
   persistFeedCache();
   return recipes;
 }
