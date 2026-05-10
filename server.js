@@ -463,8 +463,9 @@ const ROUNDUP_PATTERNS = [
   /\b(motherhood|postpartum|pregnancy|maternity|parenting|newborn)\b/i, // "New Motherhood: A Brief Report..."
   /\ba\s+brief\s+report\b/i,                         // "A Brief Report from the Trenches"
   /\bfrom\s+the\s+trenches\b/i,
-  // Press mention posts ("A Review of my X in [Publication]")
+  // Press mention posts ("A Review of my X in [Publication]", "Title – Imbibe Magazine")
   /^a\s+review\s+of\s+my\b/i,                        // "A Review of my Water Tasting Classes in The Daily Pour"
+  /[–—-]\s+[\w\s]{2,30}\b(magazine|media|journal|times|post|daily|weekly|press|tribune|digest|chronicle)\s*$/i, // "How I Clarified the Ice Problem – Imbibe Magazine"
   // Awards / industry recognition
   /\bnominees?\s+(for|of)\b/i,                        // "Final Nominees for Best New Bartenders"
   /\bintroducing\s+the\s+(final|new|latest|top)\b/i, // "Introducing the Final Nominees..."
