@@ -558,6 +558,14 @@ const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
 const CACHE_VERSION = 3;
+
+// OG image scrape cache — avoids re-fetching recipe pages on every search
+const ogImageCache = new Map(); // url → { img: string|null, at: number }
+const OG_IMAGE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+// Serper search result cache — makes repeated / paginated searches instant
+const serperCache = new Map(); // `${q}:${page}` → { result, at: number }
+const SERPER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const CACHE_FILE = path.join(__dirname, '.feed-cache.json');
 
 // Persist cache to disk so Render restarts don't cold-start every blog
@@ -750,8 +758,43 @@ app.get('/api/recipe', async (req, res) => {
   }
 });
 
+// Fetch og:image from a recipe page — streams the response body and aborts
+// as soon as we've seen </head>, so we only download the page <head> (~5-20 KB)
+// instead of the full page (100-500 KB). Results are cached for OG_IMAGE_TTL.
+async function fetchOgImage(url) {
+  const entry = ogImageCache.get(url);
+  if (entry && Date.now() - entry.at < OG_IMAGE_TTL) return entry.img;
+  let img = null;
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
+      signal: AbortSignal.timeout(5000),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let html = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += dec.decode(value, { stream: true });
+      // Stop as soon as we have the <head> section — og:image is always there
+      if (html.includes('</head>') || html.includes('<body')) { reader.cancel(); break; }
+    }
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
+              html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
+    if (m?.[1]) img = m[1];
+  } catch {}
+  if (ogImageCache.size > 2000) ogImageCache.clear(); // simple eviction cap
+  ogImageCache.set(url, { img, at: Date.now() });
+  return img;
+}
+
 // Shared Serper search helper — used by both /api/search and /api/ingredient-search
 async function runSerperSearch(q, page) {
+  const cacheKey = `${q}:${page}`;
+  const cached = serperCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SERPER_CACHE_TTL) return cached.result;
+
   const domains = BLOGS.map(b => {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
@@ -879,20 +922,14 @@ async function runSerperSearch(q, page) {
   const missing = results.filter(r => !r.image);
   if (missing.length) {
     await Promise.allSettled(missing.map(async (r) => {
-      try {
-        const pageRes = await fetch(r.url, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
-          signal: AbortSignal.timeout(5000),
-        });
-        const html = await pageRes.text();
-        const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
-                  html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
-        if (m?.[1]) r.image = m[1];
-      } catch {}
+      r.image = await fetchOgImage(r.url);
     }));
   }
 
-  return { results, totalResults: totalResults || results.length, nextStart: results.length > 0 ? parseInt(page) + 1 : null };
+  const result = { results, totalResults: totalResults || results.length, nextStart: results.length > 0 ? parseInt(page) + 1 : null };
+  if (serperCache.size > 200) serperCache.clear(); // simple eviction cap
+  serperCache.set(cacheKey, { result, at: Date.now() });
+  return result;
 }
 
 // Serper.dev keyword search
