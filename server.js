@@ -550,7 +550,11 @@ function scrapeRecipeHtml($) {
 // --- Routes ---
 
 app.get('/api/blogs', (req, res) => {
-  res.json(BLOGS.map(({ name, color }) => ({ name, color })));
+  res.json(BLOGS.map(({ name, color, feed }) => {
+    let website = feed;
+    try { website = new URL(feed).origin; } catch {}
+    return { name, color, website };
+  }));
 });
 
 // Cache feed results for 1 hour to avoid hammering feeds on every load

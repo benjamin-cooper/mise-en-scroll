@@ -1594,3 +1594,17 @@ ul, ol { padding-left: 1.25rem; }
   border-color: var(--text);
   color: var(--text);
 }
+
+/* === Site footer === */
+.site-footer {
+  text-align: center;
+  padding: 2rem 1.5rem 3rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.site-footer p { margin: 0.25rem 0; }
+.site-footer a { color: var(--muted); text-decoration: underline; }
+.site-footer a:hover { color: var(--text); }
