@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /api/
+
+# Mise en Scroll is a personal RSS aggregator that links to original food blog content.
+# All recipe content, text, and images are © their respective authors and publishers.
+# We do not host, copy, or reproduce original content — we index publicly available RSS feeds
+# and link directly to the source.
+#
+# To request removal of your content, please see: https://mise-en-scroll.onrender.com/terms.html

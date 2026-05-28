@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attribution &amp; Terms — Mise en Scroll</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #faf9f7;
+      padding: 2rem 1rem 4rem;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; }
+    h1 { font-family: 'Lora', serif; font-size: 2rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .back { display: inline-block; margin-bottom: 2rem; color: #888; text-decoration: none; font-size: 0.85rem; }
+    .back:hover { color: #c75b2e; }
+    h2 { font-family: 'Lora', serif; font-size: 1.25rem; font-weight: 600; margin: 2.5rem 0 0.75rem; color: #1a1a1a; }
+    p { margin-bottom: 1rem; color: #444; }
+    a { color: #c75b2e; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .highlight-box {
+      background: #fff8f5;
+      border: 1px solid #f0d8ce;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .highlight-box p { margin: 0; }
+    .blog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .blog-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: #fff;
+      border: 1px solid #e8e4df;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      text-decoration: none;
+      color: #1a1a1a;
+      transition: border-color 0.15s;
+    }
+    .blog-item:hover { border-color: #c75b2e; text-decoration: none; color: #c75b2e; }
+    .blog-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .loading { color: #888; font-style: italic; font-size: 0.85rem; }
+    hr { border: none; border-top: 1px solid #e8e4df; margin: 2.5rem 0; }
+    footer { margin-top: 3rem; color: #aaa; font-size: 0.8rem; text-align: center; }
+    footer a { color: #aaa; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="/" class="back">← Back to Mise en Scroll</a>
+    <h1>Attribution &amp; Terms</h1>
+    <p style="color:#888; font-size:0.85rem;">Last updated May 2026</p>
+
+    <h2>What is Mise en Scroll?</h2>
+    <p>Mise en Scroll is a personal RSS aggregator for food and recipe content. It collects publicly available RSS feeds from independent food blogs and presents them in a single, searchable interface — acting as a reading tool, not a content host.</p>
+    <p>Every card links directly to the original post on the author's website. We do not copy, reproduce, or host any original text, recipes, or images beyond what is included in the blog's own RSS feed.</p>
+
+    <h2>Content ownership</h2>
+    <div class="highlight-box">
+      <p>All recipes, writing, photographs, and other content displayed on Mise en Scroll remain the exclusive property of their original authors and publishers. Mise en Scroll makes no claim of ownership over any third-party content.</p>
+    </div>
+    <p>RSS feeds are a technology designed for content syndication and aggregation — blogs publish them specifically so that readers can consume their content through third-party tools like feed readers, aggregators, and news apps. Mise en Scroll uses feeds in this intended way.</p>
+
+    <h2>How we use RSS content</h2>
+    <p>From each blog's RSS feed we display:</p>
+    <ul style="margin: 0.5rem 0 1rem 1.5rem; color: #444;">
+      <li>Post title</li>
+      <li>Publication date</li>
+      <li>A short excerpt or description</li>
+      <li>A thumbnail image (where provided in the feed)</li>
+      <li>A link back to the original post</li>
+    </ul>
+    <p>We do not display full article text. Clicking any card takes you directly to the author's website.</p>
+
+    <h2 id="removal">Request removal</h2>
+    <p>If you are the owner of a blog listed here and would like your content removed, please get in touch. We will remove your feed promptly — no questions asked.</p>
+    <div class="highlight-box">
+      <p>To request removal, open a <a href="https://github.com/benjamin-cooper/mise-en-scroll/issues/new?title=Removal+request&body=Blog+name:+%0AFeed+URL:+" target="_blank" rel="noopener">GitHub issue</a> or email <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a> with the name of your blog and we'll remove it within 48 hours.</p>
+    </div>
+
+    <h2>No advertising or monetisation</h2>
+    <p>Mise en Scroll is a personal project with no advertising, affiliate links, or commercial intent. It is not monetised in any way.</p>
+
+    <h2>Sources</h2>
+    <p>Mise en Scroll currently aggregates the following blogs. Each link goes directly to the original website.</p>
+    <div class="blog-grid" id="blog-list">
+      <span class="loading">Loading blog list…</span>
+    </div>
+
+    <hr>
+    <footer>
+      <p>Mise en Scroll &middot; <a href="/">Home</a> &middot; Questions? <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a></p>
+    </footer>
+  </div>
+
+  <script>
+    fetch('/api/blogs')
+      .then(r => r.json())
+      .then(blogs => {
+        const sorted = blogs.slice().sort((a, b) => a.name.localeCompare(b.name));
+        document.getElementById('blog-list').innerHTML = sorted.map(b => `
+          <a class="blog-item" href="${b.website}" target="_blank" rel="noopener">
+            <span class="blog-dot" style="background:${b.color}"></span>
+            ${b.name}
+          </a>
+        `).join('');
+      })
+      .catch(() => {
+        document.getElementById('blog-list').innerHTML = '<span class="loading">Could not load blog list.</span>';
+      });
+  </script>
+</body>
+</html>

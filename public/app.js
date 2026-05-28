@@ -587,6 +587,10 @@ function renderApp() {
       ${renderContent()}
     </div>
     ${renderDrawer()}
+    <footer class="site-footer">
+      <p>Mise en Scroll aggregates publicly available RSS feeds and links to original content. All recipes and images &copy; their respective authors.</p>
+      <p><a href="/terms.html" target="_blank" rel="noopener">Attribution &amp; Terms</a> &middot; <a href="/terms.html#removal" target="_blank" rel="noopener">Request removal</a></p>
+    </footer>
     <button class="back-to-top" id="back-to-top" data-action="back-to-top" aria-label="Back to top">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
     </button>
