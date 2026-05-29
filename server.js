@@ -463,6 +463,10 @@ const ROUNDUP_PATTERNS = [
   /\b(motherhood|postpartum|pregnancy|maternity|parenting|newborn)\b/i, // "New Motherhood: A Brief Report..."
   /\ba\s+brief\s+report\b/i,                         // "A Brief Report from the Trenches"
   /\bfrom\s+the\s+trenches\b/i,
+  /\ba\s+year\s+later\b/i,                           // "A Year Later: SNAP Update"
+  /\bbirthday\b(?!\s+(cake|cupcakes?|cookies?|brownies?|bars?|pie|tart|muffins?|blondies?|pudding|recipes?))/i, // "The Ice Book's Third Birthday" — but NOT "Birthday Cake Cookies"
+  // Roundups with spelled-out numbers (e.g. "Five Glasses Defining Cocktail Bars Right Now")
+  /^(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)\s+(best|top|easy|quick|great|simple|favorite|ways?|tips?|things?|ideas?|recipes?|dishes?|cocktails?|drinks?|glasses?|bottles?|wines?|bars?|restaurants?|spots?|places?)\b/i,
   // Press mention posts ("A Review of my X in [Publication]", "Title – Imbibe Magazine")
   /^a\s+review\s+of\s+my\b/i,                        // "A Review of my Water Tasting Classes in The Daily Pour"
   /[–—-]\s+[\w\s]{2,30}\b(magazine|media|journal|times|post|daily|weekly|press|tribune|digest|chronicle)\s*$/i, // "How I Clarified the Ice Problem – Imbibe Magazine"
