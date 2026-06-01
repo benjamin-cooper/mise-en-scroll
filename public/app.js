@@ -76,6 +76,14 @@ let BLOGS = [];
 const DISCOVER_RENDER_LIMIT = 60;  // initial virtual scroll window
 const DISCOVER_RENDER_PAGE  = 30;  // cards added per infinite-scroll step
 
+// Deterministic per-session shuffle seed for "Random" sort
+const _sessionSeed = Date.now() % 100000;
+function _sortSeed(url) {
+  let h = _sessionSeed;
+  for (let i = 0; i < url.length; i++) h = (h * 31 + url.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
 const state = {
   view: 'discover',
   recipes: [],
@@ -117,6 +125,10 @@ const state = {
   mealPlan: {},           // { 'Monday': { Breakfast: recipe|null, Lunch: recipe|null, Dinner: recipe|null } }
   mealPlanPickerOpen: false,
   mealPlanPickDay: null,  // day currently chosen in the in-drawer picker
+  sortOrder: 'newest',       // 'newest' | 'cooktime' | 'random'
+  boards: {},                // { boardName: [{ url, title, blog, blogColor, image }] }
+  boardPickerOpen: false,
+  activeBoardFilter: null,
 };
 
 // --- API ---
@@ -236,6 +248,27 @@ function loadMealPlan() {
 function saveMealPlan() {
   try { localStorage.setItem(MEAL_PLAN_KEY, JSON.stringify(state.mealPlan)); } catch {}
 }
+
+// --- Boards (localStorage) ---
+const BOARDS_KEY = 'mise-en-scroll-boards';
+function loadBoards() { try { return JSON.parse(localStorage.getItem(BOARDS_KEY) || '{}'); } catch { return {}; } }
+function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(state.boards)); } catch {} }
+function addToBoard(name, recipe) {
+  if (!state.boards[name]) state.boards[name] = [];
+  if (!state.boards[name].find(r => r.url === recipe.url)) {
+    state.boards[name].unshift({ url: recipe.url, title: recipe.title, blog: recipe.blog, blogColor: recipe.blogColor, image: recipe.image });
+  }
+  saveBoards();
+}
+function removeFromBoard(name, url) {
+  if (state.boards[name]) {
+    state.boards[name] = state.boards[name].filter(r => r.url !== url);
+    if (!state.boards[name].length) delete state.boards[name];
+  }
+  saveBoards();
+}
+function isInBoard(name, url) { return !!(state.boards[name]?.find(r => r.url === url)); }
+function getBoardsForUrl(url) { return Object.keys(state.boards).filter(n => isInBoard(n, url)); }
 
 // --- Ingredient scaling helpers ---
 const UNICODE_FRACTIONS = { '½':0.5,'⅓':1/3,'⅔':2/3,'¼':0.25,'¾':0.75,'⅕':0.2,'⅖':0.4,'⅗':0.6,'⅘':0.8,'⅙':1/6,'⅚':5/6,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875 };
@@ -739,6 +772,7 @@ function renderSearchSection() {
                    placeholder="${state.view === 'favorites' ? 'Filter saved recipes…' : state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
                    data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
             ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
+            <div class="autocomplete-dropdown" id="autocomplete-dropdown" hidden></div>
           </div>
           ${state.view !== 'favorites' ? `
           <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
@@ -931,8 +965,31 @@ function renderContent() {
   }
 
   // --- RSS / favorites mode ---
-  const base = state.view === 'discover' ? state.recipes : state.favorites;
+  let base;
+  if (state.view === 'discover') {
+    base = state.recipes;
+  } else if (state.activeBoardFilter && state.boards[state.activeBoardFilter]) {
+    const boardUrls = new Set(state.boards[state.activeBoardFilter].map(r => r.url));
+    base = state.favorites.filter(f => boardUrls.has(f.url));
+  } else {
+    base = state.favorites;
+  }
   const recipes = applyFilters(base);
+
+  // Apply sort order in discover view
+  let sortedRecipes = recipes;
+  if (state.view === 'discover' && state.sortOrder !== 'newest') {
+    if (state.sortOrder === 'cooktime') {
+      sortedRecipes = [...recipes].sort((a, b) => {
+        if (a.cookTimeMinutes == null && b.cookTimeMinutes == null) return 0;
+        if (a.cookTimeMinutes == null) return 1;
+        if (b.cookTimeMinutes == null) return -1;
+        return a.cookTimeMinutes - b.cookTimeMinutes;
+      });
+    } else if (state.sortOrder === 'random') {
+      sortedRecipes = [...recipes].sort((a, b) => _sortSeed(a.url) - _sortSeed(b.url));
+    }
+  }
 
   if (state.loading && state.view === 'discover' && !state.recipes.length) {
     const wakeMsg = state.serverWakingUp
@@ -958,7 +1015,7 @@ function renderContent() {
     `;
   }
 
-  const allFiltered = recipes; // already filtered above
+  const allFiltered = sortedRecipes;
   const visible = allFiltered.slice(0, state.discoverRenderLimit);
   const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
 
@@ -973,6 +1030,11 @@ function renderContent() {
       ${!state.loading && state.view === 'discover' ? `
         <div class="feed-meta-bar">
           <span class="feed-updated">${state.feedLastLoaded ? `Updated ${formatTimeAgo(state.feedLastLoaded)}` : ''}</span>
+          <div class="sort-controls">
+            <button class="sort-btn${state.sortOrder === 'newest' ? ' is-active' : ''}" data-action="set-sort" data-sort="newest">Newest</button>
+            <button class="sort-btn${state.sortOrder === 'cooktime' ? ' is-active' : ''}" data-action="set-sort" data-sort="cooktime">Cook time</button>
+            <button class="sort-btn${state.sortOrder === 'random' ? ' is-active' : ''}" data-action="set-sort" data-sort="random">Random</button>
+          </div>
           <button class="feed-refresh-btn ${state.feedRefreshing ? 'is-loading' : ''}" data-action="refresh-feed" ${state.feedRefreshing ? 'disabled' : ''}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             ${state.feedRefreshing ? 'Refreshing…' : 'Refresh feed'}
@@ -980,6 +1042,15 @@ function renderContent() {
         </div>
       ` : ''}
       ${state.view === 'favorites' && state.favorites.length ? `
+        ${Object.keys(state.boards).length ? `
+          <div class="board-tabs">
+            <button class="board-tab${!state.activeBoardFilter ? ' is-active' : ''}" data-action="board-filter" data-board="">All saved</button>
+            ${Object.keys(state.boards).map(n => `
+              <button class="board-tab${state.activeBoardFilter === n ? ' is-active' : ''}" data-action="board-filter" data-board="${escHtml(n)}">
+                ${escHtml(n)}<span class="board-tab-count">${state.boards[n]?.length || 0}</span>
+              </button>`).join('')}
+          </div>
+        ` : ''}
         <div class="feed-meta-bar">
           <span class="feed-updated">${state.favorites.length} saved recipe${state.favorites.length !== 1 ? 's' : ''}</span>
           <button class="feed-refresh-btn" data-action="export-saved">
@@ -1145,6 +1216,25 @@ function renderDrawer() {
         </div>
       ` : ''}
       ${addToPlanHtml}
+      <div class="board-section">
+        <button class="btn-board-toggle" data-action="toggle-board-picker">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${getBoardsForUrl(url).length ? `Boards (${getBoardsForUrl(url).length})` : 'Add to board'}
+        </button>
+        ${state.boardPickerOpen ? `
+          <div class="board-picker-dropdown">
+            ${Object.keys(state.boards).map(n => `
+              <button class="board-picker-item${isInBoard(n, url) ? ' is-in' : ''}" data-action="toggle-board" data-board="${escHtml(n)}">
+                ${isInBoard(n, url) ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'}
+                ${escHtml(n)}
+              </button>`).join('')}
+            <div class="board-new-row">
+              <input id="board-new-input" class="board-new-input" placeholder="New board name…" autocomplete="off">
+              <button class="board-new-btn" data-action="create-board">Add</button>
+            </div>
+          </div>
+        ` : ''}
+      </div>
       <div class="drawer-actions">
         <button class="btn btn-primary ${fav ? 'is-saved' : ''}" data-action="${fav ? 'unsave' : 'save'}">
           ${fav ? 'Saved ✓' : 'Save Recipe'}
@@ -1179,6 +1269,40 @@ function showToast(msg) {
   document.body.appendChild(el);
   setTimeout(() => el.classList.add('toast-out'), 2000);
   setTimeout(() => el.remove(), 2350);
+}
+
+// --- Search autocomplete ---
+function updateAutocomplete(query) {
+  const dropdown = document.getElementById('autocomplete-dropdown');
+  if (!dropdown) return;
+  const q = query.trim().toLowerCase();
+  if (!q || q.length < 2 || state.view === 'favorites' || state.ingredientMode) {
+    dropdown.innerHTML = ''; dropdown.hidden = true; return;
+  }
+  const suggestions = [];
+  for (const s of state.recentSearches) {
+    if (s.toLowerCase().includes(q) && s.toLowerCase() !== q) {
+      suggestions.push({ type: 'recent', text: s });
+      if (suggestions.length >= 2) break;
+    }
+  }
+  const seen = new Set();
+  for (const r of state.recipes) {
+    if (!r.title) continue;
+    const tl = r.title.toLowerCase();
+    if (tl.includes(q) && !seen.has(tl)) {
+      seen.add(tl);
+      suggestions.push({ type: 'recipe', text: r.title });
+      if (suggestions.length >= 6) break;
+    }
+  }
+  if (!suggestions.length) { dropdown.innerHTML = ''; dropdown.hidden = true; return; }
+  const clockIcon = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  const srchIcon = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`;
+  dropdown.innerHTML = suggestions.map(s =>
+    `<button class="autocomplete-item" data-action="autocomplete-select" data-query="${escHtml(s.text)}">${s.type === 'recent' ? clockIcon : srchIcon}<span>${escHtml(s.text)}</span></button>`
+  ).join('');
+  dropdown.hidden = false;
 }
 
 // --- CalorieNinjas nutrition fetch ---
@@ -1237,6 +1361,7 @@ document.addEventListener('click', async (e) => {
     state.detail = null;
     state.ingredientMode = false;
     state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
+    state.activeBoardFilter = null;
     clearTimeout(searchDebounceTimer);
     renderApp();
   }
@@ -1471,6 +1596,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'search-clear') {
     clearTimeout(searchDebounceTimer);
     state.searchQuery = '';
+    const ac = document.getElementById('autocomplete-dropdown');
+    if (ac) { ac.innerHTML = ''; ac.hidden = true; }
     triggerSearch();
     document.querySelector('[data-action="search"]')?.focus();
   }
@@ -1522,6 +1649,76 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'set-sort') {
+    state.sortOrder = el.dataset.sort;
+    renderApp();
+    return;
+  }
+
+  if (action === 'board-filter') {
+    state.activeBoardFilter = el.dataset.board || null;
+    renderApp();
+    return;
+  }
+
+  if (action === 'toggle-board-picker') {
+    state.boardPickerOpen = !state.boardPickerOpen;
+    renderApp();
+    return;
+  }
+
+  if (action === 'toggle-board') {
+    const boardName = el.dataset.board;
+    const url = state.selected?.url;
+    if (!url || !boardName) return;
+    if (isInBoard(boardName, url)) {
+      removeFromBoard(boardName, url);
+      showToast(`Removed from "${boardName}"`);
+    } else {
+      const recipe = state.selected?.preview;
+      if (recipe) {
+        if (!isFav(url)) {
+          saveFav({ url: recipe.url, title: recipe.title, image: recipe.image, blog: recipe.blog, blogColor: recipe.blogColor, date: recipe.date, excerpt: recipe.excerpt });
+          refreshFavorites();
+        }
+        addToBoard(boardName, recipe);
+        showToast(`Added to "${boardName}"`);
+      }
+    }
+    renderApp();
+    return;
+  }
+
+  if (action === 'create-board') {
+    const input = document.getElementById('board-new-input');
+    const name = input?.value.trim();
+    if (!name) return;
+    if (!state.boards[name]) { state.boards[name] = []; saveBoards(); }
+    const url = state.selected?.url;
+    const recipe = state.selected?.preview;
+    if (url && recipe) {
+      if (!isFav(url)) {
+        saveFav({ url: recipe.url, title: recipe.title, image: recipe.image, blog: recipe.blog, blogColor: recipe.blogColor, date: recipe.date, excerpt: recipe.excerpt });
+        refreshFavorites();
+      }
+      addToBoard(name, recipe);
+      showToast(`Added to "${name}"`);
+    }
+    renderApp();
+    return;
+  }
+
+  if (action === 'autocomplete-select') {
+    state.searchQuery = el.dataset.query;
+    const input = document.querySelector('#search-input');
+    if (input) input.value = state.searchQuery;
+    const ac = document.getElementById('autocomplete-dropdown');
+    if (ac) { ac.innerHTML = ''; ac.hidden = true; }
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
+    triggerSearch();
+    return;
+  }
+
   if (action === 'close') { closeDrawer(); }
 
   if (action === 'card') {
@@ -1539,6 +1736,7 @@ document.addEventListener('click', async (e) => {
     state.scaleFactor = 1;
     state.mealPlanPickerOpen = false;
     state.mealPlanPickDay = null;
+    state.boardPickerOpen = false;
     history.replaceState(null, '', `#${encodeURIComponent(url)}`);
     renderApp();
 
@@ -1596,6 +1794,7 @@ document.addEventListener('input', (e) => {
 
   if (e.target.dataset.action !== 'search') return;
   state.searchQuery = e.target.value;
+  updateAutocomplete(e.target.value);
 
   // Toggle clear button visibility in-place — no re-render needed.
   const clearBtn = document.querySelector('[data-action="search-clear"]');
@@ -1715,6 +1914,7 @@ function closeDrawer() {
   state.scaleFactor = 1;
   state.mealPlanPickerOpen = false;
   state.mealPlanPickDay = null;
+  state.boardPickerOpen = false;
   history.replaceState(null, '', window.location.pathname + window.location.search);
   renderApp();
 }
@@ -1742,6 +1942,7 @@ async function init() {
   refreshFavorites();
   state.recentSearches = loadSearchHistory();
   state.mealPlan = loadMealPlan();
+  state.boards = loadBoards();
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
     state.cuisineFilters = savedFilters.cuisine  || [];

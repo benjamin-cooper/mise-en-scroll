@@ -194,6 +194,22 @@ const BLOGS = [
   // --- Low Sodium / Heart-Healthy ---
   { name: 'Sodium Girl',          feed: 'https://www.sodiumgirl.com/feed/',                  color: '#e05080' },
   { name: 'Forks Over Knives',    feed: 'https://www.forksoverknives.com/feed/',             color: '#4a8a3a' },
+  // --- Bread / Sourdough ---
+  { name: 'The Perfect Loaf',    feed: 'https://www.theperfectloaf.com/feed/',         color: '#c8a050' },
+  // --- Vegan ---
+  { name: 'Oh She Glows',        feed: 'https://ohsheglows.com/feed/',                 color: '#7ab648' },
+  { name: 'Vegan Richa',         feed: 'https://www.veganricha.com/feed/',             color: '#c0392b' },
+  // --- Creative / Personal ---
+  { name: 'Molly Yeh',           feed: 'https://www.mynameisyeh.com/blog?format=rss',  color: '#e8b84b' },
+  { name: 'Cloudy Kitchen',      feed: 'https://cloudykitchen.com/feed/',              color: '#6c8ebf' },
+  // --- Asian fusion ---
+  { name: 'Christie at Home',    feed: 'https://christieathome.com/feed/',             color: '#e05a2b' },
+  // --- World cuisines ---
+  { name: '196 Flavors',         feed: 'https://www.196flavors.com/feed/',             color: '#2e7d32' },
+  // --- Cocktails ---
+  { name: 'Jeffrey Morgenthaler',feed: 'https://jeffreymorgenthaler.com/feed/',        color: '#1a237e' },
+  // --- Flavor / Indian-American ---
+  { name: 'Nik Sharma',          feed: 'https://nicksharma.substack.com/feed',         color: '#5d4037' },
 ];
 
 // Domains that should never appear as recipe cards regardless of which feed
@@ -585,7 +601,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
