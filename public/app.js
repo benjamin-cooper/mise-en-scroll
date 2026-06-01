@@ -73,6 +73,9 @@ const FILTERS = {
 // Mirrors server BLOGS (name + color only, for filter pills)
 let BLOGS = [];
 
+const DISCOVER_RENDER_LIMIT = 60;  // initial virtual scroll window
+const DISCOVER_RENDER_PAGE  = 30;  // cards added per infinite-scroll step
+
 const state = {
   view: 'discover',
   recipes: [],
@@ -106,7 +109,7 @@ const state = {
   feedLastLoaded: null,
   feedRefreshing: false,
   streamingMore: false,   // true while SSE stream is active after first batch
-  discoverRenderLimit: 60, // virtualized card window
+  discoverRenderLimit: DISCOVER_RENDER_LIMIT, // virtualized card window
   recentSearches: [],
   // Drawer servings scaler
   scaleFactor: 1,
@@ -261,7 +264,7 @@ function scaleIngredient(text, factor) {
 }
 
 // --- Helpers ---
-function formatDate(str)  { if (!str) return ''; return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+function formatDate(str)  { if (!str) return ''; const d = new Date(str); if (isNaN(d)) return ''; return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
 function formatTimeAgo(ts) {
   if (!ts) return '';
   const sec = Math.round((Date.now() - ts) / 1000);
@@ -273,10 +276,10 @@ function formatTimeAgo(ts) {
 }
 function escHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function badge(name, color) {
-  return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${name}</span>`;
+  return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${escHtml(name)}</span>`;
 }
 function nutritionChips(d) {
   const hasBlog = !!d.nutrition;
@@ -629,7 +632,7 @@ function setupInfiniteScroll() {
   if (discoverSentinel) {
     _discoverScrollObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        state.discoverRenderLimit += 30;
+        state.discoverRenderLimit += DISCOVER_RENDER_PAGE;
         refreshDiscoverContent();
       }
     }, { rootMargin: '400px' });
@@ -1233,7 +1236,7 @@ document.addEventListener('click', async (e) => {
     state.selected = null;
     state.detail = null;
     state.ingredientMode = false;
-    state.discoverRenderLimit = 60;
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     clearTimeout(searchDebounceTimer);
     renderApp();
   }
@@ -1259,7 +1262,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'recent-search') {
     state.searchQuery = el.dataset.query;
-    state.discoverRenderLimit = 60;
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     triggerSearch();
     return;
   }
@@ -1276,7 +1279,7 @@ document.addEventListener('click', async (e) => {
     const v = el.dataset.value;
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
     if (state.ingredientMode) { state.ingredientMode = false; state.searchQuery = ''; }
-    state.discoverRenderLimit = 60;
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     saveFilters();
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
@@ -1479,7 +1482,7 @@ document.addEventListener('click', async (e) => {
     state.mealFilters = [];
     state.dietaryFilters = [];
     state.methodFilters = [];
-    state.discoverRenderLimit = 60;
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     saveFilters();
     triggerSearch();
   }
@@ -1499,7 +1502,7 @@ document.addEventListener('click', async (e) => {
     state.searchTotal = 0;
     state.searchNextStart = null;
     state.searchError = null;
-    state.discoverRenderLimit = 60;
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     saveFilters();
     renderApp();
   }
