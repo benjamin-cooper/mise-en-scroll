@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const path = require('path');
@@ -27,6 +28,11 @@ const parser = new RSSParser({
 });
 
 app.use(express.json());
+
+// Rate limiting — protect paid API endpoints from abuse
+const recipeLimit    = rateLimit({ windowMs: 60_000, max: 60,  standardHeaders: true, legacyHeaders: false });
+const searchLimit    = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
+const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: true, legacyHeaders: false });
 
 // Serve sw.js with an injected cache version derived from asset mtimes.
 // Source is read once at startup (and re-read if the version changes) so
@@ -243,6 +249,19 @@ function decodeHtml(str) {
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, ' ')
+    // Curly quotes and typographic punctuation common in recipe titles
+    .replace(/&rsquo;|&lsquo;/g, '’') // ' → '
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&hellip;/g, '…')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™')
+    .replace(/&rarr;/g, '→')
+    .replace(/&frac12;/g, '½')
+    .replace(/&frac14;/g, '¼')
+    .replace(/&frac34;/g, '¾')
     .trim();
 }
 
@@ -259,9 +278,10 @@ function extractImage(item) {
   if (item.mediaThumbnail?.$?.url) return item.mediaThumbnail.$.url;
   const html = item.contentEncoded || item.content || '';
   // JSON-LD Recipe schema — image field (string | object | array)
-  try {
-    const ldMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
-    if (ldMatch) {
+  // Use matchAll to scan ALL <script> LD+JSON blocks — some pages put breadcrumbs
+  // in the first block and the Recipe schema in a later one.
+  for (const ldMatch of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
       const json = JSON.parse(ldMatch[1]);
       const schemas = Array.isArray(json) ? json : (json['@graph'] ? json['@graph'] : [json]);
       for (const s of schemas) {
@@ -274,8 +294,8 @@ function extractImage(item) {
           if (url && typeof url === 'string') return url;
         }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   // og:image in content:encoded
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
                   html.match(/content=["']([^"']+)["'][^>]+property=["']og:image["']/);
@@ -599,29 +619,43 @@ try {
 function extractCookTimeMinutes(item) {
   const html = item.contentEncoded || item.content || '';
   if (!html) return null;
-  try {
-    const m = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
-    if (!m) return null;
-    const json = JSON.parse(m[1]);
-    const schemas = Array.isArray(json) ? json : (json['@graph'] ? json['@graph'] : [json]);
-    for (const s of schemas) {
-      const t = s['@type'];
-      if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
-        const dur = s.totalTime || s.cookTime;
-        if (!dur) continue;
-        const d = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
-        if (d) return (parseInt(d[1] || 0) * 60) + parseInt(d[2] || 0);
+  // Use matchAll to scan ALL <script> LD+JSON blocks
+  for (const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const json = JSON.parse(m[1]);
+      const schemas = Array.isArray(json) ? json : (json['@graph'] ? json['@graph'] : [json]);
+      for (const s of schemas) {
+        const t = s['@type'];
+        if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) {
+          const dur = s.totalTime || s.cookTime;
+          if (!dur) continue;
+          const d = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
+          if (d) return (parseInt(d[1] || 0) * 60) + parseInt(d[2] || 0);
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   return null;
 }
 
+const FEED_FAIL_TTL = 5 * 60 * 1000; // 5-minute back-off after a failed fetch
+
 async function fetchBlogFeed(blog) {
   const cached = feedCache.get(blog.name);
-  if (cached && cached.v === CACHE_VERSION && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
+  if (cached && cached.v === CACHE_VERSION) {
+    // Back off for 5 min after a failed fetch so we don't hammer unreachable feeds
+    if (cached.failed && Date.now() - cached.fetchedAt < FEED_FAIL_TTL) return [];
+    if (!cached.failed && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.recipes;
+  }
 
-  const feed = await parser.parseURL(blog.feed);
+  let feed;
+  try {
+    feed = await parser.parseURL(blog.feed);
+  } catch (err) {
+    feedCache.set(blog.name, { recipes: [], fetchedAt: Date.now(), v: CACHE_VERSION, failed: true });
+    throw err; // re-throw so SSE handler logs it
+  }
+
   const recipes = feed.items
     .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link))
     .slice(0, 20).map((item) => {
@@ -681,9 +715,30 @@ app.get('/api/recipes/stream', async (req, res) => {
   if (!closed) res.end();
 });
 
-app.get('/api/recipe', async (req, res) => {
+// Build an allowed-domain set from BLOGS for SSRF protection — computed once at startup
+const _allowedRecipeDomains = new Set(
+  BLOGS.flatMap(b => {
+    try {
+      const h = new URL(b.feed).hostname.replace(/^www\./, '');
+      return [h, h.split('.').slice(-2).join('.')];
+    } catch { return []; }
+  })
+);
+
+app.get('/api/recipe', recipeLimit, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url is required' });
+
+  // SSRF guard: only fetch URLs that belong to a known blog domain
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    const root = host.split('.').slice(-2).join('.');
+    if (!_allowedRecipeDomains.has(host) && !_allowedRecipeDomains.has(root)) {
+      return res.status(400).json({ error: 'URL domain is not an allowed blog source.' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL.' });
+  }
 
   try {
     const response = await fetch(url, {
@@ -941,7 +996,7 @@ async function runSerperSearch(q, page) {
 }
 
 // Serper.dev keyword search
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', searchLimit, async (req, res) => {
   const { q, page = 1 } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
   if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
@@ -953,7 +1008,7 @@ app.get('/api/search', async (req, res) => {
 });
 
 // Ingredient-based search — uses Haiku to convert ingredients into search terms
-app.get('/api/ingredient-search', async (req, res) => {
+app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   const { ingredients, page = 1 } = req.query;
   if (!ingredients) return res.status(400).json({ error: 'ingredients is required' });
   if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
@@ -997,7 +1052,7 @@ async function callCalorieNinjas(query, apiKey, retries = 1) {
 }
 
 // CalorieNinjas Nutrition Analysis — calculates nutrition from ingredient strings
-app.post('/api/nutrition', async (req, res) => {
+app.post('/api/nutrition', nutritionLimit, async (req, res) => {
   const { ingredients, servings } = req.body;
   if (!Array.isArray(ingredients) || !ingredients.length) {
     return res.status(400).json({ error: 'ingredients array is required' });
