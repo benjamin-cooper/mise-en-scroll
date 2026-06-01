@@ -170,9 +170,7 @@ const BLOGS = [
   // --- Comfort Food / Sourdough ---
   { name: 'Everyday Homemade',     feed: 'https://enwnutrition.com/feed/',                  color: '#b87333' },
   // --- Drinks / Cocktails ---
-  { name: 'Punch',                 feed: 'https://punchdrink.com/feed/',                    color: '#313131' },
   { name: 'Cocktail Contessa',     feed: 'https://www.cocktailcontessa.com/feed/',          color: '#186F85' },
-  { name: 'Alcademics',            feed: 'https://alcademics.com/feed/',                    color: '#558866' },
   // --- Italian ---
   { name: 'An Italian in my Kitchen', feed: 'https://anitalianinmykitchen.com/feed/',       color: '#c8102e' },
   { name: 'Memorie di Angelina',   feed: 'https://memoriediangelina.com/feed/',             color: '#2e7d32' },
@@ -518,6 +516,29 @@ const ROUNDUP_PATTERNS = [
   /\bwhat\s+to\s+(get|buy|give)\b/i,                 // "What to Get the Cook in Your Life"
   // Survey / research questions (not recipes)
   /^how\s+(?!to\s)\w+\s+(are|is|do|does)\b/i,       // "How Confident Are Americans..."
+  // Podcast / video / episode posts
+  /\bepisode\s+\d+\b/i,                              // "Episode 47: Summer Grilling"
+  /\bpodcast\b/i,
+  /\b(watch|listen)\s+(now|here|on\s+youtube)\b/i,
+  // Cookbook / book announcements
+  /\bpre.?order\b/i,                                 // "Pre-Order My Cookbook"
+  /\b(my|our|the)\s+(new\s+)?(cookbook|book)\s+(is\s+(here|out|now|available|live)|launch)\b/i,
+  // Editorial food writing
+  /\ban?\s+ode\s+to\b/i,                             // "An Ode to Butter"
+  /\bin\s+(praise|defense|defence|honor|honour)\s+of\b/i,
+  /\ba\s+love\s+letter\s+to\b/i,
+  // Personal announcements
+  /\b(big|exciting)\s+(news|announcement)\b/i,
+  /\bi'?m\s+(pregnant|expecting|engaged|married|moving|leaving)\b/i,
+  // Interview / Q&A
+  /^(an?\s+)?interview\s+with\b/i,                   // "An Interview With..." (title start only)
+  /\bq\s*[&+]\s*a\b/i,                               // "Q&A", "Q+A"
+  // Year-end roundups
+  /\byear\s+in\s+review\b/i,
+  /\bbest\s+of\s+(the\s+year|20\d\d)\b/i,
+  // Where to eat/drink guides
+  /\bwhere\s+to\s+(drink|eat)\b/i,
+  /\bthe\s+best\s+(bars?|cocktail\s+bars?|restaurants?)\b(?!\s+to\s+try\s+at)/i,
 ];
 
 function isRoundup(title = '', url = '') {
