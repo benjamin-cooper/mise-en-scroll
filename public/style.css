@@ -1608,3 +1608,170 @@ ul, ol { padding-left: 1.25rem; }
 .site-footer p { margin: 0.25rem 0; }
 .site-footer a { color: var(--muted); text-decoration: underline; }
 .site-footer a:hover { color: var(--text); }
+
+/* === Sort controls === */
+.sort-controls { display: flex; gap: 4px; }
+.sort-btn {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.sort-btn:hover { border-color: var(--text); color: var(--text); }
+.sort-btn.is-active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+/* === Board tabs (favorites view) === */
+.board-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 0 4px;
+  margin-bottom: 4px;
+}
+.board-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.board-tab:hover { border-color: var(--text); color: var(--text); }
+.board-tab.is-active { background: var(--accent, #c75b2e); color: #fff; border-color: var(--accent, #c75b2e); }
+.board-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  background: rgba(255,255,255,0.25);
+  border-radius: 10px;
+}
+.board-tab:not(.is-active) .board-tab-count { background: var(--border); color: var(--muted); }
+
+/* === Board section in drawer === */
+.board-section { margin-bottom: 12px; position: relative; }
+.btn-board-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  width: 100%;
+}
+.btn-board-toggle:hover { border-color: var(--text); color: var(--text); }
+.board-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg, var(--bg));
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  z-index: 50;
+  overflow: hidden;
+  padding: 6px;
+}
+.board-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+}
+.board-picker-item:hover { background: var(--border); }
+.board-picker-item.is-in { color: var(--accent, #c75b2e); font-weight: 500; }
+.board-new-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.board-new-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+.board-new-input:focus { border-color: var(--accent, #c75b2e); }
+.board-new-btn {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--accent, #c75b2e);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* === Search autocomplete === */
+.search-wrap { position: relative; }
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg, var(--bg));
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  z-index: 100;
+  overflow: hidden;
+  padding: 4px;
+}
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.autocomplete-item:hover { background: var(--border); }
+.autocomplete-item svg { flex-shrink: 0; color: var(--muted); }
