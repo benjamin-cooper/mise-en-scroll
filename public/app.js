@@ -60,6 +60,7 @@ const FILTERS = {
     { label: 'Gluten-Free',  icon: '🌾', keywords: ['gluten-free', 'gluten free', 'gf recipe', 'celiac', 'coeliac', 'wheat-free', 'wheat free'] },
     { label: 'High Protein', icon: '💪', keywords: ['high protein', 'high-protein', 'protein packed', 'protein-packed', 'macro friendly', 'macro-friendly', 'protein bowl', 'muscle', 'bulking', 'post workout', 'post-workout'] },
     { label: 'Keto',         icon: '🥑', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly', 'carnivore', 'zero carb'] },
+    { label: 'Low Carb',    icon: '🥬', keywords: ['low carb', 'low-carb', 'lower carb', 'low carbohydrate', 'carb conscious', 'carb-conscious', 'cauliflower rice', 'zucchini noodles', 'zoodles', 'spaghetti squash', 'lettuce wrap', 'lettuce cups', 'cloud bread', 'almond flour', 'coconut flour'] },
     { label: 'Low Calorie',  icon: '⚖️',  keywords: ['low calorie', 'low-calorie', 'lightened up', 'lighter', 'skinny', 'reduced calorie', 'calorie conscious', 'calorie-conscious', 'slimmed down', 'guilt-free', 'guilt free'] },
     { label: 'Low Sodium',   icon: '🧂', keywords: ['low sodium', 'low-sodium', 'low salt', 'heart healthy', 'heart-healthy', 'reduced sodium', 'no added salt'] },
     { label: 'Nut-Free',     icon: '🚫', keywords: ['nut-free', 'nut free', 'peanut-free', 'peanut free', 'tree nut free', 'allergy friendly', 'allergy-friendly', 'nut allergy', 'school safe'] },
