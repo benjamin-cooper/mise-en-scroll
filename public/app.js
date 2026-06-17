@@ -625,8 +625,8 @@ function renderApp() {
     </div>
     ${renderDrawer()}
     <footer class="site-footer">
-      <p>Mise en Scroll aggregates publicly available RSS feeds and links to original content. All recipes and images &copy; their respective authors.</p>
-      <p><a href="/terms.html" target="_blank" rel="noopener">Attribution &amp; Terms</a> &middot; <a href="/terms.html#removal" target="_blank" rel="noopener">Request removal</a></p>
+      <p>All recipes &copy; their original authors. This site just reads their RSS feeds.</p>
+      <p><a href="/terms.html" target="_blank" rel="noopener">About &amp; Attribution</a> &middot; <a href="/terms.html#removal" target="_blank" rel="noopener">Request removal</a></p>
     </footer>
     <button class="back-to-top" id="back-to-top" data-action="back-to-top" aria-label="Back to top">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
@@ -947,7 +947,7 @@ function renderContent() {
         <div class="container">
           <div class="empty">
             <div class="empty-icon">🔍</div>
-            <p>${state.searchError ? escHtml(state.searchError) : 'No recipes found. Try different filters or search terms.'}</p>
+            <p>${state.searchError ? escHtml(state.searchError) : 'Nothing turned up — try different keywords.'}</p>
             <button class="btn btn-secondary" data-action="clear-all-filters" style="margin-top:16px">Clear all filters</button>
           </div>
         </div>
@@ -994,7 +994,7 @@ function renderContent() {
 
   if (state.loading && state.view === 'discover' && !state.recipes.length) {
     const wakeMsg = state.serverWakingUp
-      ? `<div class="wake-banner"><span class="wake-spinner"></span>Waking up the server — recipes will appear shortly…</div>`
+      ? `<div class="wake-banner"><span class="wake-spinner"></span>Cold start — give it a few seconds…</div>`
       : '';
     return `<div class="container">${wakeMsg}<div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
   }
@@ -1005,9 +1005,9 @@ function renderContent() {
         <div class="empty">
           <div class="empty-icon">${hasActiveFilters() ? '🔍' : '🍽️'}</div>
           <p>${hasActiveFilters()
-            ? 'No recipes match your filters.'
+            ? 'Nothing matched — try loosening the filters.'
             : state.view === 'favorites'
-              ? 'No saved recipes yet. Browse and bookmark ones you love.'
+              ? 'Nothing saved yet.'
               : 'No recipes found.'
           }</p>
           ${hasActiveFilters() ? `<button class="btn btn-secondary" data-action="clear-all-filters" style="margin-top:16px">Clear all filters</button>` : ''}
