@@ -130,6 +130,7 @@ const state = {
   boards: {},                // { boardName: [{ url, title, blog, blogColor, image }] }
   boardPickerOpen: false,
   activeBoardFilter: null,
+  filtersOpen: false,        // desktop filter rows collapsed by default
 };
 
 // --- API ---
@@ -679,13 +680,7 @@ function renderHeader() {
     <header class="header">
       <div class="container">
         <div class="header-logo">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
-            <path d="M7 2v20"/>
-            <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
-          </svg>
-          <span>Mise en Scroll</span>
+          <span class="logo-text">Mise <em>en</em> Scroll</span>
         </div>
         <nav class="header-tabs">
           <button class="header-tab ${state.view === 'discover'  ? 'is-active' : ''}" data-action="tab" data-view="discover">Discover</button>
@@ -794,8 +789,26 @@ function renderSearchSection() {
           </div>
         ` : ''}
 
+        <!-- Filter toggle row -->
+        ${state.view !== 'favorites' ? `
+        <div class="filter-toggle-row">
+          <button class="filter-toggle-btn ${state.filtersOpen ? 'is-open' : ''} ${anyActive ? 'has-active' : ''}" data-action="toggle-filters">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+            Filters${anyActive ? ` <span class="filter-toggle-count">${state.cuisineFilters.length + state.mealFilters.length + state.dietaryFilters.length + state.proteinFilters.length + state.timeFilters.length + state.methodFilters.length}</span>` : ''}
+          </button>
+          ${anyActive && !state.filtersOpen ? `
+            <div class="active-filter-pills">
+              ${[...state.cuisineFilters, ...state.mealFilters, ...state.dietaryFilters, ...state.proteinFilters, ...state.timeFilters, ...state.methodFilters].map(f => `
+                <span class="active-filter-pill">${f}</span>
+              `).join('')}
+              <button class="active-filter-clear" data-action="clear-smart-filters">Clear</button>
+            </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
         <!-- Desktop chip rows -->
-        <div class="tag-filters desktop-filters">
+        <div class="tag-filters desktop-filters${state.filtersOpen ? ' is-open' : ''}"${state.filtersOpen ? '' : ' hidden'}>
           <div class="tag-group">
             <span class="tag-label">Cuisine</span>
             ${[...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
@@ -1406,6 +1419,7 @@ document.addEventListener('click', async (e) => {
     state[filterStateKey] = state[filterStateKey].includes(v) ? state[filterStateKey].filter(x => x !== v) : [...state[filterStateKey], v];
     if (state.ingredientMode) { state.ingredientMode = false; state.searchQuery = ''; }
     state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
+    if (!state.filtersOpen) state.filtersOpen = true;
     saveFilters();
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
@@ -1647,6 +1661,12 @@ document.addEventListener('click', async (e) => {
     refreshFavorites();
     if (state.view === 'favorites') renderApp();
     else refreshDiscoverContent();
+    return;
+  }
+
+  if (action === 'toggle-filters') {
+    state.filtersOpen = !state.filtersOpen;
+    renderApp();
     return;
   }
 
@@ -1952,6 +1972,8 @@ async function init() {
     state.mealFilters    = savedFilters.meal     || [];
     state.dietaryFilters = savedFilters.dietary  || [];
     state.methodFilters  = savedFilters.method   || [];
+    const hasActive = [state.cuisineFilters, state.proteinFilters, state.timeFilters, state.mealFilters, state.dietaryFilters, state.methodFilters].some(a => a.length);
+    if (hasActive) state.filtersOpen = true;
   }
   BLOGS = await api.blogs();
 
