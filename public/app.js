@@ -680,7 +680,7 @@ function renderHeader() {
     <header class="header">
       <div class="container">
         <div class="header-logo">
-          <span class="logo-text">Mise <em>en</em> Scroll</span>
+          <span class="logo-text">Mise en Scroll</span>
         </div>
         <nav class="header-tabs">
           <button class="header-tab ${state.view === 'discover'  ? 'is-active' : ''}" data-action="tab" data-view="discover">Discover</button>
