@@ -690,13 +690,13 @@ function renderHeader() {
           <button class="header-tab ${state.view === 'mealplan' ? 'is-active' : ''}" data-action="tab" data-view="mealplan">
             Meal Plan
           </button>
-        </nav>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
           ${state.view === 'discover' && !state.loading && state.recipes.length ? `
             <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
               🎲 <span>Surprise me</span>
             </button>
           ` : ''}
+        </nav>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
           <a href="/terms.html" class="header-about" title="About &amp; Attribution">About</a>
           <button class="theme-toggle" data-action="toggle-theme" aria-label="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}" title="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}">
             ${isDark()
