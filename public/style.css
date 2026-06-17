@@ -57,13 +57,18 @@ ul, ol { padding-left: 1.25rem; }
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
   font-family: 'Lora', Georgia, serif;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
-.header-logo svg { color: var(--accent); flex-shrink: 0; }
+.logo-text em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+  margin: 0 0.15em;
+}
 .header-tabs {
   display: flex;
   gap: 4px;
@@ -745,10 +750,10 @@ ul, ol { padding-left: 1.25rem; }
 }
 .tag-group::-webkit-scrollbar { display: none; }
 .tag-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.78rem;
+  font-weight: 400;
+  font-style: italic;
+  font-family: 'Lora', Georgia, serif;
   color: var(--muted);
   white-space: nowrap;
   min-width: 52px;
@@ -784,6 +789,64 @@ ul, ol { padding-left: 1.25rem; }
   transition: opacity var(--transition);
 }
 .clear-tags:hover { opacity: 0.7; }
+
+/* === Filter toggle row === */
+.filter-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.filter-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: var(--surface);
+  transition: all var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.filter-toggle-btn:hover { border-color: var(--text); color: var(--text); }
+.filter-toggle-btn.is-open,
+.filter-toggle-btn.has-active { border-color: var(--accent); color: var(--accent); }
+.filter-toggle-count {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
+.active-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.active-filter-pill {
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.active-filter-clear {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.desktop-filters { display: none; }
+.desktop-filters.is-open { display: flex; }
 
 /* === Result count === */
 .result-count {
