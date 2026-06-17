@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Attribution &amp; Terms — Mise en Scroll</title>
+  <title>About &amp; Attribution — Mise en Scroll</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -68,48 +68,34 @@
 <body>
   <div class="wrap">
     <a href="/" class="back">← Back to Mise en Scroll</a>
-    <h1>Attribution &amp; Terms</h1>
-    <p style="color:#888; font-size:0.85rem;">Last updated May 2026</p>
+    <h1>About &amp; Attribution</h1>
+    <p style="color:#888; font-size:0.85rem;">Last updated June 2026</p>
 
-    <h2>What is Mise en Scroll?</h2>
-    <p>Mise en Scroll is a personal RSS aggregator for food and recipe content. It collects publicly available RSS feeds from independent food blogs and presents them in a single, searchable interface — acting as a reading tool, not a content host.</p>
-    <p>Every card links directly to the original post on the author's website. We do not copy, reproduce, or host any original text, recipes, or images beyond what is included in the blog's own RSS feed.</p>
+    <h2>What this is</h2>
+    <p>Mise en Scroll is a side project I built for myself — a single place to browse new posts from the food blogs I actually follow, without jumping between tabs or relying on social media algorithms to surface them.</p>
+    <p>Every card links back to the original post. I don't host any content — just the title, date, thumbnail, and a short excerpt pulled from each blog's public RSS feed.</p>
 
-    <h2>Content ownership</h2>
+    <h2>A note on content ownership</h2>
     <div class="highlight-box">
-      <p>All recipes, writing, photographs, and other content displayed on Mise en Scroll remain the exclusive property of their original authors and publishers. Mise en Scroll makes no claim of ownership over any third-party content.</p>
+      <p>All recipes, photos, and writing belong to their original authors. I'm not claiming any of it — this is just a reading tool, the same way a podcast app doesn't own the podcasts.</p>
     </div>
-    <p>RSS feeds are a technology designed for content syndication and aggregation — blogs publish them specifically so that readers can consume their content through third-party tools like feed readers, aggregators, and news apps. Mise en Scroll uses feeds in this intended way.</p>
+    <p>RSS feeds exist specifically so readers can follow a site through third-party tools. That's the intended use, and it's all this does.</p>
 
-    <h2>How we use RSS content</h2>
-    <p>From each blog's RSS feed we display:</p>
-    <ul style="margin: 0.5rem 0 1rem 1.5rem; color: #444;">
-      <li>Post title</li>
-      <li>Publication date</li>
-      <li>A short excerpt or description</li>
-      <li>A thumbnail image (where provided in the feed)</li>
-      <li>A link back to the original post</li>
-    </ul>
-    <p>We do not display full article text. Clicking any card takes you directly to the author's website.</p>
+    <h2 id="removal">Want your blog removed?</h2>
+    <p>No problem at all. Open a <a href="https://github.com/benjamin-cooper/mise-en-scroll/issues/new?title=Removal+request&body=Blog+name:+%0AFeed+URL:+" target="_blank" rel="noopener">GitHub issue</a> or email <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a> and I'll take it down within 48 hours.</p>
 
-    <h2 id="removal">Request removal</h2>
-    <p>If you are the owner of a blog listed here and would like your content removed, please get in touch. We will remove your feed promptly — no questions asked.</p>
-    <div class="highlight-box">
-      <p>To request removal, open a <a href="https://github.com/benjamin-cooper/mise-en-scroll/issues/new?title=Removal+request&body=Blog+name:+%0AFeed+URL:+" target="_blank" rel="noopener">GitHub issue</a> or email <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a> with the name of your blog and we'll remove it within 48 hours.</p>
-    </div>
+    <h2>No ads, no tracking</h2>
+    <p>This is a personal project. No advertising, no affiliate links, no analytics, no monetisation of any kind.</p>
 
-    <h2>No advertising or monetisation</h2>
-    <p>Mise en Scroll is a personal project with no advertising, affiliate links, or commercial intent. It is not monetised in any way.</p>
-
-    <h2>Sources</h2>
-    <p>Mise en Scroll currently aggregates the following blogs. Each link goes directly to the original website.</p>
+    <h2>Blogs</h2>
+    <p>Currently pulling from these — click any to visit the original.</p>
     <div class="blog-grid" id="blog-list">
-      <span class="loading">Loading blog list…</span>
+      <span class="loading">Loading…</span>
     </div>
 
     <hr>
     <footer>
-      <p>Mise en Scroll &middot; <a href="/">Home</a> &middot; Questions? <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a></p>
+      <p>Mise en Scroll &middot; <a href="/">Home</a> &middot; <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a></p>
     </footer>
   </div>
 
