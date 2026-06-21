@@ -406,6 +406,7 @@ function buildSearchQuery() {
 }
 
 let searchDebounceTimer = null;
+let activeSearchSource = null;
 let _saveFiltersTimer = null;
 let _noteTimer = null;
 let _savedScrollY = 0;
@@ -537,25 +538,45 @@ async function triggerSearch(start = 1) {
   }
 
   if (start === 1 && state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
+
+  // Close any in-flight search stream before starting a new one
+  if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
+
   state.searchMode = true;
   state.searchLoading = true;
   state.searchError = null;
   if (start === 1) state.searchResults = [];
   renderApp();
 
-  try {
-    const data = await api.search(q, start);
-    if (data.error) throw new Error(data.error);
-    state.searchResults = start === 1 ? data.results : [...state.searchResults, ...data.results];
-    state.searchTotal = data.totalResults;
-    state.searchNextStart = data.nextStart;
-  } catch (err) {
-    console.error('Search failed:', err);
-    state.searchError = err.message || 'Search failed. Please try again.';
-  } finally {
+  const src = new EventSource(`/api/search/stream?q=${encodeURIComponent(q)}&page=${start}`);
+  activeSearchSource = src;
+
+  src.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'chunk') {
+      state.searchResults = [...state.searchResults, ...msg.results];
+      renderApp();
+    } else if (msg.type === 'done') {
+      state.searchTotal = msg.totalResults;
+      state.searchNextStart = msg.nextStart;
+      state.searchLoading = false;
+      src.close(); activeSearchSource = null;
+      renderApp();
+    } else if (msg.type === 'error') {
+      state.searchError = msg.message || 'Search failed. Please try again.';
+      state.searchLoading = false;
+      src.close(); activeSearchSource = null;
+      renderApp();
+    }
+  };
+
+  src.onerror = () => {
+    if (src.readyState === EventSource.CLOSED) return;
+    state.searchError = 'Search failed. Please try again.';
     state.searchLoading = false;
+    src.close(); activeSearchSource = null;
     renderApp();
-  }
+  };
 }
 
 // --- Filter logic ---
@@ -1616,6 +1637,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'toggle-ingredient-mode') {
     clearTimeout(searchDebounceTimer);
+    if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
     state.ingredientMode = !state.ingredientMode;
     state.searchQuery = '';
     state.searchMode = false;
@@ -1629,6 +1651,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'search-clear') {
     clearTimeout(searchDebounceTimer);
+    if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
     state.searchQuery = '';
     const ac = document.getElementById('autocomplete-dropdown');
     if (ac) { ac.innerHTML = ''; ac.hidden = true; }

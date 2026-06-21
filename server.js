@@ -889,150 +889,161 @@ async function fetchOgImage(url) {
   return img;
 }
 
-// Shared Serper search helper — used by both /api/search and /api/ingredient-search
-async function runSerperSearch(q, page) {
+// Shared Serper search helper — used by /api/search, /api/search/stream, and /api/ingredient-search
+// onChunk: optional callback called with each chunk's results as they resolve (streaming mode)
+async function runSerperSearch(q, page, { onChunk } = {}) {
   const cacheKey = `${q}:${page}`;
   const cached = serperCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < SERPER_CACHE_TTL) return cached.result;
+  if (cached && Date.now() - cached.at < SERPER_CACHE_TTL) {
+    if (onChunk && cached.result.results.length) onChunk(cached.result.results);
+    return cached.result;
+  }
 
   const domains = BLOGS.map(b => {
     try { return new URL(b.feed).hostname.replace(/^www\./, ''); } catch { return null; }
   }).filter(Boolean);
 
-  // 40 sites per chunk → 3 concurrent Serper requests for ~86 blogs.
-  // Domain validation (below) is the real quality guard against Google
-  // ignoring site: constraints; keeping chunks large avoids rate-limit
-  // failures from too many parallel requests.
-  const CHUNK = 40;
+  // 55 domains per chunk → 2 Serper requests for ~99 blogs (was 3 at 40/chunk)
+  const CHUNK = 55;
   const chunks = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
 
-  const responses = await Promise.all(chunks.map(chunk => {
+  const normUrl = u => u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
+  const seen = new Set();
+  const allResults = [];
+  let totalResults = 0;
+
+  // Build lookup maps once upfront
+  const cacheImageMap = new Map();
+  for (const { recipes } of feedCache.values()) {
+    for (const r of recipes) { if (r.url && r.image) cacheImageMap.set(r.url, r.image); }
+  }
+  const blogDomainSet = new Set(domains.map(d => d.split('.').slice(-2).join('.')));
+  const blogNameSet = new Set(BLOGS.map(b => b.name.toLowerCase()));
+
+  const processSerperData = (data) => {
+    if (data.error) return [];
+    const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
+    totalResults += t;
+
+    const chunkResults = [];
+    for (const item of (data.organic || [])) {
+      const key = normUrl(item.link || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      if (!item.link || isRoundup(item.title, item.link)) continue;
+      try {
+        const h = new URL(item.link).hostname.replace(/^www\./, '');
+        const root = h.split('.').slice(-2).join('.');
+        if (!blogDomainSet.has(root) && !blogDomainSet.has(h)) continue;
+      } catch { continue; }
+
+      if (/\bpage\s+\d+\b/i.test(item.title)) continue;
+      try {
+        if (/[?&/]page[=/]\d+/i.test(new URL(item.link).pathname + new URL(item.link).search)) continue;
+      } catch {}
+
+      if (item.title) {
+        if (item.title === item.title.toLowerCase() && /\brecipes\b/.test(item.title)) continue;
+        const parts = item.title.split(/\s+[-–·|]\s+/);
+        if (parts.length > 1) {
+          const suffix = parts[parts.length - 1].trim().toLowerCase();
+          const prefix = parts.slice(0, -1).join(' - ').trim();
+          if (blogNameSet.has(suffix)) {
+            if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(prefix.replace(/\s/g, ''))) continue;
+            const wordCount = prefix.split(/\s+/).length;
+            const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
+            const categoryTrail = /\brecipes\b/i;
+            if (wordCount <= 4 && (categoryLead.test(prefix) || categoryTrail.test(prefix))) continue;
+          }
+        }
+      }
+
+      const blog = BLOGS.find(b => {
+        const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+        return item.link.includes(domain);
+      });
+      let cleanTitle = item.title || '';
+      if (blog) {
+        const escapedName = blog.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        cleanTitle = cleanTitle
+          .replace(new RegExp(`\\s*[-–·|]\\s*${escapedName}\\s*$`, 'i'), '')
+          .replace(/\s*[-–·|]+\s*$/, '')
+          .trim();
+      }
+
+      chunkResults.push({
+        id: Buffer.from(item.link).toString('base64'),
+        title: cleanTitle,
+        url: item.link,
+        // Use RSS feed cache or OG image cache — no blocking fetch for search results
+        image: cacheImageMap.get(item.link) || ogImageCache.get(item.link)?.img || null,
+        blog: blog?.name || item.displayLink || item.link,
+        blogColor: blog?.color || '#888',
+        excerpt: item.snippet,
+        date: null,
+        searchText: (item.title + ' ' + item.snippet).toLowerCase(),
+        categories: [],
+      });
+    }
+    return chunkResults;
+  };
+
+  const fetchChunk = (chunk) => {
     const siteQuery = chunk.map(d => `site:${d}`).join(' OR ');
     return fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ q: `${q} (${siteQuery})`, num: 10, page: parseInt(page) }),
-      signal: AbortSignal.timeout(10000),
-    }).then(r => r.json()).catch(err => { console.error('Serper fetch error:', err.message || err); return {}; });
-  }));
+      signal: AbortSignal.timeout(8000),
+    }).then(r => r.json()).catch(err => { console.error('Serper fetch error:', err.message); return {}; });
+  };
 
-  // Normalise URLs for dedup: strip protocol, www, trailing slash, lowercased
-  const normUrl = u => u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
-
-  const seen = new Set();
-  const allOrganic = [];
-  let totalResults = 0;
-  for (const data of responses) {
-    if (data.error) continue;
-    const t = parseInt(String(data.searchInformation?.totalResults || '').replace(/\D/g, '')) || 0;
-    totalResults += t;
-    for (const item of (data.organic || [])) {
-      const key = normUrl(item.link || '');
-      if (!seen.has(key)) { seen.add(key); allOrganic.push(item); }
-    }
+  if (onChunk) {
+    // Streaming mode: fire all chunks, call onChunk as each resolves
+    await Promise.allSettled(chunks.map(chunk =>
+      fetchChunk(chunk).then(data => {
+        const results = processSerperData(data);
+        if (results.length) { allResults.push(...results); onChunk(results); }
+      })
+    ));
+  } else {
+    // Batch mode: wait for all, then process
+    const responses = await Promise.all(chunks.map(fetchChunk));
+    for (const data of responses) allResults.push(...processSerperData(data));
   }
 
-  const cacheImageMap = new Map();
-  for (const { recipes } of feedCache.values()) {
-    for (const r of recipes) {
-      if (r.url && r.image) cacheImageMap.set(r.url, r.image);
-    }
-  }
-
-  // Build a set of known blog root-domains for fast validation
-  const blogDomainSet = new Set(domains.map(d => d.split('.').slice(-2).join('.')));
-
-  // Blog names lowercased for detecting "Category - Blog Name" titles
-  const blogNameSet = new Set(BLOGS.map(b => b.name.toLowerCase()));
-
-  const results = allOrganic
-    .filter(item => {
-      if (!item.link) return false;
-      if (isRoundup(item.title, item.link)) return false;
-      // Drop any result whose domain isn't one of our known blogs —
-      // guards against Google ignoring site: constraints on complex queries
-      try {
-        const h = new URL(item.link).hostname.replace(/^www\./, '');
-        const root = h.split('.').slice(-2).join('.');
-        if (!blogDomainSet.has(root) && !blogDomainSet.has(h)) return false;
-      } catch { return false; }
-      // Drop pagination/archive pages (e.g. "Recipes – tagged "recipe" – Page 196")
-      if (/\bpage\s+\d+\b/i.test(item.title)) return false;
-      try {
-        if (/[?&/]page[=/]\d+/i.test(new URL(item.link).pathname + new URL(item.link).search)) return false;
-      } catch {}
-
-      if (item.title) {
-        // All-lowercase title = almost certainly a category/tag page, not a real recipe
-        // (real recipe titles use Title Case or Sentence case)
-        if (item.title === item.title.toLowerCase() && /\brecipes\b/.test(item.title)) return false;
-
-        // Split on common title separators including the middle-dot (·) used by some blogs
-        const parts = item.title.split(/\s+[-–·|]\s+/);
-        if (parts.length > 1) {
-          const suffix = parts[parts.length - 1].trim().toLowerCase();
-          const prefix = parts.slice(0, -1).join(' - ').trim();
-
-          if (blogNameSet.has(suffix)) {
-            // Drop URL-slug titles: "japanese-breakfast-recipe-7955 · i am a food blog"
-            if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(prefix.replace(/\s/g, ''))) return false;
-
-            const wordCount = prefix.split(/\s+/).length;
-            // Drop short generic category pages by lead word OR trailing "recipes":
-            // "Breakfast and Brunch - Fifteen Spatulas", "Mexican Breakfast Recipes - Isabel Eats"
-            const categoryLead = /^(breakfast|brunch|lunch|dinner|dessert|desserts|snack|snacks|appetizer|appetizers|drinks?|cocktails?|salads?|soups?|pasta|chicken|beef|pork|seafood|vegan|vegetarian|gluten.free|keto|healthy|easy|quick|best|simple|recipes?|baking|bbq|grilling|freezer|meal\s*prep|holiday|thanksgiving|christmas|halloween|summer|winter|spring|fall|weeknight)\b/i;
-            const categoryTrail = /\brecipes\b/i; // "Mexican Breakfast Recipes", "Indian Breakfast Recipes"
-            if (wordCount <= 4 && (categoryLead.test(prefix) || categoryTrail.test(prefix))) return false;
-          }
-        }
-      }
-      return true;
-    })
-    .map(item => {
-    const blog = BLOGS.find(b => {
-      const domain = b.feed.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
-      return item.link.includes(domain);
-    });
-    // Strip trailing "- Blog Name" / "· Blog Name" suffix that WordPress/Google
-    // appends to page titles — the blog badge already shows this information.
-    let cleanTitle = item.title || '';
-    if (blog) {
-      const escapedName = blog.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      cleanTitle = cleanTitle
-        .replace(new RegExp(`\\s*[-–·|]\\s*${escapedName}\\s*$`, 'i'), '')
-        .replace(/\s*[-–·|]+\s*$/, '') // strip any stray trailing separator e.g. "Title |"
-        .trim();
-    }
-
-    return {
-      id: Buffer.from(item.link).toString('base64'),
-      title: cleanTitle,
-      url: item.link,
-      image: cacheImageMap.get(item.link) || null,
-      blog: blog?.name || item.displayLink || item.link,
-      blogColor: blog?.color || '#888',
-      excerpt: item.snippet,
-      date: null,
-      searchText: (item.title + ' ' + item.snippet).toLowerCase(),
-      categories: [],
-    };
-  });
-
-  const missing = results.filter(r => !r.image);
-  if (missing.length) {
-    await Promise.allSettled(missing.map(async (r) => {
-      r.image = await fetchOgImage(r.url);
-    }));
-  }
-
-  const result = { results, totalResults: totalResults || results.length, nextStart: results.length > 0 ? parseInt(page) + 1 : null };
-  if (serperCache.size > 200) serperCache.clear(); // simple eviction cap
+  const result = { results: allResults, totalResults: totalResults || allResults.length, nextStart: allResults.length > 0 ? parseInt(page) + 1 : null };
+  if (serperCache.size > 200) serperCache.clear();
   serperCache.set(cacheKey, { result, at: Date.now() });
   return result;
 }
 
-// Serper.dev keyword search
+// Serper keyword search — streaming SSE (primary path)
+app.get('/api/search/stream', searchLimit, async (req, res) => {
+  const { q, page = 1 } = req.query;
+  if (!q) return res.status(400).end();
+  if (!SERPER_API_KEY) return res.status(503).end();
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  try {
+    const result = await runSerperSearch(q, page, {
+      onChunk: results => send({ type: 'chunk', results }),
+    });
+    send({ type: 'done', totalResults: result.totalResults, nextStart: result.nextStart });
+  } catch (err) {
+    send({ type: 'error', message: err.message });
+  }
+  res.end();
+});
+
+// Serper keyword search — batch JSON (kept for ingredient search compatibility)
 app.get('/api/search', searchLimit, async (req, res) => {
   const { q, page = 1 } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
