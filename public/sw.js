@@ -1,4 +1,4 @@
-const CACHE = 'mise-en-scroll-v2';
+const CACHE = 'mise-en-scroll-v3';
 const STATIC = ['/', '/app.js', '/style.css', '/manifest.json', '/icons/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // Install: pre-cache the app shell, then activate immediately
@@ -35,8 +35,8 @@ self.addEventListener('fetch', (e) => {
 
   // API routes: network-first, fall back to cache for offline
   if (url.pathname.startsWith('/api/')) {
-    // SSE stream can't be cached — let it pass through
-    if (url.pathname === '/api/recipes/stream') return;
+    // SSE streams can't be cached — let them pass through
+    if (url.pathname === '/api/recipes/stream' || url.pathname === '/api/search/stream') return;
     e.respondWith(
       fetch(request)
         .then(res => {
