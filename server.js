@@ -612,6 +612,13 @@ function scrapeRecipeHtml($) {
 
 app.get('/api/ping', (req, res) => res.json({ ok: true }));
 
+app.get('/api/og-image', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ img: null });
+  const img = await fetchOgImage(url).catch(() => null);
+  res.json({ img: img || null });
+});
+
 app.get('/api/blogs', (req, res) => {
   res.json(BLOGS.map(({ name, color, feed }) => {
     let website = feed;
