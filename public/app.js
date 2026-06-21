@@ -518,6 +518,24 @@ async function triggerSearch(start = 1) {
     return;
   }
 
+  // Check local RSS cache first — if we have enough matches, skip the API call entirely.
+  // This makes common queries instant instead of waiting on 3 Serper requests.
+  const LOCAL_THRESHOLD = 10;
+  if (start === 1) {
+    const needle = state.searchQuery.trim().toLowerCase();
+    const localMatches = state.recipes.filter(r => {
+      const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
+      return full.includes(needle);
+    });
+    if (localMatches.length >= LOCAL_THRESHOLD) {
+      if (state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
+      state.searchMode = false;
+      state.searchResults = [];
+      renderApp();
+      return;
+    }
+  }
+
   if (start === 1 && state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
   state.searchMode = true;
   state.searchLoading = true;
