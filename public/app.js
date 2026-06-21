@@ -407,6 +407,25 @@ function buildSearchQuery() {
 
 let searchDebounceTimer = null;
 let activeSearchSource = null;
+
+// Client-side search result cache (sessionStorage, 5min TTL, max 20 entries)
+function getSearchCache(q, page) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem('mise-search-cache') || '{}');
+    const e = c[`${q}:${page}`];
+    if (e && Date.now() - e.at < 5 * 60 * 1000) return e.data;
+  } catch {}
+  return null;
+}
+function setSearchCache(q, page, data) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem('mise-search-cache') || '{}');
+    c[`${q}:${page}`] = { data, at: Date.now() };
+    const keys = Object.keys(c);
+    if (keys.length > 20) delete c[keys[0]];
+    sessionStorage.setItem('mise-search-cache', JSON.stringify(c));
+  } catch {}
+}
 let _saveFiltersTimer = null;
 let _noteTimer = null;
 let _savedScrollY = 0;
@@ -507,10 +526,8 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  // Keyword mode — standard Serper search.
-  // Only enter archive-search mode when the user has typed an explicit query.
-  // Filter chips alone should just filter the local RSS feed — entering
-  // searchMode would hide fresh local recipes and replace them with Serper results.
+  // Keyword mode — only fire when user has typed an explicit query.
+  // Filter chips alone stay in local RSS mode.
   const q = buildSearchQuery();
   if (!q.trim() || q.trim() === 'recipe' || !state.searchQuery.trim()) {
     state.searchMode = false;
@@ -519,48 +536,68 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  // Check local RSS cache first — if we have enough matches, skip the API call entirely.
-  // This makes common queries instant instead of waiting on 3 Serper requests.
-  const LOCAL_THRESHOLD = 10;
-  if (start === 1) {
-    const needle = state.searchQuery.trim().toLowerCase();
-    const localMatches = state.recipes.filter(r => {
-      const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
-      return full.includes(needle);
-    });
-    if (localMatches.length >= LOCAL_THRESHOLD) {
-      if (state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
-      state.searchMode = false;
-      state.searchResults = [];
-      renderApp();
-      return;
-    }
-  }
-
   if (start === 1 && state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
 
   // Close any in-flight search stream before starting a new one
   if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
 
+  // Hybrid: seed results with local matches immediately, then stream Serper on top
+  const needle = state.searchQuery.trim().toLowerCase();
+  const localMatches = start === 1
+    ? state.recipes.filter(r => {
+        const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
+        return full.includes(needle);
+      })
+    : [];
+
+  const seenUrls = new Set(localMatches.map(r => r.url));
+
   state.searchMode = true;
-  state.searchLoading = true;
   state.searchError = null;
-  if (start === 1) state.searchResults = [];
+  if (start === 1) state.searchResults = localMatches;  // show local results instantly
+
+  // If local results are already plentiful, skip Serper entirely
+  const LOCAL_THRESHOLD = 10;
+  if (start === 1 && localMatches.length >= LOCAL_THRESHOLD) {
+    state.searchLoading = false;
+    state.searchNextStart = null;
+    renderApp();
+    return;
+  }
+
+  state.searchLoading = true;
   renderApp();
+
+  // Check client-side cache before hitting the server
+  const cached = getSearchCache(q, start);
+  if (cached) {
+    const fresh = cached.results.filter(r => !seenUrls.has(r.url));
+    state.searchResults = [...state.searchResults, ...fresh];
+    state.searchTotal = cached.totalResults;
+    state.searchNextStart = cached.nextStart;
+    state.searchLoading = false;
+    renderApp();
+    return;
+  }
 
   const src = new EventSource(`/api/search/stream?q=${encodeURIComponent(q)}&page=${start}`);
   activeSearchSource = src;
+  const streamedResults = [];
 
   src.onmessage = e => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'chunk') {
-      state.searchResults = [...state.searchResults, ...msg.results];
+      const fresh = msg.results.filter(r => !seenUrls.has(r.url));
+      fresh.forEach(r => seenUrls.add(r.url));
+      streamedResults.push(...fresh);
+      state.searchResults = [...state.searchResults, ...fresh];
       renderApp();
     } else if (msg.type === 'done') {
       state.searchTotal = msg.totalResults;
       state.searchNextStart = msg.nextStart;
       state.searchLoading = false;
       src.close(); activeSearchSource = null;
+      setSearchCache(q, start, { results: streamedResults, totalResults: msg.totalResults, nextStart: msg.nextStart });
       renderApp();
     } else if (msg.type === 'error') {
       state.searchError = msg.message || 'Search failed. Please try again.';
@@ -1462,7 +1499,7 @@ document.addEventListener('click', async (e) => {
     if (!state.filtersOpen) state.filtersOpen = true;
     saveFilters();
     clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => triggerSearch(), 300);
+    searchDebounceTimer = setTimeout(() => triggerSearch(), 600);
   }
 
   if (action === 'share') {
@@ -1864,7 +1901,7 @@ document.addEventListener('input', (e) => {
   if (clearBtn) clearBtn.style.display = state.searchQuery ? '' : 'none';
 
   clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => triggerSearch(), 400);
+  searchDebounceTimer = setTimeout(() => triggerSearch(), 600);
 });
 
 // Swipe down to dismiss drawer on mobile
@@ -2088,3 +2125,7 @@ async function init() {
 }
 
 init();
+
+// Keep Render's free-tier server awake — ping every 9 minutes to stay
+// under the 15-minute inactivity sleep threshold.
+setInterval(() => fetch('/api/ping').catch(() => {}), 9 * 60 * 1000);

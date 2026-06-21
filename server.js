@@ -610,6 +610,8 @@ function scrapeRecipeHtml($) {
 
 // --- Routes ---
 
+app.get('/api/ping', (req, res) => res.json({ ok: true }));
+
 app.get('/api/blogs', (req, res) => {
   res.json(BLOGS.map(({ name, color, feed }) => {
     let website = feed;
