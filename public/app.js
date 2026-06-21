@@ -1045,7 +1045,7 @@ function renderContent() {
     }
     return `
       <div class="container">
-        <p class="result-count">Archive search — ${state.searchTotal.toLocaleString()} results</p>
+        <p class="result-count">Archive search — ${state.searchResults.length.toLocaleString()} result${state.searchResults.length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
         <div class="grid">
           ${state.searchResults.map(renderCard).join('')}
         </div>
@@ -1165,9 +1165,11 @@ function renderContent() {
 function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#c75b2e';
+  // In search mode, cards with no image get a data attribute so the lazy OG fetcher can fill them in
+  const needsOg = noImg && state.searchMode ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}">
-      <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''}>
+      <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
           onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-initial\\'>${escHtml(r.blog.charAt(0))}</span></div>'">` : ''}
         ${noImg ? `<div class="card-no-image">
@@ -2129,3 +2131,45 @@ init();
 // Keep Render's free-tier server awake — ping every 9 minutes to stay
 // under the 15-minute inactivity sleep threshold.
 setInterval(() => fetch('/api/ping').catch(() => {}), 9 * 60 * 1000);
+
+// Lazy OG image loading for search results — cards without an image in the
+// Serper response get a data-needs-og attribute. When they scroll into view
+// we fetch the OG image and swap in the real photo without a full re-render.
+const _ogFetching = new Set();
+const _ogObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+    const url = el.dataset.needsOg;
+    if (!url || _ogFetching.has(url)) return;
+    _ogFetching.add(url);
+    _ogObserver.unobserve(el);
+    fetch(`/api/og-image?url=${encodeURIComponent(url)}`)
+      .then(r => r.json())
+      .then(({ img }) => {
+        if (!img) return;
+        // Update all cards for this URL (could appear in multiple grids)
+        document.querySelectorAll(`[data-needs-og="${CSS.escape(url)}"]`).forEach(imgEl => {
+          imgEl.removeAttribute('data-needs-og');
+          imgEl.classList.remove('no-image');
+          imgEl.style.removeProperty('--blog-color');
+          imgEl.innerHTML = imgEl.innerHTML.replace(
+            /<div class="card-no-image">[\s\S]*?<\/div>/,
+            `<img src="${img}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
+          );
+        });
+        // Update state so re-renders keep the image
+        const r = state.searchResults.find(r => r.url === url);
+        if (r) r.image = img;
+      })
+      .catch(() => {});
+  });
+}, { rootMargin: '200px' });
+
+// Re-observe cards whenever the DOM updates (search renders new cards)
+const _ogMutObs = new MutationObserver(() => {
+  document.querySelectorAll('[data-needs-og]').forEach(el => {
+    if (!_ogFetching.has(el.dataset.needsOg)) _ogObserver.observe(el);
+  });
+});
+_ogMutObs.observe(document.body, { childList: true, subtree: true });
