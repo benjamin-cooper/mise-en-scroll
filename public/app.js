@@ -2046,7 +2046,7 @@ function closeDrawer() {
 function refreshDiscoverContent() {
   const el = document.getElementById('discover-content');
   if (!el) return;
-  const base = state.view === 'favorites' ? state.favorites : state.recipes;
+  const base = state.view === 'favorites' ? state.favorites : state.recipes.filter(r => !isHidden(r.url));
   const allFiltered = applyFilters(base);
   const visible = allFiltered.slice(0, state.discoverRenderLimit);
   const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
