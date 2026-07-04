@@ -255,6 +255,14 @@ function saveMealPlan() {
 const BOARDS_KEY = 'mise-en-scroll-boards';
 function loadBoards() { try { return JSON.parse(localStorage.getItem(BOARDS_KEY) || '{}'); } catch { return {}; } }
 function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(state.boards)); } catch {} }
+
+const HIDDEN_KEY = 'mise-en-scroll-hidden';
+let hiddenUrls = new Set((() => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; } })());
+function hidePost(url) {
+  hiddenUrls.add(url);
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenUrls])); } catch {}
+}
+function isHidden(url) { return hiddenUrls.has(url); }
 function addToBoard(name, recipe) {
   if (!state.boards[name]) state.boards[name] = [];
   if (!state.boards[name].find(r => r.url === recipe.url)) {
@@ -1045,9 +1053,9 @@ function renderContent() {
     }
     return `
       <div class="container">
-        <p class="result-count">Archive search — ${state.searchResults.length.toLocaleString()} result${state.searchResults.length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
+        <p class="result-count">Archive search — ${state.searchResults.filter(r => !isHidden(r.url)).length.toLocaleString()} result${state.searchResults.filter(r => !isHidden(r.url)).length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
         <div class="grid">
-          ${state.searchResults.map(renderCard).join('')}
+          ${state.searchResults.filter(r => !isHidden(r.url)).map(renderCard).join('')}
         </div>
         ${state.searchNextStart ? `<div id="infinite-scroll-sentinel"></div>` : ''}
         ${state.searchLoading && state.searchResults.length ? `<div class="load-more-wrap"><div class="spinner"></div></div>` : ''}
@@ -1058,7 +1066,7 @@ function renderContent() {
   // --- RSS / favorites mode ---
   let base;
   if (state.view === 'discover') {
-    base = state.recipes;
+    base = state.recipes.filter(r => !isHidden(r.url));
   } else if (state.activeBoardFilter && state.boards[state.activeBoardFilter]) {
     const boardUrls = new Set(state.boards[state.activeBoardFilter].map(r => r.url));
     base = state.favorites.filter(f => boardUrls.has(f.url));
@@ -1177,6 +1185,9 @@ function renderCard(r) {
         </div>` : ''}
         <button class="card-save ${isFav(r.url) ? 'is-saved' : ''}" data-action="toggle-save" data-url="${r.url}" aria-label="${isFav(r.url) ? 'Remove from saved' : 'Save recipe'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav(r.url) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <button class="card-hide" data-action="hide-post" data-url="${r.url}" aria-label="Hide this post" title="Hide this post">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="card-body">
@@ -1728,6 +1739,15 @@ document.addEventListener('click', async (e) => {
     state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
     saveFilters();
     renderApp();
+  }
+
+  if (action === 'hide-post') {
+    const url = el.dataset.url;
+    hidePost(url);
+    // Remove the card from the DOM immediately without a full re-render
+    const card = el.closest('.card');
+    if (card) card.remove();
+    return;
   }
 
   if (action === 'toggle-save') {
