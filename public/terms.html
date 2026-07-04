@@ -93,11 +93,42 @@
       <span class="loading">Loading…</span>
     </div>
 
+    <h2>Hidden posts</h2>
+    <p>Posts you've hidden won't appear in your feed. You can restore any of them here.</p>
+    <div id="hidden-list"><span class="loading">None hidden.</span></div>
+
     <hr>
     <footer>
       <p>Mise en Scroll &middot; <a href="/">Home</a> &middot; <a href="mailto:mise.en.scroll.app@gmail.com">mise.en.scroll.app@gmail.com</a></p>
     </footer>
   </div>
+
+  <style>
+    .hidden-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid #f0ebe4;
+    }
+    .hidden-item:last-child { border-bottom: none; }
+    .hidden-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .hidden-info { flex: 1; min-width: 0; }
+    .hidden-title { font-size: 0.9rem; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hidden-blog { font-size: 0.78rem; color: #888; margin-top: 1px; }
+    .unhide-btn {
+      flex-shrink: 0;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid #e0dbd4;
+      background: #fff;
+      font-size: 0.8rem;
+      color: #555;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .unhide-btn:hover { border-color: #c75b2e; color: #c75b2e; }
+  </style>
 
   <script>
     fetch('/api/blogs')
@@ -114,6 +145,36 @@
       .catch(() => {
         document.getElementById('blog-list').innerHTML = '<span class="loading">Could not load blog list.</span>';
       });
+
+    function renderHiddenList() {
+      let hidden = [];
+      try { hidden = JSON.parse(localStorage.getItem('mise-en-scroll-hidden') || '[]'); } catch {}
+      // Normalise old plain-URL format
+      hidden = hidden.map(e => typeof e === 'string' ? { url: e } : e);
+      const el = document.getElementById('hidden-list');
+      if (!hidden.length) { el.innerHTML = '<span class="loading">None hidden.</span>'; return; }
+      el.innerHTML = hidden.map((e, i) => `
+        <div class="hidden-item" data-idx="${i}">
+          <span class="hidden-dot" style="background:${e.blogColor || '#ccc'}"></span>
+          <div class="hidden-info">
+            <div class="hidden-title">${e.title ? e.title.replace(/</g,'&lt;') : e.url}</div>
+            ${e.blog ? `<div class="hidden-blog">${e.blog.replace(/</g,'&lt;')}</div>` : ''}
+          </div>
+          <button class="unhide-btn" onclick="unhide('${encodeURIComponent(e.url)}')">Restore</button>
+        </div>
+      `).join('');
+    }
+
+    function unhide(encodedUrl) {
+      const url = decodeURIComponent(encodedUrl);
+      let hidden = [];
+      try { hidden = JSON.parse(localStorage.getItem('mise-en-scroll-hidden') || '[]'); } catch {}
+      hidden = hidden.map(e => typeof e === 'string' ? { url: e } : e).filter(e => e.url !== url);
+      try { localStorage.setItem('mise-en-scroll-hidden', JSON.stringify(hidden)); } catch {}
+      renderHiddenList();
+    }
+
+    renderHiddenList();
   </script>
 </body>
 </html>
