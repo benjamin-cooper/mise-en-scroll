@@ -612,7 +612,7 @@ function scrapeRecipeHtml($) {
 
 app.get('/api/ping', (req, res) => res.json({ ok: true }));
 
-app.get('/api/og-image', async (req, res) => {
+app.get('/api/og-image', recipeLimit, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ img: null });
   const img = await fetchOgImage(url).catch(() => null);
