@@ -67,7 +67,6 @@ const BLOGS = [
   { name: 'Pinch of Yum',          feed: 'https://pinchofyum.com/feed',                    color: '#7b5ea7' },
   { name: 'Smitten Kitchen',       feed: 'https://smittenkitchen.com/feed/',                color: '#2471a3' },
   { name: 'Minimalist Baker',      feed: 'https://minimalistbaker.com/feed/',               color: '#c0803e' },
-  { name: 'Serious Eats',          feed: 'https://www.seriouseats.com/feeds/all.rss.xml',  color: '#e74c3c' },
   { name: 'Damn Delicious',        feed: 'https://damndelicious.net/feed/',                 color: '#d63584' },
   { name: 'Cookie and Kate',       feed: 'https://cookieandkate.com/feed/',                color: '#e8a020' },
   { name: 'Skinnytaste',           feed: 'https://www.skinnytaste.com/feed/',               color: '#27ae60' },
@@ -138,6 +137,9 @@ const BLOGS = [
   { name: "Laylita's Recipes",     feed: 'https://laylita.com/recipes/feed/',               color: '#e67e22' },
   { name: 'Isabel Eats',           feed: 'https://www.isabeleats.com/feed/',                color: '#c75b2e' },
   { name: 'My Colombian Recipes',  feed: 'https://www.mycolombianrecipes.com/feed/',        color: '#f4c430' },
+  { name: 'Easy and Delish',       feed: 'https://www.easyanddelish.com/feed',              color: '#16a085' },
+  { name: 'Spanish Sabores',       feed: 'https://www.spanishsabores.com/feed',             color: '#d35400' },
+  { name: 'Spain on a Fork',       feed: 'https://spainonafork.com/feed',                   color: '#e67e22' },
   // --- Middle Eastern ---
   { name: 'Give Recipe',           feed: 'https://giverecipe.com/feed/',                    color: '#c0392b' },
   { name: "Ozlem's Turkish Table", feed: 'https://ozlemsturkishtable.com/feed/',             color: '#e67e22' },
@@ -147,6 +149,9 @@ const BLOGS = [
   // --- African / Caribbean ---
   { name: 'Immaculate Bites',      feed: 'https://www.africanbites.com/feed/',              color: '#c0392b' },
   { name: "Chef Lola's Kitchen",   feed: 'https://cheflolaskitchen.com/feed/',              color: '#e74c3c' },
+  { name: 'Caribbean Pot',         feed: 'https://caribbeanpot.com/feed',                   color: '#f39c12' },
+  { name: 'Cooking with Ria',      feed: 'https://www.cookingwithria.com/feed',             color: '#1abc9c' },
+  { name: 'Simply Trini Cooking',  feed: 'https://www.simplytrinicooking.com/feed',         color: '#e74c3c' },
   // --- Filipino ---
   { name: 'Panlasang Pinoy',       feed: 'https://panlasangpinoy.com/feed/',                color: '#2471a3' },
   { name: 'Kawaling Pinoy',        feed: 'https://www.kawalingpinoy.com/feed/',             color: '#1abc9c' },
