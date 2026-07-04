@@ -257,12 +257,40 @@ function loadBoards() { try { return JSON.parse(localStorage.getItem(BOARDS_KEY)
 function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(state.boards)); } catch {} }
 
 const HIDDEN_KEY = 'mise-en-scroll-hidden';
-let hiddenUrls = new Set((() => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; } })());
-function hidePost(url) {
-  hiddenUrls.add(url);
-  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenUrls])); } catch {}
+// Hidden posts — stored as { url, title, blog, blogColor } objects for unhide UI
+let _hiddenRaw = (() => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; } })();
+// Normalise old format (plain URL strings) to objects
+_hiddenRaw = _hiddenRaw.map(e => typeof e === 'string' ? { url: e } : e);
+let hiddenUrls = new Set(_hiddenRaw.map(e => e.url));
+let _hiddenMeta = new Map(_hiddenRaw.map(e => [e.url, e]));
+
+function hidePost(recipe) {
+  const entry = { url: recipe.url, title: recipe.title || '', blog: recipe.blog || '', blogColor: recipe.blogColor || '#888' };
+  hiddenUrls.add(recipe.url);
+  _hiddenMeta.set(recipe.url, entry);
+  _visibleRecipesCache = null; // bust stable-ref cache
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([..._hiddenMeta.values()])); } catch {}
+}
+function unhidePost(url) {
+  hiddenUrls.delete(url);
+  _hiddenMeta.delete(url);
+  _visibleRecipesCache = null;
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([..._hiddenMeta.values()])); } catch {}
 }
 function isHidden(url) { return hiddenUrls.has(url); }
+function getHiddenList() { return [..._hiddenMeta.values()]; }
+
+// Stable-reference cache for hidden-filtered recipes so applyFilters memo still hits
+let _visibleRecipesCache = null;
+let _visibleRecipesKey = '';
+function getVisibleRecipes() {
+  const key = state.recipes.length + ':' + hiddenUrls.size;
+  if (key !== _visibleRecipesKey) {
+    _visibleRecipesCache = hiddenUrls.size ? state.recipes.filter(r => !hiddenUrls.has(r.url)) : state.recipes;
+    _visibleRecipesKey = key;
+  }
+  return _visibleRecipesCache;
+}
 function addToBoard(name, recipe) {
   if (!state.boards[name]) state.boards[name] = [];
   if (!state.boards[name].find(r => r.url === recipe.url)) {
@@ -550,11 +578,11 @@ async function triggerSearch(start = 1) {
   if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
 
   // Hybrid: seed results with local matches immediately, then stream Serper on top
-  const needle = state.searchQuery.trim().toLowerCase();
+  const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
   const localMatches = start === 1
-    ? state.recipes.filter(r => {
+    ? getVisibleRecipes().filter(r => {
         const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
-        return full.includes(needle);
+        return tokens.every(t => full.includes(t));
       })
     : [];
 
@@ -640,7 +668,8 @@ function applyFilters(recipes) {
     if (state.filter && r.blog !== state.filter) return false;
 
     if (state.searchQuery.trim()) {
-      if (!full.includes(state.searchQuery.trim().toLowerCase())) return false;
+      const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
+      if (!tokens.every(t => full.includes(t))) return false;
     }
     if (state.cuisineFilters.length) {
       const kws = state.cuisineFilters.flatMap(label => FILTERS.cuisine.find(f => f.label === label)?.keywords || []);
@@ -1066,7 +1095,7 @@ function renderContent() {
   // --- RSS / favorites mode ---
   let base;
   if (state.view === 'discover') {
-    base = state.recipes.filter(r => !isHidden(r.url));
+    base = getVisibleRecipes();
   } else if (state.activeBoardFilter && state.boards[state.activeBoardFilter]) {
     const boardUrls = new Set(state.boards[state.activeBoardFilter].map(r => r.url));
     base = state.favorites.filter(f => boardUrls.has(f.url));
@@ -1743,8 +1772,9 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'hide-post') {
     const url = el.dataset.url;
-    hidePost(url);
-    // Remove the card from the DOM immediately without a full re-render
+    const pool = [...state.recipes, ...state.favorites, ...state.searchResults];
+    const recipe = pool.find(r => r.url === url) || { url };
+    hidePost(recipe);
     const card = el.closest('.card');
     if (card) card.remove();
     return;
@@ -2046,7 +2076,7 @@ function closeDrawer() {
 function refreshDiscoverContent() {
   const el = document.getElementById('discover-content');
   if (!el) return;
-  const base = state.view === 'favorites' ? state.favorites : state.recipes.filter(r => !isHidden(r.url));
+  const base = state.view === 'favorites' ? state.favorites : getVisibleRecipes();
   const allFiltered = applyFilters(base);
   const visible = allFiltered.slice(0, state.discoverRenderLimit);
   const hasMoreCards = allFiltered.length > state.discoverRenderLimit;
