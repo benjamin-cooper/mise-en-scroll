@@ -247,6 +247,25 @@ ul, ol { padding-left: 1.25rem; }
   color: var(--accent);
 }
 .card-save:hover { color: var(--accent); background: white; }
+.card-hide {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(4px);
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: all var(--transition);
+  opacity: 0;
+}
+.card:hover .card-hide { opacity: 1; }
+.card-hide:hover { color: #666; background: white; }
 .card-image.no-image {
   background: color-mix(in srgb, var(--blog-color, #c75b2e) 12%, #faf7f2);
 }

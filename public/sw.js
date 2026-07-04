@@ -1,4 +1,4 @@
-const CACHE = 'mise-en-scroll-v4';
+const CACHE = 'mise-en-scroll-v5';
 const STATIC = ['/', '/app.js', '/style.css', '/manifest.json', '/icons/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // Install: pre-cache the app shell, then activate immediately
