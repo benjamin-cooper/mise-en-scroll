@@ -102,7 +102,6 @@ const BLOGS = [
   { name: "Omnivore's Cookbook",   feed: 'https://omnivorescookbook.com/feed/',             color: '#20908a' },
   { name: 'Hot Thai Kitchen',      feed: 'https://hot-thai-kitchen.com/feed/',              color: '#2a9a3a' },
   // --- Vietnamese ---
-  { name: 'Viet World Kitchen',    feed: 'https://vietworldkitchen.typepad.com/blog/atom.xml', color: '#d4382a' },
   // --- SE Asian ---
   { name: 'Roti n Rice',           feed: 'https://rotinrice.com/feed/',                    color: '#c07840' },
   // --- General (continued) ---
@@ -133,9 +132,10 @@ const BLOGS = [
   // --- Greek / Mediterranean ---
   { name: "Dimitra's Dishes",      feed: 'https://www.dimitrasdishes.com/feed/',            color: '#1a6b9a' },
   // --- Mexican / Latin ---
-  { name: 'Mexico in My Kitchen',  feed: 'https://www.mexicoinmykitchen.com/feed/',         color: '#27ae60' },
   { name: "Laylita's Recipes",     feed: 'https://laylita.com/recipes/feed/',               color: '#e67e22' },
   { name: 'Isabel Eats',           feed: 'https://www.isabeleats.com/feed/',                color: '#c75b2e' },
+  { name: 'Mexican Please',        feed: 'https://www.mexicanplease.com/feed',              color: '#c0392b' },
+  { name: 'Mexican Food Journal',  feed: 'https://mexicanfoodjournal.com/feed',             color: '#27ae60' },
   { name: 'My Colombian Recipes',  feed: 'https://www.mycolombianrecipes.com/feed/',        color: '#f4c430' },
   { name: 'Easy and Delish',       feed: 'https://www.easyanddelish.com/feed',              color: '#16a085' },
   { name: 'Spanish Sabores',       feed: 'https://www.spanishsabores.com/feed',             color: '#d35400' },
@@ -159,7 +159,6 @@ const BLOGS = [
   { name: 'David Lebovitz',        feed: 'https://www.davidlebovitz.com/feed/',             color: '#2c3e50' },
   // --- BBQ / Southern ---
   { name: 'Hey Grill Hey',         feed: 'https://heygrillhey.com/feed/',                   color: '#c0392b' },
-  { name: 'Sam the Cooking Guy',   feed: 'https://www.samthecookingguy.com/recipes?format=rss', color: '#1a1a2e' },
   // --- Modern / Creative ---
   { name: 'Brian Lagerstrom',      feed: 'https://www.brianlagerstrom.com/recipes?format=rss', color: '#2c2c2c' },
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
@@ -701,7 +700,18 @@ async function fetchBlogFeed(blog) {
 
   let feed;
   try {
-    feed = await parser.parseURL(blog.feed);
+    // Fetch manually (rather than parser.parseURL) so undici auto-decompresses
+    // gzip/br responses — some CDNs (e.g. Forks Over Knives) force-compress
+    // regardless of Accept-Encoding, which rss-parser's raw http.get can't handle.
+    // Match rss-parser's own default headers — some WAFs (e.g. Joy the Baker)
+    // allowlist the honest 'rss-parser' UA but block generic browser UAs.
+    const res = await fetch(blog.feed, {
+      headers: { 'User-Agent': 'rss-parser', 'Accept': 'application/rss+xml' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Status code ${res.status}`);
+    const xml = await res.text();
+    feed = await parser.parseString(xml);
   } catch (err) {
     feedCache.set(blog.name, { recipes: [], fetchedAt: Date.now(), v: CACHE_VERSION, failed: true });
     throw err; // re-throw so SSE handler logs it
