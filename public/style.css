@@ -58,9 +58,9 @@ ul, ol { padding-left: 1.25rem; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 1.25rem;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
 }
@@ -288,9 +288,9 @@ ul, ol { padding-left: 1.25rem; }
   justify-content: center;
 }
 .card-no-image-initial {
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 4rem;
-  font-weight: 400;
+  font-weight: 700;
   color: var(--blog-color, #c17a2e);
   opacity: 0.2;
   line-height: 1;
@@ -315,9 +315,9 @@ ul, ol { padding-left: 1.25rem; }
   white-space: nowrap;
 }
 .card-title {
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.4;
   color: var(--text);
 }
@@ -441,9 +441,9 @@ ul, ol { padding-left: 1.25rem; }
   margin-bottom: 10px;
 }
 .drawer-title {
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 1.5rem;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.3;
   margin-bottom: 12px;
   color: var(--text);
@@ -488,9 +488,9 @@ ul, ol { padding-left: 1.25rem; }
   margin-bottom: 28px;
 }
 .recipe-section h3 {
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 600;
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
@@ -783,7 +783,7 @@ ul, ol { padding-left: 1.25rem; }
   font-size: 0.78rem;
   font-weight: 400;
   font-style: italic;
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   color: var(--muted);
   white-space: nowrap;
   min-width: 52px;
@@ -1242,9 +1242,9 @@ ul, ol { padding-left: 1.25rem; }
   border-bottom: 1px solid var(--border);
 }
 .recipe-section-header h3 {
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: 'Source Serif 4', Georgia, serif;
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--text);
   margin: 0;
   padding: 0;
