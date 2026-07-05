@@ -1658,7 +1658,7 @@ document.addEventListener('click', async (e) => {
     state.nutritionView = 'blog';
     state.scaleFactor = 1;
     state.mealPlanPickerOpen = false;
-    history.replaceState(null, '', `#${encodeURIComponent(r.url)}`);
+    history.replaceState(null, '', `/recipe?url=${encodeURIComponent(r.url)}`);
     renderApp();
     try {
       const data = _prefetchCache.has(r.url) ? await _prefetchCache.get(r.url) : await api.recipe(r.url);
@@ -1904,7 +1904,7 @@ document.addEventListener('click', async (e) => {
     state.mealPlanPickerOpen = false;
     state.mealPlanPickDay = null;
     state.boardPickerOpen = false;
-    history.replaceState(null, '', `#${encodeURIComponent(url)}`);
+    history.replaceState(null, '', `/recipe?url=${encodeURIComponent(url)}`);
     renderApp();
 
     try {
@@ -2082,7 +2082,7 @@ function closeDrawer() {
   state.mealPlanPickerOpen = false;
   state.mealPlanPickDay = null;
   state.boardPickerOpen = false;
-  history.replaceState(null, '', window.location.pathname + window.location.search);
+  history.replaceState(null, '', '/');
   renderApp();
 }
 
@@ -2123,9 +2123,15 @@ async function init() {
   }
   BLOGS = await api.blogs();
 
-  // Restore recipe drawer from URL hash (e.g. after a page refresh)
+  // Restore recipe drawer from URL — supports /recipe?url=... (shared links,
+  // server-rendered with per-recipe OG tags) and the old #<url> hash format
+  // (legacy links already shared before this scheme existed).
   const hashUrl = (() => {
     try {
+      if (window.location.pathname === '/recipe') {
+        const u = new URLSearchParams(window.location.search).get('url');
+        return u && u.startsWith('http') ? u : null;
+      }
       const h = decodeURIComponent(window.location.hash.slice(1));
       return h.startsWith('http') ? h : null;
     } catch { return null; }
