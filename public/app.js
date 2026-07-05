@@ -582,7 +582,7 @@ async function triggerSearch(start = 1) {
   const localMatches = start === 1
     ? getVisibleRecipes().filter(r => {
         const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
-        return tokens.every(t => full.includes(t));
+        return matchesAllTokens(full, tokens);
       })
     : [];
 
@@ -653,6 +653,21 @@ async function triggerSearch(start = 1) {
 }
 
 // --- Filter logic ---
+// Matches each query token as a whole word (not a substring) so "pot" doesn't
+// match "potatoes" and "one" doesn't match "someone". Tokens are cached as
+// compiled regexes since the same query is tested against many recipes.
+const _wordBoundaryCache = new Map();
+function matchesAllTokens(text, tokens) {
+  return tokens.every(t => {
+    let re = _wordBoundaryCache.get(t);
+    if (!re) {
+      re = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      _wordBoundaryCache.set(t, re);
+    }
+    return re.test(text);
+  });
+}
+
 let _filterMemo = null;
 function applyFilters(recipes) {
   const fp = [
@@ -669,7 +684,7 @@ function applyFilters(recipes) {
 
     if (state.searchQuery.trim()) {
       const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
-      if (!tokens.every(t => full.includes(t))) return false;
+      if (!matchesAllTokens(full, tokens)) return false;
     }
     if (state.cuisineFilters.length) {
       const kws = state.cuisineFilters.flatMap(label => FILTERS.cuisine.find(f => f.label === label)?.keywords || []);
