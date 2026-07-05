@@ -639,7 +639,24 @@ const ROUNDUP_PATTERNS = [
   /\bthe\s+best\s+(bars?|cocktail\s+bars?|restaurants?)\b(?!\s+to\s+try\s+at)/i,
 ];
 
-function isRoundup(title = '', url = '') {
+function normalizeCategories(item) {
+  return (item.categories || []).map(c =>
+    typeof c === 'string' ? c : (c._ || c['#text'] || '')
+  ).filter(Boolean);
+}
+
+// Categories that WordPress food blogs use for non-recipe posts (news,
+// commentary, site announcements) rather than actual dish/meal tags. A real
+// recipe post is virtually always tagged with something specific ("Date
+// Night Recipes", "Easy Side Dishes"); a post tagged with ONLY one of these
+// generic labels is almost never an actual recipe.
+const NON_RECIPE_CATEGORIES = new Set([
+  'blog', 'news', 'announcements', 'announcement', 'uncategorized',
+  'opinion', 'editorial', 'press', 'press release', 'updates', 'update',
+  'behind the scenes', 'life', 'personal', 'site news', 'community',
+]);
+
+function isRoundup(title = '', url = '', categories = []) {
   if (ROUNDUP_PATTERNS.some(p => p.test(title))) return true;
   // Filter homepage/category URLs
   if (url) {
@@ -655,6 +672,10 @@ function isRoundup(title = '', url = '') {
   if (/^[^|]{3,60}\|\s*.{3,60}$/.test(title) && /recipes?|kitchen|cook|food|eat/i.test(title)) return true;
   // Filter "Over 30 / More than X" roundup titles
   if (/^(over|more\s+than)\s+\d+/i.test(title)) return true;
+  // Filter posts tagged only with generic non-recipe categories (news,
+  // opinion pieces, site announcements — e.g. a post about AI recipe
+  // content that's itself categorized only "Blog", not a real recipe)
+  if (categories.length && categories.every(c => NON_RECIPE_CATEGORIES.has(c.toLowerCase().trim()))) return true;
   return false;
 }
 
@@ -729,7 +750,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -812,11 +833,9 @@ async function fetchBlogFeed(blog) {
   }
 
   const recipes = feed.items
-    .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link))
+    .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
     .slice(0, 20).map((item) => {
-    const categories = (item.categories || []).map(c =>
-      typeof c === 'string' ? c : (c._ || c['#text'] || '')
-    ).filter(Boolean);
+    const categories = normalizeCategories(item);
     const searchText = [item.title || '', ...categories, item.contentSnippet || ''].join(' ').toLowerCase();
     const cookTimeMinutes = extractCookTimeMinutes(item);
     const cleanLink = cleanRecipeUrl(item.link);
