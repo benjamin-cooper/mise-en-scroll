@@ -40,7 +40,7 @@ const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: 
 let _swCached = { version: null, src: null };
 function getSwSource() {
   const swPath = path.join(__dirname, 'public', 'sw.js');
-  const assets = ['app.js', 'style.css'].map(f => path.join(__dirname, 'public', f));
+  const assets = ['app.js', 'style.css', 'index.html'].map(f => path.join(__dirname, 'public', f));
   const version = assets.reduce((acc, f) => {
     try { return acc + fs.statSync(f).mtimeMs; } catch { return acc; }
   }, 0).toString(36);
@@ -54,6 +54,81 @@ app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'no-cache');
   res.send(getSwSource());
+});
+
+// Cache the index.html template (re-read only if the file changes) so we
+// avoid a sync disk read on every /recipe request.
+let _indexCached = { mtime: null, src: null };
+function getIndexTemplate() {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const mtime = fs.statSync(indexPath).mtimeMs;
+  if (mtime !== _indexCached.mtime) {
+    _indexCached = { mtime, src: fs.readFileSync(indexPath, 'utf8') };
+  }
+  return _indexCached.src;
+}
+
+function escapeHtml(str = '') {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Server-rendered per-recipe page: injects title/OG/Twitter meta tags so
+// shared links get a proper preview (image, title, blog name) and the page
+// is indexable/shareable as its own URL instead of a client-only hash route.
+// Falls back to the plain app shell if the recipe isn't in cache — no live
+// scrape here, so this stays fast even under crawler load.
+app.get('/recipe', (req, res) => {
+  const { url } = req.query;
+  let recipe = null;
+  if (url) {
+    for (const { recipes } of feedCache.values()) {
+      recipe = recipes.find(r => r.url === url);
+      if (recipe) break;
+    }
+  }
+
+  let html = getIndexTemplate();
+  if (recipe) {
+    const title = `${escapeHtml(recipe.title)} — Mise en Scroll`;
+    const desc = escapeHtml((recipe.excerpt || `A recipe from ${recipe.blog}, via Mise en Scroll.`).slice(0, 200));
+    const pageUrl = `https://mise-en-scroll.onrender.com/recipe?url=${encodeURIComponent(recipe.url)}`;
+    const meta = `<!--meta-start-->
+  <meta name="description" content="${desc}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="${escapeHtml(recipe.title)}" />
+  <meta property="og:description" content="${desc}" />
+  <meta property="og:url" content="${pageUrl}" />
+  ${recipe.image ? `<meta property="og:image" content="${escapeHtml(recipe.image)}" />` : ''}
+  <meta name="twitter:card" content="${recipe.image ? 'summary_large_image' : 'summary'}" />
+  <meta name="twitter:title" content="${escapeHtml(recipe.title)}" />
+  <meta name="twitter:description" content="${desc}" />
+  ${recipe.image ? `<meta name="twitter:image" content="${escapeHtml(recipe.image)}" />` : ''}
+  <!--meta-end-->`;
+    html = html
+      .replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
+      .replace(/<!--meta-start-->[\s\S]*?<!--meta-end-->/, meta);
+  }
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+// Dynamic sitemap covering the homepage plus every currently-cached recipe.
+// Recipes rotate out of the RSS cache as blogs publish new posts, so this
+// reflects "recent" content rather than a permanent archive — regenerated
+// fresh on each request from feedCache, which is cheap at this scale.
+app.get('/sitemap.xml', (req, res) => {
+  const base = 'https://mise-en-scroll.onrender.com';
+  const urls = [`  <url><loc>${base}/</loc><changefreq>hourly</changefreq></url>`];
+  const seen = new Set();
+  for (const { recipes } of feedCache.values()) {
+    for (const r of recipes) {
+      if (!r.url || seen.has(r.url)) continue;
+      seen.add(r.url);
+      urls.push(`  <url><loc>${base}/recipe?url=${encodeURIComponent(r.url)}</loc></url>`);
+    }
+  }
+  res.setHeader('Content-Type', 'application/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -281,6 +356,21 @@ function decodeHtml(str) {
     .replace(/&frac14;/g, '¼')
     .replace(/&frac34;/g, '¾')
     .trim();
+}
+
+// Strips unresolved email-merge-tag query params (e.g. ?adt_ei=*|EMAIL|*) that
+// some blogs' RSS feeds leak from their email-campaign link tracking — the
+// template placeholder never gets filled in for RSS subscribers, so it ends
+// up baked into the permalink verbatim.
+function cleanRecipeUrl(link) {
+  if (!link) return link;
+  try {
+    const u = new URL(link);
+    for (const [k, v] of [...u.searchParams]) {
+      if (/\*\|.*\|\*/.test(v)) u.searchParams.delete(k);
+    }
+    return u.toString();
+  } catch { return link; }
 }
 
 function extractImage(item) {
@@ -635,7 +725,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -725,10 +815,11 @@ async function fetchBlogFeed(blog) {
     ).filter(Boolean);
     const searchText = [item.title || '', ...categories, item.contentSnippet || ''].join(' ').toLowerCase();
     const cookTimeMinutes = extractCookTimeMinutes(item);
+    const cleanLink = cleanRecipeUrl(item.link);
     return {
-      id: Buffer.from(item.link || item.guid || '').toString('base64'),
+      id: Buffer.from(cleanLink || item.guid || '').toString('base64'),
       title: decodeHtml(item.title?.trim()),
-      url: item.link,
+      url: cleanLink,
       date: item.pubDate || item.isoDate,
       image: extractImage(item),
       blog: blog.name,
