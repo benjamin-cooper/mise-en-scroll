@@ -1,12 +1,12 @@
 /* === Variables === */
 :root {
-  --bg: #faf7f2;
+  --bg: #f5f4ee;
   --surface: #ffffff;
-  --text: #1c1917;
-  --muted: #78716c;
-  --border: #e7e5e4;
-  --accent: #c75b2e;
-  --accent-light: #fdf0eb;
+  --text: #3a3f38;
+  --muted: #7c8579;
+  --border: #e3e1d4;
+  --accent: #c17a2e;
+  --accent-light: #f2e6c4;
   --radius: 12px;
   --radius-sm: 6px;
   --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 6px 16px rgba(0,0,0,0.05);
@@ -21,7 +21,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Work Sans', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -58,9 +58,9 @@ ul, ol { padding-left: 1.25rem; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text);
   letter-spacing: -0.01em;
 }
@@ -223,7 +223,7 @@ ul, ol { padding-left: 1.25rem; }
 }
 .card-image {
   aspect-ratio: 3/2;
-  background: #f0ece4;
+  background: #eae8dc;
   overflow: hidden;
   position: relative;
   flex-shrink: 0;
@@ -278,7 +278,7 @@ ul, ol { padding-left: 1.25rem; }
 .card:hover .card-hide { opacity: 1; }
 .card-hide:hover { color: #666; background: white; }
 .card-image.no-image {
-  background: color-mix(in srgb, var(--blog-color, #c75b2e) 12%, #faf7f2);
+  background: color-mix(in srgb, var(--blog-color, #c17a2e) 12%, #f5f4ee);
 }
 .card-no-image {
   position: absolute;
@@ -288,10 +288,10 @@ ul, ol { padding-left: 1.25rem; }
   justify-content: center;
 }
 .card-no-image-initial {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 4rem;
-  font-weight: 700;
-  color: var(--blog-color, #c75b2e);
+  font-weight: 400;
+  color: var(--blog-color, #c17a2e);
   opacity: 0.2;
   line-height: 1;
   text-transform: uppercase;
@@ -315,9 +315,9 @@ ul, ol { padding-left: 1.25rem; }
   white-space: nowrap;
 }
 .card-title {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--text);
 }
@@ -424,7 +424,7 @@ ul, ol { padding-left: 1.25rem; }
   width: 100%;
   aspect-ratio: 16/9;
   overflow: hidden;
-  background: #f0ece4;
+  background: #eae8dc;
   flex-shrink: 0;
 }
 .drawer-hero img {
@@ -441,9 +441,9 @@ ul, ol { padding-left: 1.25rem; }
   margin-bottom: 10px;
 }
 .drawer-title {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.3;
   margin-bottom: 12px;
   color: var(--text);
@@ -488,9 +488,9 @@ ul, ol { padding-left: 1.25rem; }
   margin-bottom: 28px;
 }
 .recipe-section h3 {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
@@ -783,7 +783,7 @@ ul, ol { padding-left: 1.25rem; }
   font-size: 0.78rem;
   font-weight: 400;
   font-style: italic;
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   color: var(--muted);
   white-space: nowrap;
   min-width: 52px;
@@ -1242,9 +1242,9 @@ ul, ol { padding-left: 1.25rem; }
   border-bottom: 1px solid var(--border);
 }
 .recipe-section-header h3 {
-  font-family: 'Lora', Georgia, serif;
+  font-family: 'Libre Caslon Display', Georgia, serif;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text);
   margin: 0;
   padding: 0;
@@ -1643,22 +1643,22 @@ ul, ol { padding-left: 1.25rem; }
    OR user has explicitly forced dark via the toggle button.        */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1a1714;
-    --surface: #242220;
-    --text: #f5f0eb;
-    --muted: #9a9490;
-    --border: #38342f;
-    --accent: #d9764a;
-    --accent-light: #2d1e15;
+    --bg: #1b1d17;
+    --surface: #242620;
+    --text: #eeede2;
+    --muted: #9a9c8c;
+    --border: #34362b;
+    --accent: #d99a3f;
+    --accent-light: #362c17;
     --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2);
     --shadow-hover: 0 4px 12px rgba(0,0,0,0.4), 0 16px 32px rgba(0,0,0,0.3);
   }
   :root:not([data-theme="light"]) .skeleton .card-image,
   :root:not([data-theme="light"]) .skeleton-line {
-    background: linear-gradient(90deg, #2a2622 25%, #342e28 50%, #2a2622 75%);
+    background: linear-gradient(90deg, #262820 25%, #303228 50%, #262820 75%);
     background-size: 600px 100%;
   }
-  :root:not([data-theme="light"]) .card-image { background: #2a2622; }
+  :root:not([data-theme="light"]) .card-image { background: #262820; }
   :root:not([data-theme="light"]) .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
   :root:not([data-theme="light"]) .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
   :root:not([data-theme="light"]) .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
@@ -1667,22 +1667,22 @@ ul, ol { padding-left: 1.25rem; }
 
 /* Explicit dark override (user toggled on regardless of system) */
 :root[data-theme="dark"] {
-  --bg: #1a1714;
-  --surface: #242220;
-  --text: #f5f0eb;
-  --muted: #9a9490;
-  --border: #38342f;
-  --accent: #d9764a;
-  --accent-light: #2d1e15;
+  --bg: #1b1d17;
+  --surface: #242620;
+  --text: #eeede2;
+  --muted: #9a9c8c;
+  --border: #34362b;
+  --accent: #d99a3f;
+  --accent-light: #362c17;
   --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2);
   --shadow-hover: 0 4px 12px rgba(0,0,0,0.4), 0 16px 32px rgba(0,0,0,0.3);
 }
 :root[data-theme="dark"] .skeleton .card-image,
 :root[data-theme="dark"] .skeleton-line {
-  background: linear-gradient(90deg, #2a2622 25%, #342e28 50%, #2a2622 75%);
+  background: linear-gradient(90deg, #262820 25%, #303228 50%, #262820 75%);
   background-size: 600px 100%;
 }
-:root[data-theme="dark"] .card-image { background: #2a2622; }
+:root[data-theme="dark"] .card-image { background: #262820; }
 :root[data-theme="dark"] .drawer-overlay.is-open { background: rgba(0,0,0,0.65); }
 :root[data-theme="dark"] .blog-picker-dropdown { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 :root[data-theme="dark"] .plan-slot-btn.is-taken { background: #163324; border-color: #2d6640; color: #4caf7a; }
@@ -1769,7 +1769,7 @@ ul, ol { padding-left: 1.25rem; }
   transition: all var(--transition);
 }
 .board-tab:hover { border-color: var(--text); color: var(--text); }
-.board-tab.is-active { background: var(--accent, #c75b2e); color: #fff; border-color: var(--accent, #c75b2e); }
+.board-tab.is-active { background: var(--accent, #c17a2e); color: #fff; border-color: var(--accent, #c17a2e); }
 .board-tab-count {
   display: inline-flex;
   align-items: center;
@@ -1830,7 +1830,7 @@ ul, ol { padding-left: 1.25rem; }
   transition: background var(--transition);
 }
 .board-picker-item:hover { background: var(--border); }
-.board-picker-item.is-in { color: var(--accent, #c75b2e); font-weight: 500; }
+.board-picker-item.is-in { color: var(--accent, #c17a2e); font-weight: 500; }
 .board-new-row {
   display: flex;
   gap: 6px;
@@ -1848,12 +1848,12 @@ ul, ol { padding-left: 1.25rem; }
   color: var(--text);
   outline: none;
 }
-.board-new-input:focus { border-color: var(--accent, #c75b2e); }
+.board-new-input:focus { border-color: var(--accent, #c17a2e); }
 .board-new-btn {
   padding: 6px 12px;
   font-size: 0.8rem;
   font-weight: 500;
-  background: var(--accent, #c75b2e);
+  background: var(--accent, #c17a2e);
   color: #fff;
   border: none;
   border-radius: 6px;
