@@ -846,7 +846,7 @@ function renderHeader() {
             </button>
           ` : ''}
         </nav>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div class="header-right">
           <a href="/terms.html" class="header-about" title="About &amp; Attribution">About</a>
           <button class="theme-toggle" data-action="toggle-theme" aria-label="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}" title="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}">
             ${isDark()

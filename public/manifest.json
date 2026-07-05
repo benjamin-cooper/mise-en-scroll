@@ -1,7 +1,7 @@
 {
   "name": "Mise en Scroll",
   "short_name": "Mise en Scroll",
-  "description": "Recipe discovery from 83 food blogs",
+  "description": "New recipes from your favorite food blogs, all in one feed",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faf7f2",
