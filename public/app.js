@@ -257,27 +257,41 @@ function loadBoards() { try { return JSON.parse(localStorage.getItem(BOARDS_KEY)
 function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(state.boards)); } catch {} }
 
 const HIDDEN_KEY = 'mise-en-scroll-hidden';
+// Normalises a recipe URL to (host + path, no query/hash/trailing-slash/www)
+// so hiding a post survives the source blog or our own cleanup logic
+// changing its query string later (e.g. dropping tracking params) — otherwise
+// an exact-string match would silently un-hide a post the next time its URL
+// shifted even slightly.
+function normalizeUrl(u) {
+  try {
+    const parsed = new URL(u);
+    return (parsed.hostname.replace(/^www\./, '') + parsed.pathname.replace(/\/+$/, '')).toLowerCase();
+  } catch { return (u || '').toLowerCase(); }
+}
+
 // Hidden posts — stored as { url, title, blog, blogColor } objects for unhide UI
 let _hiddenRaw = (() => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; } })();
 // Normalise old format (plain URL strings) to objects
 _hiddenRaw = _hiddenRaw.map(e => typeof e === 'string' ? { url: e } : e);
-let hiddenUrls = new Set(_hiddenRaw.map(e => e.url));
-let _hiddenMeta = new Map(_hiddenRaw.map(e => [e.url, e]));
+let hiddenUrls = new Set(_hiddenRaw.map(e => normalizeUrl(e.url)));
+let _hiddenMeta = new Map(_hiddenRaw.map(e => [normalizeUrl(e.url), e]));
 
 function hidePost(recipe) {
+  const key = normalizeUrl(recipe.url);
   const entry = { url: recipe.url, title: recipe.title || '', blog: recipe.blog || '', blogColor: recipe.blogColor || '#888' };
-  hiddenUrls.add(recipe.url);
-  _hiddenMeta.set(recipe.url, entry);
-  _visibleRecipesCache = null; // bust stable-ref cache
+  hiddenUrls.add(key);
+  _hiddenMeta.set(key, entry);
+  _visibleRecipesKey = ''; // force getVisibleRecipes() to recompute on next call
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([..._hiddenMeta.values()])); } catch {}
 }
 function unhidePost(url) {
-  hiddenUrls.delete(url);
-  _hiddenMeta.delete(url);
-  _visibleRecipesCache = null;
+  const key = normalizeUrl(url);
+  hiddenUrls.delete(key);
+  _hiddenMeta.delete(key);
+  _visibleRecipesKey = '';
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([..._hiddenMeta.values()])); } catch {}
 }
-function isHidden(url) { return hiddenUrls.has(url); }
+function isHidden(url) { return hiddenUrls.has(normalizeUrl(url)); }
 function getHiddenList() { return [..._hiddenMeta.values()]; }
 
 // Stable-reference cache for hidden-filtered recipes so applyFilters memo still hits
@@ -286,7 +300,7 @@ let _visibleRecipesKey = '';
 function getVisibleRecipes() {
   const key = state.recipes.length + ':' + hiddenUrls.size;
   if (key !== _visibleRecipesKey) {
-    _visibleRecipesCache = hiddenUrls.size ? state.recipes.filter(r => !hiddenUrls.has(r.url)) : state.recipes;
+    _visibleRecipesCache = hiddenUrls.size ? state.recipes.filter(r => !hiddenUrls.has(normalizeUrl(r.url))) : state.recipes;
     _visibleRecipesKey = key;
   }
   return _visibleRecipesCache;

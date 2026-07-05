@@ -92,7 +92,11 @@ app.get('/recipe', (req, res) => {
     const title = `${escapeHtml(recipe.title)} — Mise en Scroll`;
     const desc = escapeHtml((recipe.excerpt || `A recipe from ${recipe.blog}, via Mise en Scroll.`).slice(0, 200));
     const pageUrl = `https://mise-en-scroll.onrender.com/recipe?url=${encodeURIComponent(recipe.url)}`;
+    // Canonical points at the ORIGINAL blog post, not this page — tells Google
+    // the source of truth lives there, so this aggregator page never competes
+    // with (or outranks) the blog it's crediting for search visibility.
     const meta = `<!--meta-start-->
+  <link rel="canonical" href="${escapeHtml(recipe.url)}" />
   <meta name="description" content="${desc}" />
   <meta property="og:type" content="article" />
   <meta property="og:title" content="${escapeHtml(recipe.title)}" />
