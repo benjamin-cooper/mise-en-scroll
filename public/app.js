@@ -42,6 +42,7 @@ const FILTERS = {
     { label: 'Grilled',     icon: '🔥', keywords: ['grilled', 'grill', 'grilling', 'bbq', 'barbecue', 'charred', 'smoked'] },
     { label: 'Instant Pot', icon: '⚡', keywords: ['instant pot', 'pressure cooker', 'pressure cook', 'instant-pot'] },
     { label: 'No-Cook',     icon: '🥗', keywords: ['no-cook', 'no cook', 'no-bake', 'no bake', 'raw', 'refrigerator', 'icebox', 'ceviche', 'tartare', 'crudo'] },
+    { label: 'One Pot',     icon: '🍲', keywords: ['one pot', 'one-pot', 'one pot meal', 'one pot dinner', 'one pot recipe', 'one pan', 'one-pan', 'sheet pan', 'sheet-pan', 'skillet meal', 'skillet dinner'] },
     { label: 'Pan-Fried',   icon: '🍳', keywords: ['pan-fried', 'pan fried', 'pan fry', 'pan seared', 'pan-seared', 'deep fried', 'deep-fried', 'shallow fry', 'crispy fried', 'fried chicken', 'stir-fried'] },
     { label: 'Slow Cooker', icon: '🫕', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
     { label: 'Steamed',     icon: '♨️',  keywords: ['steamed', 'steam', 'steamer', 'poached', 'poach', 'en papillote', 'sous vide'] },
