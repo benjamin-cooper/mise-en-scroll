@@ -59,6 +59,7 @@ const FILTERS = {
   dietary: [
     { label: 'Dairy-Free',   icon: '🥛', keywords: ['dairy-free', 'dairy free', 'non-dairy', 'lactose-free', 'lactose free', 'vegan cheese', 'oat milk', 'almond milk'] },
     { label: 'Gluten-Free',  icon: '🌾', keywords: ['gluten-free', 'gluten free', 'gf recipe', 'celiac', 'coeliac', 'wheat-free', 'wheat free'] },
+    { label: 'High Fiber',   icon: '🌿', keywords: ['high fiber', 'high-fiber', 'fiber rich', 'fiber-rich', 'whole grain', 'whole-grain', 'high fibre', 'gut health', 'gut-friendly'] },
     { label: 'High Protein', icon: '💪', keywords: ['high protein', 'high-protein', 'protein packed', 'protein-packed', 'macro friendly', 'macro-friendly', 'protein bowl', 'muscle', 'bulking', 'post workout', 'post-workout'] },
     { label: 'Keto',         icon: '🥑', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly', 'carnivore', 'zero carb'] },
     { label: 'Low Carb',    icon: '🥬', keywords: ['low carb', 'low-carb', 'lower carb', 'low carbohydrate', 'carb conscious', 'carb-conscious', 'cauliflower rice', 'zucchini noodles', 'zoodles', 'spaghetti squash', 'lettuce wrap', 'lettuce cups', 'cloud bread', 'almond flour', 'coconut flour'] },
