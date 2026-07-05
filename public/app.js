@@ -404,7 +404,7 @@ function nutritionChips(d) {
 
   const source = showCalc
     ? `<a class="nutrition-source" href="https://calorieninjas.com" target="_blank" rel="noopener">Estimated · CalorieNinjas</a>`
-    : `<span class="nutrition-source">Published by ${d.blog || 'recipe author'}</span>`;
+    : `<span class="nutrition-source">Published by ${d.blog || state.selected?.preview?.blog || 'the original blog'}</span>`;
 
   return `<div class="nutrition-chips">
     ${toggle}
@@ -823,6 +823,12 @@ function renderHeader() {
     <header class="header">
       <div class="container">
         <div class="header-logo">
+          <svg class="logo-mark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="3.5" rx="1.75"/>
+            <rect x="4" y="17.5" width="16" height="3.5" rx="1.75"/>
+            <line x1="7.5" y1="10" x2="16.5" y2="10"/>
+            <line x1="7.5" y1="13.5" x2="13.5" y2="13.5"/>
+          </svg>
           <span class="logo-text">Mise en Scroll</span>
         </div>
         <nav class="header-tabs">
@@ -835,7 +841,8 @@ function renderHeader() {
           </button>
           ${state.view === 'discover' && !state.loading && state.recipes.length ? `
             <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
-              🎲 <span>Surprise me</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+              <span>Surprise me</span>
             </button>
           ` : ''}
         </nav>
@@ -1082,7 +1089,7 @@ function renderMealPlan() {
       </div>
       ${Object.values(state.mealPlan).every(d => !d || MEAL_SLOTS.every(s => !d[s])) ? `
         <div class="empty" style="padding:60px 20px">
-          <div class="empty-icon">📅</div>
+          <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
           <p>Your meal plan is empty. Open any recipe and tap <strong>Add to Plan</strong> to schedule it.</p>
         </div>
       ` : ''}
@@ -1103,7 +1110,7 @@ function renderContent() {
       return `
         <div class="container">
           <div class="empty">
-            <div class="empty-icon">🔍</div>
+            <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
             <p>${state.searchError ? escHtml(state.searchError) : 'Nothing turned up — try different keywords.'}</p>
             <button class="btn btn-secondary" data-action="clear-all-filters" style="margin-top:16px">Clear all filters</button>
           </div>
@@ -1160,7 +1167,9 @@ function renderContent() {
     return `
       <div class="container">
         <div class="empty">
-          <div class="empty-icon">${hasActiveFilters() ? '🔍' : '🍽️'}</div>
+          <div class="empty-icon">${hasActiveFilters()
+            ? '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+            : '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>'}</div>
           <p>${hasActiveFilters()
             ? 'Nothing matched — try loosening the filters.'
             : state.view === 'favorites'
@@ -1253,7 +1262,7 @@ function renderCard(r) {
         <div class="card-meta">
           ${badge(r.blog, r.blogColor)}
           <div style="display:flex;align-items:center;gap:6px">
-            ${state.view === 'favorites' && getCookedCount(r.url) > 0 ? `<span class="cooked-badge" title="Cooked ${getCookedCount(r.url)} time${getCookedCount(r.url)>1?'s':''}">🍳 ${getCookedCount(r.url)}×</span>` : ''}
+            ${state.view === 'favorites' && getCookedCount(r.url) > 0 ? `<span class="cooked-badge" title="Cooked ${getCookedCount(r.url)} time${getCookedCount(r.url)>1?'s':''}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${getCookedCount(r.url)}×</span>` : ''}
             <span class="card-date">${formatDate(r.date)}</span>
           </div>
         </div>
@@ -1331,7 +1340,7 @@ function renderDrawer() {
             ` : `<p class="plan-picker-hint">Pick a day above</p>`}
           </div>
         ` : `
-          <button class="btn btn-plan" data-action="open-plan-picker">📅 Add to Meal Plan</button>
+          <button class="btn btn-plan" data-action="open-plan-picker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Add to Meal Plan</button>
         `}
       </div>
     `;
@@ -1373,7 +1382,7 @@ function renderDrawer() {
         </section>
         <div class="cooked-row">
           <button class="btn-cooked" data-action="mark-cooked">
-            🍳 Mark as cooked${cookedCount > 0 ? ` <span class="cooked-count-pill">${cookedCount}×</span>` : ''}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><polyline points="20 6 9 17 4 12"/></svg> Mark as cooked${cookedCount > 0 ? ` <span class="cooked-count-pill">${cookedCount}×</span>` : ''}
           </button>
           ${cookedCount > 0 ? `<span class="cooked-last">Last cooked ${formatDate(favData?.cookedDates?.slice(-1)[0]) || ''}</span>` : ''}
         </div>
@@ -1628,7 +1637,7 @@ document.addEventListener('click', async (e) => {
     const url = state.selected?.url;
     if (!url || !isFav(url)) { showToast('Save this recipe first'); return; }
     markCooked(url);
-    showToast('Marked as cooked! 🍳');
+    showToast('Marked as cooked');
     renderApp();
     return;
   }
