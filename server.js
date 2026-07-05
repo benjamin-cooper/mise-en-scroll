@@ -654,6 +654,12 @@ const NON_RECIPE_CATEGORIES = new Set([
   'blog', 'news', 'announcements', 'announcement', 'uncategorized',
   'opinion', 'editorial', 'press', 'press release', 'updates', 'update',
   'behind the scenes', 'life', 'personal', 'site news', 'community',
+  'article', 'articles', 'culture', 'food culture & travel',
+  'beyond the kitchen', 'tools',
+  // Roundup/list posts — reliably tagged as such even when the title itself
+  // doesn't match the ROUNDUP_PATTERNS regexes below (e.g. "15 Homemade
+  // Condiments" or "8 Easy No-Bake Desserts" don't match "over X" patterns)
+  'round up', 'round-ups', 'roundup', 'roundups',
 ]);
 
 function isRoundup(title = '', url = '', categories = []) {
@@ -750,7 +756,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 6;
+const CACHE_VERSION = 7;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
