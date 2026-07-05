@@ -57,11 +57,16 @@ ul, ol { padding-left: 1.25rem; }
 .header-logo {
   display: flex;
   align-items: center;
+  gap: 8px;
   font-family: 'Lora', Georgia, serif;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
+}
+.logo-mark {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 .logo-text em {
   font-style: italic;
@@ -357,7 +362,7 @@ ul, ol { padding-left: 1.25rem; }
   padding: 80px 20px;
   color: var(--muted);
 }
-.empty-icon { font-size: 3rem; margin-bottom: 16px; }
+.empty-icon { margin-bottom: 16px; color: var(--muted); opacity: 0.5; display: flex; justify-content: center; }
 .empty p { font-size: 1rem; max-width: 320px; margin: 0 auto; }
 
 /* === Drawer Overlay === */
