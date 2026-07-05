@@ -4,8 +4,8 @@
   "description": "New recipes from your favorite food blogs, all in one feed",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#faf7f2",
-  "theme_color": "#c75b2e",
+  "background_color": "#f5f4ee",
+  "theme_color": "#c17a2e",
   "orientation": "portrait-primary",
   "icons": [
     {

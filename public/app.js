@@ -1240,7 +1240,7 @@ function renderContent() {
 
 function renderCard(r) {
   const noImg = !r.image;
-  const c = r.blogColor || '#c75b2e';
+  const c = r.blogColor || '#c17a2e';
   // In search mode, cards with no image get a data attribute so the lazy OG fetcher can fill them in
   const needsOg = noImg && state.searchMode ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
