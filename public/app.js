@@ -824,10 +824,9 @@ function renderHeader() {
       <div class="container">
         <div class="header-logo">
           <svg class="logo-mark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="3" width="16" height="3.5" rx="1.75"/>
-            <rect x="4" y="17.5" width="16" height="3.5" rx="1.75"/>
-            <line x1="7.5" y1="10" x2="16.5" y2="10"/>
-            <line x1="7.5" y1="13.5" x2="13.5" y2="13.5"/>
+            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+            <path d="M7 2v20"/>
+            <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
           </svg>
           <span class="logo-text">Mise en Scroll</span>
         </div>
