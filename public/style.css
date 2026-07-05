@@ -107,6 +107,12 @@ ul, ol { padding-left: 1.25rem; }
   border-radius: 10px;
   line-height: 1.4;
 }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
 
 /* Blog picker dropdown */
@@ -1098,6 +1104,25 @@ ul, ol { padding-left: 1.25rem; }
   }
   /* Shrink header logo text on small screens */
   .header-logo span { font-size: 1rem; }
+
+  /* Two-row header: logo + right-side controls on row 1, nav tabs on a
+     horizontally-scrollable strip below — the single-row layout was
+     squeezing the logo text down to nothing and wrapping it to 3 lines */
+  .header { height: auto; padding: 10px 0; }
+  .header .container { flex-wrap: wrap; row-gap: 8px; }
+  .header-logo { order: 1; }
+  .header-right { order: 2; }
+  .header-tabs {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .header-tabs::-webkit-scrollbar { display: none; }
+  .header-tab { flex-shrink: 0; white-space: nowrap; }
+  .surprise-btn { flex-shrink: 0; }
+  .header-tabs .surprise-btn span { display: inline; }
 }
 
 /* === Mobile drawer === */
