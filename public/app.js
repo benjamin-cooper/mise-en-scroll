@@ -1042,7 +1042,7 @@ function renderSearchSection() {
       ${state.ingredientMode ? `
         <div class="ingredient-banner">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/></svg>
-          <span>Ingredient mode — enter what's in your fridge, e.g. <em>chicken, lemon, garlic</em></span>
+          <span>Ingredient mode: enter what's in your fridge, e.g. <em>chicken, lemon, garlic</em></span>
           <button class="ingredient-banner-close" data-action="toggle-ingredient-mode">✕</button>
         </div>
       ` : ''}
@@ -1111,7 +1111,7 @@ function renderContent() {
         <div class="container">
           <div class="empty">
             <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-            <p>${state.searchError ? escHtml(state.searchError) : 'Nothing turned up — try different keywords.'}</p>
+            <p>${state.searchError ? escHtml(state.searchError) : 'Nothing turned up. Try different keywords.'}</p>
             <button class="btn btn-secondary" data-action="clear-all-filters" style="margin-top:16px">Clear all filters</button>
           </div>
         </div>
@@ -1119,7 +1119,7 @@ function renderContent() {
     }
     return `
       <div class="container">
-        <p class="result-count">Archive search — ${state.searchResults.filter(r => !isHidden(r.url)).length.toLocaleString()} result${state.searchResults.filter(r => !isHidden(r.url)).length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
+        <p class="result-count">Archive search: ${state.searchResults.filter(r => !isHidden(r.url)).length.toLocaleString()} result${state.searchResults.filter(r => !isHidden(r.url)).length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
         <div class="grid">
           ${state.searchResults.filter(r => !isHidden(r.url)).map(renderCard).join('')}
         </div>
@@ -1158,7 +1158,7 @@ function renderContent() {
 
   if (state.loading && state.view === 'discover' && !state.recipes.length) {
     const wakeMsg = state.serverWakingUp
-      ? `<div class="wake-banner"><span class="wake-spinner"></span>Cold start — give it a few seconds…</div>`
+      ? `<div class="wake-banner"><span class="wake-spinner"></span>Cold start, give it a few seconds…</div>`
       : '';
     return `<div class="container">${wakeMsg}<div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
   }
@@ -1171,7 +1171,7 @@ function renderContent() {
             ? '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
             : '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>'}</div>
           <p>${hasActiveFilters()
-            ? 'Nothing matched — try loosening the filters.'
+            ? 'Nothing matched. Try loosening the filters.'
             : state.view === 'favorites'
               ? 'Nothing saved yet.'
               : 'No recipes found.'
@@ -2051,7 +2051,7 @@ if ('serviceWorker' in navigator) {
     if (e.data?.type === 'sw-updated') {
       const toast = document.createElement('div');
       toast.className = 'toast sw-update-toast';
-      toast.innerHTML = 'App updated — <button class="sw-reload-btn" onclick="location.reload()">reload</button>';
+      toast.innerHTML = 'App updated · <button class="sw-reload-btn" onclick="location.reload()">reload</button>';
       document.body.appendChild(toast);
       // Don't auto-remove; let the user decide
     }

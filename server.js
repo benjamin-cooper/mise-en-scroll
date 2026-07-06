@@ -89,7 +89,7 @@ app.get('/recipe', (req, res) => {
 
   let html = getIndexTemplate();
   if (recipe) {
-    const title = `${escapeHtml(recipe.title)} — Mise en Scroll`;
+    const title = `${escapeHtml(recipe.title)} · Mise en Scroll`;
     const desc = escapeHtml((recipe.excerpt || `A recipe from ${recipe.blog}, via Mise en Scroll.`).slice(0, 200));
     const pageUrl = `https://mise-en-scroll.onrender.com/recipe?url=${encodeURIComponent(recipe.url)}`;
     // Canonical points at the ORIGINAL blog post, not this page — tells Google
