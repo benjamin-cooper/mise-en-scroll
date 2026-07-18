@@ -366,7 +366,7 @@ function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function badge(name, color) {
-  return `<span class="badge-blog" style="background:${color}18;color:${color};border-color:${color}44">${escHtml(name)}</span>`;
+  return `<span class="badge-blog" style="color:${color}">${escHtml(name)}</span>`;
 }
 function nutritionChips(d) {
   const hasBlog = !!d.nutrition;
@@ -1240,7 +1240,7 @@ function renderContent() {
 
 function renderCard(r) {
   const noImg = !r.image;
-  const c = r.blogColor || '#c17a2e';
+  const c = r.blogColor || '#5c1a1a';
   // In search mode, cards with no image get a data attribute so the lazy OG fetcher can fill them in
   const needsOg = noImg && state.searchMode ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
