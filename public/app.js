@@ -1590,7 +1590,7 @@ document.addEventListener('click', async (e) => {
     if (navigator.share) {
       navigator.share({ title: title || 'Recipe', url }).catch(() => {});
     } else {
-      copyText(url, 'Link copied!');
+      copyText(url, 'Link copied');
     }
   }
 
@@ -1629,7 +1629,7 @@ document.addEventListener('click', async (e) => {
     if (!state.detail?.ingredients?.length) return;
     const title = state.detail.name || state.selected?.preview?.title || 'Recipe';
     const list = state.detail.ingredients.map(i => `• ${scaleIngredient(i, state.scaleFactor)}`).join('\n');
-    copyText(`${title}\n\n${list}`, 'Ingredients copied!');
+    copyText(`${title}\n\n${list}`, 'Ingredients copied');
     return;
   }
 
@@ -1653,7 +1653,7 @@ document.addEventListener('click', async (e) => {
     a.download = `mise-en-scroll-saved-${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    showToast('Saved recipes exported!');
+    showToast('Saved recipes exported');
     return;
   }
 
@@ -2074,7 +2074,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-function copyFallback(text, successMsg = 'Copied!') {
+function copyFallback(text, successMsg = 'Copied') {
   try {
     const el = document.createElement('textarea');
     el.value = text;
@@ -2088,7 +2088,7 @@ function copyFallback(text, successMsg = 'Copied!') {
     showToast('Could not copy');
   }
 }
-function copyText(text, successMsg = 'Copied!') {
+function copyText(text, successMsg = 'Copied') {
   if (navigator.clipboard && location.protocol === 'https:') {
     navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => copyFallback(text, successMsg));
   } else {
