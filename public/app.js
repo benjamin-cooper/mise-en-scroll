@@ -52,7 +52,7 @@ const FILTERS = {
     { label: 'Breakfast',  icon: '🥞', keywords: ['breakfast', 'brunch', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'benedict', 'hollandaise', 'eggs florentine', 'overnight oats', 'smoothie bowl', 'morning', 'quiche', 'crepe', 'crêpe', 'avocado toast', 'hash brown', 'hashbrown', 'strata', 'shakshuka', 'breakfast burrito', 'breakfast sandwich', 'breakfast bowl', 'oatmeal', 'porridge', 'bagel', 'acai bowl', 'egg bake', 'egg casserole', 'breakfast casserole', 'dutch baby', 'chia pudding', 'breakfast tacos', 'congee', 'menemen', 'dippy eggs', 'soft boiled', 'hard boiled'] },
     { label: 'Lunch',      icon: '🥗', keywords: ['sandwich', 'wrap', 'grain bowl', 'lunch', 'salad', 'soup', 'poke', 'bento', 'panini', 'hoagie', 'tuna melt', 'grilled cheese', 'pasta salad', 'noodle salad', 'flatbread', 'open-faced', 'tartine', 'rice bowl', 'noodle bowl', 'lettuce cup', 'summer roll', 'quesadilla', 'tostada', 'bao', 'chaat', 'lunchbox', 'meal prep'] },
     { label: 'Dinner',     icon: '🍽️', keywords: ['dinner', 'supper', 'weeknight', 'roast', 'entrée', 'entree', 'main course', 'main dish', 'stew', 'pasta', 'curry', 'casserole', 'ragù', 'ragu', 'braise', 'braised', 'gratin', 'fricassee', 'hash', 'skillet dinner', 'sheet pan dinner', 'one pot dinner', 'noodles', 'stir fry', 'stir-fry', 'tacos', 'soup', 'pot pie', 'skillet meal', 'family dinner', 'weeknight meal'] },
-    { label: 'Dessert',    icon: '🍰', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'tart', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'chocolate', 'caramel', 'bars', 'blondie', 'banana bread', 'zucchini bread', 'quick bread', 'bundt', 'churro', 'panna cotta', 'tres leches', 'flan', 'praline', 'toffee', 'brittle', 'lemon curd', 'clafoutis', 'financier', 'profiterole', 'beignet', 'galette', 'crumble', 'pavlova', 'mochi', 'bread pudding', 'rice pudding', 'chocolate truffle', 'lemon bars', 'cinnamon roll', 'monkey bread', 'meringue', 'coffee cake', 'shortbread', 'snickerdoodle', 'danish', 'strudel', 'streusel', 'candy', 'semifreddo', 'entremet', 'dacquoise'] },
+    { label: 'Dessert',    icon: '🍰', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'fruit tart', 'lemon tart', 'berry tart', 'tarte tatin', 'egg tart', 'tart crust', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'apple crisp', 'fruit crisp', 'peach crisp', 'berry crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'chocolate', 'caramel', 'dessert bars', 'blondie', 'banana bread', 'zucchini bread', 'quick bread', 'bundt', 'churro', 'panna cotta', 'tres leches', 'flan', 'praline', 'toffee', 'brittle', 'lemon curd', 'clafoutis', 'financier', 'profiterole', 'beignet', 'galette', 'crumble', 'pavlova', 'mochi', 'bread pudding', 'rice pudding', 'chocolate truffle', 'lemon bars', 'cinnamon roll', 'monkey bread', 'meringue', 'coffee cake', 'shortbread', 'snickerdoodle', 'danish', 'strudel', 'streusel', 'candy', 'semifreddo', 'entremet', 'dacquoise'] },
     { label: 'Snack/Side', icon: '🥨', keywords: ['snack', 'appetizer', 'side dish', 'dip', 'starter', 'finger food', 'small plate', 'nibble', 'chips', 'hummus', 'salsa', 'guacamole', 'bruschetta', 'crostini', 'deviled eggs', 'nachos', 'skewer', 'charcuterie', 'cheese board', 'poppers', 'fries', 'onion rings', 'spring rolls', 'potstickers', 'meatballs', 'flatbread', 'roasted vegetables', 'roasted veggies', 'pickle', 'pickled', 'potato salad', 'coleslaw', 'slaw', 'garlic bread', 'roasted potatoes', 'stuffed mushrooms', 'antipasto', 'energy bites', 'energy balls', 'bliss balls', 'pâté', 'pate', 'crudités', 'crudites', 'board'] },
     { label: 'Drinks',     icon: '🥤', keywords: ['cocktail', 'mocktail', 'smoothie', 'fresh juice', 'cold pressed juice', 'juice recipe', 'lemonade', 'iced tea', 'milkshake', 'margarita', 'sangria', 'spritz', 'fruit punch', 'rum punch', 'party punch', 'holiday punch', 'agua fresca', 'latte', 'cold brew', 'drinking vinegar', 'cocktail syrup', 'simple syrup', 'iced coffee', 'hot chocolate', 'hard cider', 'apple cider drink', 'kombucha', 'milk tea', 'bubble tea', 'chai latte', 'chai tea', 'matcha latte', 'golden milk', 'switchel', 'kefir drink', 'infused water', 'horchata', 'lassi', 'frappe', 'espresso martini', 'ginger beer', 'green juice', 'protein shake', 'mojito', 'daiquiri', 'negroni', 'old fashioned cocktail', 'paloma', 'aperol', 'mulled wine', 'wassail', 'tepache', 'fire cider', 'electrolyte drink'] },
   ],
@@ -673,15 +673,23 @@ async function triggerSearch(start = 1) {
 // match "potatoes" and "one" doesn't match "someone". Tokens are cached as
 // compiled regexes since the same query is tested against many recipes.
 const _wordBoundaryCache = new Map();
+function _wordBoundaryRe(t) {
+  let re = _wordBoundaryCache.get(t);
+  if (!re) {
+    re = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    _wordBoundaryCache.set(t, re);
+  }
+  return re;
+}
 function matchesAllTokens(text, tokens) {
-  return tokens.every(t => {
-    let re = _wordBoundaryCache.get(t);
-    if (!re) {
-      re = new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
-      _wordBoundaryCache.set(t, re);
-    }
-    return re.test(text);
-  });
+  return tokens.every(t => _wordBoundaryRe(t).test(text));
+}
+// Same word-boundary logic as matchesAllTokens, but "any keyword matches"
+// instead of "every token matches" — used by the cuisine/protein/meal/etc.
+// filter chips, which were plain-substring-matching keywords like "cake"
+// against "pancakes" and "crisp" against "crispy".
+function matchesAnyKeyword(text, keywords) {
+  return keywords.some(kw => _wordBoundaryRe(kw).test(text));
 }
 
 let _filterMemo = null;
@@ -704,11 +712,11 @@ function applyFilters(recipes) {
     }
     if (state.cuisineFilters.length) {
       const kws = state.cuisineFilters.flatMap(label => FILTERS.cuisine.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (!matchesAnyKeyword(full, kws)) return false;
     }
     if (state.proteinFilters.length) {
       const kws = state.proteinFilters.flatMap(label => FILTERS.protein.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (!matchesAnyKeyword(full, kws)) return false;
     }
     if (state.timeFilters.length) {
       if (r.cookTimeMinutes != null) {
@@ -722,20 +730,20 @@ function applyFilters(recipes) {
         if (!passes) return false;
       } else {
         const kws = state.timeFilters.flatMap(label => FILTERS.time.find(f => f.label === label)?.keywords || []);
-        if (!kws.some(kw => full.includes(kw))) return false;
+        if (!matchesAnyKeyword(full, kws)) return false;
       }
     }
     if (state.mealFilters.length) {
       const kws = state.mealFilters.flatMap(label => FILTERS.meal.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (!matchesAnyKeyword(full, kws)) return false;
     }
     if (state.dietaryFilters.length) {
       const kws = state.dietaryFilters.flatMap(label => FILTERS.dietary.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (!matchesAnyKeyword(full, kws)) return false;
     }
     if (state.methodFilters.length) {
       const kws = state.methodFilters.flatMap(label => FILTERS.method.find(f => f.label === label)?.keywords || []);
-      if (!kws.some(kw => full.includes(kw))) return false;
+      if (!matchesAnyKeyword(full, kws)) return false;
     }
     return true;
   });

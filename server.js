@@ -362,6 +362,15 @@ function decodeHtml(str) {
     .trim();
 }
 
+// Strips WordPress's auto-appended "The post X appeared first on Y." from
+// RSS excerpts. Left in place, the blog's own name (e.g. "Cookie and Kate")
+// leaks into searchText and can false-match unrelated category filter
+// keywords (e.g. Dessert's "cookie") on every single post from that blog.
+function stripFeedBoilerplate(str) {
+  if (!str) return str;
+  return str.replace(/\s*the post .*? appeared first on .*?\.?\s*$/i, '').trim();
+}
+
 // Strips unresolved email-merge-tag query params (e.g. ?adt_ei=*|EMAIL|*) that
 // some blogs' RSS feeds leak from their email-campaign link tracking — the
 // template placeholder never gets filled in for RSS subscribers, so it ends
@@ -756,7 +765,7 @@ app.get('/api/blogs', (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 9;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -842,7 +851,12 @@ async function fetchBlogFeed(blog) {
     .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
     .slice(0, 20).map((item) => {
     const categories = normalizeCategories(item);
-    const searchText = [item.title || '', ...categories, item.contentSnippet || ''].join(' ').toLowerCase();
+    const cleanSnippet = stripFeedBoilerplate(item.contentSnippet);
+    // Cap at ~500 chars — some blogs' feeds include full article text rather
+    // than a short excerpt, and a stray mention buried deep in the body
+    // (an aside, a "you might also like" callout) shouldn't be able to
+    // false-match a category filter keyword for the whole post.
+    const searchText = [item.title || '', ...categories, (cleanSnippet || '').slice(0, 500)].join(' ').toLowerCase();
     const cookTimeMinutes = extractCookTimeMinutes(item);
     const cleanLink = cleanRecipeUrl(item.link);
     return {
@@ -853,7 +867,7 @@ async function fetchBlogFeed(blog) {
       image: extractImage(item),
       blog: blog.name,
       blogColor: blog.color,
-      excerpt: item.contentSnippet ? decodeHtml(item.contentSnippet.slice(0, 140).trim()) + '…' : '',
+      excerpt: cleanSnippet ? decodeHtml(cleanSnippet.slice(0, 140).trim()) + '…' : '',
       categories,
       searchText,
       ...(cookTimeMinutes !== null ? { cookTimeMinutes } : {}),
