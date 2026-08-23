@@ -576,8 +576,9 @@ function insertSortedStreamCards(batch) {
   });
 }
 async function triggerSearch(start = 1) {
-  // In saved view, never hit the API — just re-render with local filtering
-  if (state.view === 'favorites') { renderApp(); return; }
+  // In saved/archive views, never hit the RSS search API — just re-render
+  // with local filtering (applyFilters runs against whatever's already loaded).
+  if (state.view === 'favorites' || state.view === 'archive') { renderApp(); return; }
 
   // Ingredient mode — sends raw ingredient text to AI-powered endpoint
   if (state.ingredientMode) {
@@ -734,7 +735,9 @@ function applyFilters(recipes) {
   ].join('|');
   if (_filterMemo && _filterMemo.recipes === recipes && _filterMemo.fp === fp) return _filterMemo.result;
   const result = recipes.filter(r => {
-    const full = r.searchText || (r.title + ' ' + r.excerpt).toLowerCase();
+    // Archive entries have no excerpt (sitemaps don't carry one) — fall back
+    // to title-only matching for them.
+    const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
 
     if (state.filter && r.blog !== state.filter) return false;
 
@@ -944,7 +947,10 @@ function renderBlogPicker() {
   `;
 }
 
-function renderSearchSection() {
+// Shared cuisine/meal/dietary/protein/time/method chip UI — used by both the
+// Discover search section and the Archive tab (Archive filters match against
+// title only, since sitemaps carry no excerpt, but the chip UI is identical).
+function renderFilterChips() {
   const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.methodFilters.length;
   const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
 
@@ -959,41 +965,6 @@ function renderSearchSection() {
   const openCat = state.openFilterDropdown ? mobileCats.find(c => c.key === state.openFilterDropdown) : null;
 
   return `
-    <div class="search-section">
-      <div class="container">
-        <div class="search-row">
-          ${renderBlogPicker()}
-          <div class="search-wrap">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input class="search-input ${state.ingredientMode ? 'ingredient-mode' : ''}"
-                   type="text"
-                   placeholder="${state.view === 'favorites' ? 'Filter saved recipes…' : state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
-                   data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
-            ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
-            <div class="autocomplete-dropdown" id="autocomplete-dropdown" hidden></div>
-          </div>
-          ${state.view !== 'favorites' ? `
-          <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
-                  data-action="toggle-ingredient-mode"
-                  title="${state.ingredientMode ? 'Switch to keyword search' : 'Search by ingredients you have'}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
-            </svg>
-            <span>By ingredients</span>
-          </button>` : ''}
-        </div>
-
-        ${state.recentSearches.length && !state.searchQuery && !state.ingredientMode && state.view !== 'favorites' ? `
-          <div class="recent-searches">
-            <span class="recent-searches-label">Recent</span>
-            ${state.recentSearches.map(s => `<button class="recent-search-chip" data-action="recent-search" data-query="${escHtml(s)}">${escHtml(s)}</button>`).join('')}
-            <button class="recent-searches-clear" data-action="clear-search-history" aria-label="Clear history">Clear</button>
-          </div>
-        ` : ''}
-
         <!-- Filter toggle row -->
         ${state.view !== 'favorites' ? `
         <div class="filter-toggle-row">
@@ -1092,6 +1063,47 @@ function renderSearchSection() {
         ` : ''}
 
         ${anyActive ? `<button class="clear-tags" data-action="clear-smart-filters">Clear filters</button>` : ''}
+  `;
+}
+
+function renderSearchSection() {
+  return `
+    <div class="search-section">
+      <div class="container">
+        <div class="search-row">
+          ${renderBlogPicker()}
+          <div class="search-wrap">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input class="search-input ${state.ingredientMode ? 'ingredient-mode' : ''}"
+                   type="text"
+                   placeholder="${state.view === 'favorites' ? 'Filter saved recipes…' : state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
+                   data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
+            ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
+            <div class="autocomplete-dropdown" id="autocomplete-dropdown" hidden></div>
+          </div>
+          ${state.view !== 'favorites' ? `
+          <button class="ingredient-toggle ${state.ingredientMode ? 'is-active' : ''}"
+                  data-action="toggle-ingredient-mode"
+                  title="${state.ingredientMode ? 'Switch to keyword search' : 'Search by ingredients you have'}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V20a2 2 0 0 1-4 0V9.4C8.8 8.8 8 7.5 8 6a4 4 0 0 1 4-4z"/>
+            </svg>
+            <span>By ingredients</span>
+          </button>` : ''}
+        </div>
+
+        ${state.recentSearches.length && !state.searchQuery && !state.ingredientMode && state.view !== 'favorites' ? `
+          <div class="recent-searches">
+            <span class="recent-searches-label">Recent</span>
+            ${state.recentSearches.map(s => `<button class="recent-search-chip" data-action="recent-search" data-query="${escHtml(s)}">${escHtml(s)}</button>`).join('')}
+            <button class="recent-searches-clear" data-action="clear-search-history" aria-label="Clear history">Clear</button>
+          </div>
+        ` : ''}
+
+        ${renderFilterChips()}
       </div>
       ${state.ingredientMode ? `
         <div class="ingredient-banner">
@@ -1156,7 +1168,7 @@ function renderArchive() {
   const header = `
     <div class="container" style="padding-top:20px">
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
-        Full post history for every blog, pulled from each site's sitemap rather than its RSS feed — thousands of recipes per blog instead of the last handful. Browsing only (no cuisine/dietary filters here, sitemaps don't carry that data), but title search works.
+        Full post history for every blog, pulled from each site's sitemap rather than its RSS feed — thousands of recipes per blog instead of the last handful. Filters here match against the title only (sitemaps don't carry excerpts), so they're less precise than on Discover.
       </p>
       <div class="search-wrap" style="max-width:480px">
         <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
@@ -1167,6 +1179,7 @@ function renderArchive() {
                data-action="archive-search" value="${escHtml(state.archiveQuery)}" autocomplete="off">
         ${state.archiveQuery ? `<button class="search-clear" data-action="archive-search-clear" aria-label="Clear search">✕</button>` : ''}
       </div>
+      ${renderFilterChips()}
     </div>
   `;
 
@@ -1185,11 +1198,18 @@ function renderArchive() {
     `;
   }
 
+  const filtered = applyFilters(state.archiveResults.filter(r => !isHidden(r.url)));
+
   return `
     ${header}
     <div class="container">
-      <p class="result-count">${state.archiveTotal.toLocaleString()} recipe${state.archiveTotal === 1 ? '' : 's'} in the archive</p>
-      <div class="grid">${state.archiveResults.filter(r => !isHidden(r.url)).map(renderCard).join('')}</div>
+      <p class="result-count">${state.archiveTotal.toLocaleString()} recipe${state.archiveTotal === 1 ? '' : 's'} in the archive${filtered.length !== state.archiveResults.length ? ` — ${filtered.length} match your filters on this page` : ''}</p>
+      ${filtered.length ? `<div class="grid">${filtered.map(renderCard).join('')}</div>` : `
+        <div class="empty">
+          <div class="empty-icon">${emptyIcon}</div>
+          <p>No loaded recipes match those filters yet. Keep scrolling to load more, or clear filters.</p>
+        </div>
+      `}
       ${state.archiveNextPage ? `<div id="archive-scroll-sentinel"></div>` : ''}
       ${state.archiveLoading && state.archiveResults.length ? `<div class="load-more-wrap"><div class="spinner"></div></div>` : ''}
     </div>
