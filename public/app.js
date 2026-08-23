@@ -134,6 +134,12 @@ const state = {
   boardPickerOpen: false,
   activeBoardFilter: null,
   filtersOpen: false,        // desktop filter rows collapsed by default
+  // Archive (full sitemap-crawled blog history — no filters, just browse/search)
+  archiveResults: [],
+  archiveNextPage: null,
+  archiveLoading: false,
+  archiveQuery: '',
+  archiveTotal: 0,
 };
 
 // --- API ---
@@ -150,6 +156,8 @@ const api = {
   }),
   recipe:           (url)               => fetch(`/api/recipe?url=${encodeURIComponent(url)}`).then(r => r.json()),
   search:           (q, page)           => fetch(`/api/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
+  archive:          (page)              => fetch(`/api/archive?page=${page || 1}`).then(r => r.json()),
+  archiveSearch:    (q, page)           => fetch(`/api/archive/search?q=${encodeURIComponent(q)}&page=${page || 1}`).then(r => r.json()),
   ingredientSearch: (ingredients, page) => fetch(`/api/ingredient-search?ingredients=${encodeURIComponent(ingredients)}&page=${page || 1}`).then(r => r.json()),
   nutrition:        (ingredients, servings) => fetch('/api/nutrition', {
     method: 'POST',
@@ -460,6 +468,28 @@ function buildSearchQuery() {
 
 let searchDebounceTimer = null;
 let activeSearchSource = null;
+let archiveSearchDebounceTimer = null;
+
+// Loads a page of the sitemap-crawled archive — either a plain browse (newest
+// first) or, if state.archiveQuery is set, a full-text title search.
+async function triggerArchiveLoad(page = 1) {
+  state.archiveLoading = true;
+  if (page === 1) state.archiveResults = [];
+  renderApp();
+  try {
+    const data = state.archiveQuery.trim()
+      ? await api.archiveSearch(state.archiveQuery.trim(), page)
+      : await api.archive(page);
+    state.archiveResults = page === 1 ? data.results : [...state.archiveResults, ...data.results];
+    state.archiveTotal = data.total || 0;
+    state.archiveNextPage = data.nextPage || null;
+  } catch {
+    state.archiveNextPage = null;
+  } finally {
+    state.archiveLoading = false;
+    renderApp();
+  }
+}
 
 // Client-side search result cache (sessionStorage, 5min TTL, max 20 entries)
 function getSearchCache(q, page) {
@@ -485,6 +515,7 @@ let _savedScrollY = 0;
 let _prevDrawerOpen = false;
 let _infiniteScrollObserver = null;
 let _discoverScrollObserver = null;
+let _archiveScrollObserver = null;
 // Hover-prefetch cache: url -> Promise<detail>
 const _prefetchCache = new Map();
 let _prefetchTimer = null;
@@ -773,7 +804,7 @@ function renderApp() {
 
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
-    ${state.view !== 'mealplan' ? renderSearchSection() : ''}
+    ${state.view !== 'mealplan' && state.view !== 'archive' ? renderSearchSection() : ''}
     <div class="grid-section">
       ${renderContent()}
     </div>
@@ -826,6 +857,17 @@ function setupInfiniteScroll() {
     }, { rootMargin: '400px' });
     _discoverScrollObserver.observe(discoverSentinel);
   }
+
+  const archiveSentinel = document.getElementById('archive-scroll-sentinel');
+  if (archiveSentinel) {
+    if (_archiveScrollObserver) _archiveScrollObserver.disconnect();
+    _archiveScrollObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && state.archiveNextPage && !state.archiveLoading) {
+        triggerArchiveLoad(state.archiveNextPage);
+      }
+    }, { rootMargin: '400px' });
+    _archiveScrollObserver.observe(archiveSentinel);
+  }
 }
 
 function renderHeader() {
@@ -844,6 +886,9 @@ function renderHeader() {
           <button class="header-tab ${state.view === 'discover'  ? 'is-active' : ''}" data-action="tab" data-view="discover">Discover</button>
           <button class="header-tab ${state.view === 'favorites' ? 'is-active' : ''}" data-action="tab" data-view="favorites">
             Saved ${state.favorites.length ? `<span class="tab-count">${state.favorites.length}</span>` : ''}
+          </button>
+          <button class="header-tab ${state.view === 'archive' ? 'is-active' : ''}" data-action="tab" data-view="archive">
+            Archive
           </button>
           <button class="header-tab ${state.view === 'mealplan' ? 'is-active' : ''}" data-action="tab" data-view="mealplan">
             Meal Plan
@@ -1106,9 +1151,57 @@ function renderMealPlan() {
   `;
 }
 
+function renderArchive() {
+  const emptyIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+  const header = `
+    <div class="container" style="padding-top:20px">
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
+        Full post history for every blog, pulled from each site's sitemap rather than its RSS feed — thousands of recipes per blog instead of the last handful. Browsing only (no cuisine/dietary filters here, sitemaps don't carry that data), but title search works.
+      </p>
+      <div class="search-wrap" style="max-width:480px">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input class="search-input" type="text" placeholder="Search the full archive…"
+               data-action="archive-search" value="${escHtml(state.archiveQuery)}" autocomplete="off">
+        ${state.archiveQuery ? `<button class="search-clear" data-action="archive-search-clear" aria-label="Clear search">✕</button>` : ''}
+      </div>
+    </div>
+  `;
+
+  if (state.archiveLoading && !state.archiveResults.length) {
+    return `${header}<div class="container"><div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
+  }
+
+  if (!state.archiveResults.length && !state.archiveLoading) {
+    return `${header}
+      <div class="container">
+        <div class="empty">
+          <div class="empty-icon">${emptyIcon}</div>
+          <p>${state.archiveQuery ? 'Nothing turned up. Try different keywords.' : 'The archive is still being built — check back soon.'}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    ${header}
+    <div class="container">
+      <p class="result-count">${state.archiveTotal.toLocaleString()} recipe${state.archiveTotal === 1 ? '' : 's'} in the archive</p>
+      <div class="grid">${state.archiveResults.filter(r => !isHidden(r.url)).map(renderCard).join('')}</div>
+      ${state.archiveNextPage ? `<div id="archive-scroll-sentinel"></div>` : ''}
+      ${state.archiveLoading && state.archiveResults.length ? `<div class="load-more-wrap"><div class="spinner"></div></div>` : ''}
+    </div>
+  `;
+}
+
 function renderContent() {
   // --- Meal plan view ---
   if (state.view === 'mealplan') return renderMealPlan();
+
+  // --- Archive view ---
+  if (state.view === 'archive') return renderArchive();
 
   // --- Search API mode ---
   if (state.view === 'discover' && state.searchMode) {
@@ -1545,6 +1638,17 @@ document.addEventListener('click', async (e) => {
     state.activeBoardFilter = null;
     clearTimeout(searchDebounceTimer);
     renderApp();
+    if (state.view === 'archive' && !state.archiveResults.length && !state.archiveLoading) {
+      triggerArchiveLoad(1);
+    }
+  }
+
+  if (action === 'archive-search-clear') {
+    clearTimeout(archiveSearchDebounceTimer);
+    state.archiveQuery = '';
+    triggerArchiveLoad(1);
+    document.querySelector('[data-action="archive-search"]')?.focus();
+    return;
   }
 
   if (action === 'blog-picker-toggle') {
@@ -1820,7 +1924,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'hide-post') {
     const url = el.dataset.url;
-    const pool = [...state.recipes, ...state.favorites, ...state.searchResults];
+    const pool = [...state.recipes, ...state.favorites, ...state.searchResults, ...state.archiveResults];
     const recipe = pool.find(r => r.url === url) || { url };
     hidePost(recipe);
     const card = el.closest('.card');
@@ -1833,12 +1937,12 @@ document.addEventListener('click', async (e) => {
     if (isFav(url)) {
       removeFav(url);
     } else {
-      const pool = [...state.recipes, ...state.favorites, ...state.searchResults];
+      const pool = [...state.recipes, ...state.favorites, ...state.searchResults, ...state.archiveResults];
       const r = pool.find(r => r.url === url);
       if (r) saveFav({ url: r.url, title: r.title, image: r.image, blog: r.blog, blogColor: r.blogColor, date: r.date, excerpt: r.excerpt });
     }
     refreshFavorites();
-    if (state.view === 'favorites') renderApp();
+    if (state.view === 'favorites' || state.view === 'archive') renderApp();
     else refreshDiscoverContent();
     return;
   }
@@ -1923,7 +2027,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'card') {
     const url = el.dataset.url;
-    const pool = [...state.recipes, ...state.favorites, ...state.searchResults,
+    const pool = [...state.recipes, ...state.favorites, ...state.searchResults, ...state.archiveResults,
       ...Object.values(state.mealPlan).flatMap(d => d ? Object.values(d).filter(Boolean) : [])];
     const preview = pool.find(r => r.url === url);
     if (!preview) return;
@@ -1989,6 +2093,13 @@ document.addEventListener('input', (e) => {
     if (!url) return;
     clearTimeout(_noteTimer);
     _noteTimer = setTimeout(() => updateFavField(url, { notes: e.target.value }), 600);
+    return;
+  }
+
+  if (e.target.dataset.action === 'archive-search') {
+    state.archiveQuery = e.target.value;
+    clearTimeout(archiveSearchDebounceTimer);
+    archiveSearchDebounceTimer = setTimeout(() => triggerArchiveLoad(1), 500);
     return;
   }
 
