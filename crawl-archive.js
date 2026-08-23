@@ -6,7 +6,7 @@
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
 const { isRoundup, itemBelongsToFeed, cleanRecipeUrl } = require('./server.js');
-const { upsertRecipe, setCrawlState, db } = require('./archive-db.js');
+const { batchUpsertRecipes, setCrawlState, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
@@ -83,10 +83,15 @@ async function discoverSitemapUrls(blog) {
   return null;
 }
 
+// Turso batches are sent as one round-trip, but very large batches (a busy
+// blog's sitemap file can hold 700+ URLs) are chunked to stay comfortably
+// under any single-batch size limit.
+const BATCH_CHUNK_SIZE = 200;
+
 async function crawlBlog(blog) {
   const root = await discoverSitemapUrls(blog);
   if (!root) {
-    setCrawlState.run({ blog: blog.name, last_crawled_at: new Date().toISOString(), url_count: 0, status: 'no_sitemap' });
+    await setCrawlState({ blog: blog.name, last_crawled_at: new Date().toISOString(), url_count: 0, status: 'no_sitemap' });
     return { blog: blog.name, count: 0, status: 'no_sitemap' };
   }
 
@@ -107,24 +112,21 @@ async function crawlBlog(blog) {
       try { xml = await fetchText(sitemapUrl); } catch { continue; }
     }
     const entries = parseUrlset(xml);
+    const toUpsert = [];
     for (const entry of entries) {
       const cleanUrl = cleanRecipeUrl(entry.loc);
       if (!itemBelongsToFeed(blog.feed, cleanUrl)) continue;
       const title = titleFromSlug(cleanUrl);
       if (!title || isRoundup(title, cleanUrl, [])) continue;
-      upsertRecipe.run({
-        url: cleanUrl,
-        blog: blog.name,
-        blog_color: blog.color,
-        title,
-        image: entry.image,
-        date: entry.lastmod,
-      });
-      total++;
+      toUpsert.push({ url: cleanUrl, blog: blog.name, blog_color: blog.color, title, image: entry.image, date: entry.lastmod });
     }
+    for (let i = 0; i < toUpsert.length; i += BATCH_CHUNK_SIZE) {
+      await batchUpsertRecipes(toUpsert.slice(i, i + BATCH_CHUNK_SIZE));
+    }
+    total += toUpsert.length;
   }
 
-  setCrawlState.run({ blog: blog.name, last_crawled_at: new Date().toISOString(), url_count: total, status: 'ok' });
+  await setCrawlState({ blog: blog.name, last_crawled_at: new Date().toISOString(), url_count: total, status: 'ok' });
   return { blog: blog.name, count: total, status: 'ok' };
 }
 
@@ -148,7 +150,8 @@ async function main() {
     }
   }
 
-  const totalRecipes = db.prepare('SELECT COUNT(*) AS c FROM recipes').get().c;
+  const countResult = await client.execute('SELECT COUNT(*) AS c FROM recipes');
+  const totalRecipes = countResult.rows[0].c;
   const ok = results.filter(r => r.status === 'ok').length;
   const noSitemap = results.filter(r => r.status === 'no_sitemap').length;
   const errors = results.filter(r => r.status === 'error').length;

@@ -531,7 +531,7 @@ function isRoundup(title = '', url = '', categories = []) {
       // intermediate segment — some blogs legitimately use /recipe/<slug>/
       // as their post permalink structure, so only the single-segment case
       // is safe to treat as a non-post archive/index page).
-      if (segments.length === 1 && /^(recipes?|index)$/i.test(segments[0])) return true;
+      if (segments.length === 1 && /^(all-)?recipes?(-index|-archive|-list)?$|^index$/i.test(segments[0])) return true;
       if (segments.length === 1 && /-(recipes?|dinners?|meals?|ideas?)$/.test(segments[0])) return true; // /chicken-recipes/
     } catch {}
   }
@@ -613,18 +613,18 @@ app.get('/api/blogs', (req, res) => {
   }));
 });
 
-// --- Archive (sitemap-crawled, full blog history) ---
+// --- Archive (sitemap-crawled, full blog history, hosted on Turso) ---
 // Populated by crawl-archive.js, not by this server — this only reads it.
 // Archive entries only carry title/image/date/blog (sitemaps don't expose
 // excerpts or categories), so they support browsing and title search but
 // not the rich cuisine/dietary/method filters RSS-derived recipes support.
-let archiveDb = null;
-try { archiveDb = require('./archive-db.js').db; } catch { /* archive.db not built yet */ }
+let archiveClient = null;
+try { archiveClient = require('./archive-db.js').client; } catch { /* archive db not configured */ }
 
 const ARCHIVE_PAGE_SIZE = 60;
 
-app.get('/api/archive', (req, res) => {
-  if (!archiveDb) return res.json({ results: [], total: 0, nextPage: null });
+app.get('/api/archive', async (req, res) => {
+  if (!archiveClient) return res.json({ results: [], total: 0, nextPage: null });
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const blog = req.query.blog || null;
   const offset = (page - 1) * ARCHIVE_PAGE_SIZE;
@@ -632,23 +632,24 @@ app.get('/api/archive', (req, res) => {
   const where = blog ? 'WHERE blog = ?' : '';
   const params = blog ? [blog] : [];
 
-  const total = archiveDb.prepare(`SELECT COUNT(*) AS c FROM recipes ${where}`).get(...params).c;
-  const rows = archiveDb.prepare(`
-    SELECT url, blog, blog_color AS blogColor, title, image, date
-    FROM recipes ${where}
-    ORDER BY date IS NULL, date DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, ARCHIVE_PAGE_SIZE, offset);
-
-  res.json({
-    results: rows,
-    total,
-    nextPage: offset + rows.length < total ? page + 1 : null,
-  });
+  try {
+    const totalRes = await archiveClient.execute({ sql: `SELECT COUNT(*) AS c FROM recipes ${where}`, args: params });
+    const total = totalRes.rows[0].c;
+    const rowsRes = await archiveClient.execute({
+      sql: `SELECT url, blog, blog_color AS blogColor, title, image, date
+            FROM recipes ${where}
+            ORDER BY date IS NULL, date DESC
+            LIMIT ? OFFSET ?`,
+      args: [...params, ARCHIVE_PAGE_SIZE, offset],
+    });
+    res.json({ results: rowsRes.rows, total, nextPage: offset + rowsRes.rows.length < total ? page + 1 : null });
+  } catch (err) {
+    res.json({ results: [], total: 0, nextPage: null, error: err.message });
+  }
 });
 
-app.get('/api/archive/search', (req, res) => {
-  if (!archiveDb) return res.json({ results: [], total: 0, nextPage: null });
+app.get('/api/archive/search', async (req, res) => {
+  if (!archiveClient) return res.json({ results: [], total: 0, nextPage: null });
   const q = (req.query.q || '').trim();
   if (!q) return res.json({ results: [], total: 0, nextPage: null });
   const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -659,17 +660,20 @@ app.get('/api/archive/search', (req, res) => {
   const ftsQuery = q.split(/\s+/).filter(Boolean).map(t => `"${t.replace(/"/g, '""')}"`).join(' AND ');
 
   try {
-    const total = archiveDb.prepare(`
-      SELECT COUNT(*) AS c FROM recipes_fts WHERE recipes_fts MATCH ?
-    `).get(ftsQuery).c;
-    const rows = archiveDb.prepare(`
-      SELECT r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date
-      FROM recipes_fts f JOIN recipes r ON r.id = f.rowid
-      WHERE recipes_fts MATCH ?
-      ORDER BY rank
-      LIMIT ? OFFSET ?
-    `).all(ftsQuery, ARCHIVE_PAGE_SIZE, offset);
-    res.json({ results: rows, total, nextPage: offset + rows.length < total ? page + 1 : null });
+    const totalRes = await archiveClient.execute({
+      sql: `SELECT COUNT(*) AS c FROM recipes_fts WHERE recipes_fts MATCH ?`,
+      args: [ftsQuery],
+    });
+    const total = totalRes.rows[0].c;
+    const rowsRes = await archiveClient.execute({
+      sql: `SELECT r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date
+            FROM recipes_fts f JOIN recipes r ON r.id = f.rowid
+            WHERE recipes_fts MATCH ?
+            ORDER BY rank
+            LIMIT ? OFFSET ?`,
+      args: [ftsQuery, ARCHIVE_PAGE_SIZE, offset],
+    });
+    res.json({ results: rowsRes.rows, total, nextPage: offset + rowsRes.rows.length < total ? page + 1 : null });
   } catch (err) {
     res.json({ results: [], total: 0, nextPage: null, error: err.message });
   }
