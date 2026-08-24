@@ -34,6 +34,7 @@ app.use(express.json());
 const recipeLimit    = rateLimit({ windowMs: 60_000, max: 60,  standardHeaders: true, legacyHeaders: false });
 const searchLimit    = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
 const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: true, legacyHeaders: false });
+const shoppingListLimit = rateLimit({ windowMs: 60_000, max: 15, standardHeaders: true, legacyHeaders: false });
 
 // Serve sw.js with an injected cache version derived from asset mtimes.
 // Source is read once at startup (and re-read if the version changes) so
@@ -1151,6 +1152,32 @@ app.get('/api/ingredient-search', searchLimit, async (req, res) => {
     res.json(await runSerperSearch(q, page));
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Freeform "here's my recipe, build a shopping list" — uses Haiku to pull a
+// clean ingredient list out of arbitrary pasted recipe text (which may
+// include prose, instructions, ads, etc. mixed in with the ingredients).
+app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
+  const text = (req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'text is required' });
+  if (text.length > 8000) return res.status(400).json({ error: 'Text is too long (max 8000 characters).' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI parsing not configured. Add ANTHROPIC_API_KEY.' });
+  try {
+    const msg = await getAnthropic().messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `Extract just the ingredient list from this recipe text. Return ONLY a JSON array of strings, one per ingredient, each kept close to its original wording (quantity + unit + name, e.g. "1.5 lbs ground beef"). No markdown, no commentary, just the JSON array.\n\nRecipe text:\n${text}`,
+      }],
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json?\s*|```$/g, '');
+    const ingredients = JSON.parse(raw);
+    if (!Array.isArray(ingredients)) throw new Error('Model did not return an array');
+    res.json({ ingredients: ingredients.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim()) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not extract ingredients from that text. Try pasting just the ingredient list.' });
   }
 });
 

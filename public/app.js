@@ -140,6 +140,12 @@ const state = {
   archiveLoading: false,
   archiveQuery: '',
   archiveTotal: 0,
+  // Shopping list
+  shoppingList: [],          // [{ id, text, aisle, source, checked }]
+  shoppingPasteOpen: false,  // freeform "paste a recipe" panel
+  shoppingPasteText: '',
+  shoppingPasteLoading: false,
+  shoppingPasteError: null,
 };
 
 // --- API ---
@@ -163,6 +169,11 @@ const api = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ingredients, servings }),
+  }).then(r => r.json()),
+  extractIngredients: (text) => fetch('/api/shopping-list/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
   }).then(r => r.json()),
 };
 
@@ -266,6 +277,50 @@ function saveMealPlan() {
 const BOARDS_KEY = 'mise-en-scroll-boards';
 function loadBoards() { try { return JSON.parse(localStorage.getItem(BOARDS_KEY) || '{}'); } catch { return {}; } }
 function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(state.boards)); } catch {} }
+
+// --- Shopping List (localStorage) ---
+// No real per-store aisle data available, so items are grouped by a generic
+// typical-grocery-store aisle order — close enough to be useful without
+// needing a store-layout data source. Keyword-matched against the raw
+// ingredient string, same "good enough, not exact" approach as the Archive
+// tab's title-only filters.
+const SHOPPING_LIST_KEY = 'mise-en-scroll-shopping-list';
+const AISLES = [
+  { name: 'Produce', keywords: ['lettuce','spinach','kale','arugula','onion','garlic','shallot','carrot','celery','pepper','tomato','potato','avocado','lemon','lime','cilantro','parsley','basil','mint','ginger','mushroom','zucchini','cucumber','broccoli','cauliflower','apple','banana','berry','berries','herb','scallion','green onion','leek','squash','corn','fruit','vegetable'] },
+  { name: 'Meat & Seafood', keywords: ['beef','chicken','pork','lamb','turkey','sausage','bacon','pancetta','prosciutto','ground beef','ground pork','ground turkey','steak','fish','salmon','shrimp','tuna','crab','scallop','cod','tilapia'] },
+  { name: 'Dairy & Eggs', keywords: ['milk','cream','butter','cheese','parmesan','mozzarella','cheddar','yogurt','egg','sour cream','ricotta','feta','mascarpone','buttermilk'] },
+  { name: 'Bakery', keywords: ['bread','bun','roll','baguette','tortilla','pita','naan','bagel'] },
+  { name: 'Pasta, Grains & Canned', keywords: ['pasta','tagliatelle','spaghetti','penne','rice','quinoa','oats','canned tomato','tomato paste','crushed tomato','beans','chickpea','lentil','broth','stock','noodle','couscous','tomato sauce'] },
+  { name: 'Baking & Spices', keywords: ['flour','sugar','baking soda','baking powder','vanilla','salt','pepper','cinnamon','nutmeg','paprika','cumin','oregano','thyme','bay leaf','cayenne','chili powder','spice','seasoning','yeast','cocoa','honey','maple syrup'] },
+  { name: 'Oils, Condiments & Sauces', keywords: ['oil','vinegar','soy sauce','miso','mustard','ketchup','mayonnaise','hot sauce','worcestershire','sesame oil','wine','sriracha'] },
+  { name: 'Frozen', keywords: ['frozen'] },
+  { name: 'Beverages', keywords: ['juice','soda','coffee','tea','wine','beer'] },
+];
+function guessAisle(ingredientText) {
+  const t = (ingredientText || '').toLowerCase();
+  for (const aisle of AISLES) {
+    if (aisle.keywords.some(kw => t.includes(kw))) return aisle.name;
+  }
+  return 'Other';
+}
+function loadShoppingList() {
+  try { return JSON.parse(localStorage.getItem(SHOPPING_LIST_KEY) || '[]'); } catch { return []; }
+}
+function saveShoppingList() {
+  try { localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(state.shoppingList)); } catch {}
+}
+// Adds ingredient strings to the list, tagged with their source recipe.
+// Dedupes on exact text match within the same source so re-adding a recipe
+// doesn't double its ingredients.
+function addIngredientsToShoppingList(ingredients, sourceTitle) {
+  const existingTexts = new Set(state.shoppingList.filter(i => i.source === sourceTitle).map(i => i.text));
+  const toAdd = ingredients
+    .filter(text => !existingTexts.has(text))
+    .map(text => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text, aisle: guessAisle(text), source: sourceTitle || null, checked: false }));
+  state.shoppingList = [...state.shoppingList, ...toAdd];
+  saveShoppingList();
+  return toAdd.length;
+}
 
 const HIDDEN_KEY = 'mise-en-scroll-hidden';
 // Normalises a recipe URL to (host + path, no query/hash/trailing-slash/www)
@@ -807,7 +862,7 @@ function renderApp() {
 
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
-    ${state.view !== 'mealplan' && state.view !== 'archive' ? renderSearchSection() : ''}
+    ${state.view !== 'mealplan' && state.view !== 'archive' && state.view !== 'shoppinglist' ? renderSearchSection() : ''}
     <div class="grid-section">
       ${renderContent()}
     </div>
@@ -895,6 +950,9 @@ function renderHeader() {
           </button>
           <button class="header-tab ${state.view === 'mealplan' ? 'is-active' : ''}" data-action="tab" data-view="mealplan">
             Meal Plan
+          </button>
+          <button class="header-tab ${state.view === 'shoppinglist' ? 'is-active' : ''}" data-action="tab" data-view="shoppinglist">
+            Shopping List ${state.shoppingList.length ? `<span class="tab-count">${state.shoppingList.length}</span>` : ''}
           </button>
           ${state.view === 'discover' && !state.loading && state.recipes.length ? `
             <button class="surprise-btn" data-action="surprise-me" title="Open a random recipe">
@@ -1163,6 +1221,63 @@ function renderMealPlan() {
   `;
 }
 
+function renderShoppingList() {
+  const emptyIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
+  const groups = AISLES.map(a => a.name).concat('Other')
+    .map(name => ({ name, items: state.shoppingList.filter(i => i.aisle === name) }))
+    .filter(g => g.items.length);
+  const checkedCount = state.shoppingList.filter(i => i.checked).length;
+
+  return `
+    <div class="container" style="padding-top:20px">
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
+        Ingredients you've added from recipes, grouped by typical grocery-store aisle. Tap <strong>Add to Shopping List</strong> on any recipe, or paste a recipe from anywhere below.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="filter-toggle-btn" data-action="shopping-paste-toggle">
+          ${state.shoppingPasteOpen ? 'Cancel' : '+ Paste a recipe'}
+        </button>
+        ${state.shoppingList.length ? `
+          ${checkedCount ? `<button class="filter-toggle-btn" data-action="shopping-clear-checked">Clear checked (${checkedCount})</button>` : ''}
+          <button class="filter-toggle-btn" data-action="shopping-clear-all">Clear all</button>
+        ` : ''}
+      </div>
+      ${state.shoppingPasteOpen ? `
+        <div class="ingredient-banner" style="display:block;padding:14px">
+          <textarea data-action="shopping-paste-text" rows="6" style="width:100%;max-width:640px;font-family:inherit;font-size:0.9rem;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg)" placeholder="Paste a full recipe (ingredients + anything else) here…">${escHtml(state.shoppingPasteText)}</textarea>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+            <button class="filter-toggle-btn has-active" data-action="shopping-paste-submit" ${state.shoppingPasteLoading || !state.shoppingPasteText.trim() ? 'disabled' : ''}>
+              ${state.shoppingPasteLoading ? 'Extracting…' : 'Create shopping list'}
+            </button>
+            ${state.shoppingPasteError ? `<span style="color:var(--danger, #c0392b);font-size:0.85rem">${escHtml(state.shoppingPasteError)}</span>` : ''}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+    <div class="container">
+      ${!groups.length ? `
+        <div class="empty">
+          <div class="empty-icon">${emptyIcon}</div>
+          <p>Your shopping list is empty.</p>
+        </div>
+      ` : groups.map(g => `
+        <div class="meal-plan-day" style="margin-bottom:16px">
+          <div class="meal-plan-day-header"><span class="meal-plan-day-name">${escHtml(g.name)}</span></div>
+          ${g.items.map(item => `
+            <div class="meal-plan-slot" style="align-items:center">
+              <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;${item.checked ? 'opacity:0.5;text-decoration:line-through' : ''}">
+                <input type="checkbox" data-action="shopping-toggle-item" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
+                <span>${escHtml(item.text)}${item.source ? ` <span style="color:var(--muted);font-size:0.78rem">— ${escHtml(item.source)}</span>` : ''}</span>
+              </label>
+              <button class="meal-plan-remove" data-action="shopping-remove-item" data-id="${item.id}" aria-label="Remove">✕</button>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 function renderArchive() {
   const emptyIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
   const header = `
@@ -1222,6 +1337,9 @@ function renderContent() {
 
   // --- Archive view ---
   if (state.view === 'archive') return renderArchive();
+
+  // --- Shopping list view ---
+  if (state.view === 'shoppinglist') return renderShoppingList();
 
   // --- Search API mode ---
   if (state.view === 'discover' && state.searchMode) {
@@ -1510,6 +1628,11 @@ function renderDrawer() {
         </div>
       ` : ''}
       ${addToPlanHtml}
+      ${d.ingredients?.length ? `
+        <button class="btn btn-plan" data-action="add-to-shopping-list" data-url="${url}" style="margin-bottom:12px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Add to Shopping List
+        </button>
+      ` : ''}
       <div class="board-section">
         <button class="btn-board-toggle" data-action="toggle-board-picker">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1668,6 +1791,72 @@ document.addEventListener('click', async (e) => {
     state.archiveQuery = '';
     triggerArchiveLoad(1);
     document.querySelector('[data-action="archive-search"]')?.focus();
+    return;
+  }
+
+  if (action === 'add-to-shopping-list') {
+    const ingredients = state.detail?.ingredients || [];
+    if (!ingredients.length) return;
+    const title = state.selected?.preview?.title || state.detail?.title;
+    const added = addIngredientsToShoppingList(ingredients, title);
+    showToast(added ? `Added ${added} ingredient${added === 1 ? '' : 's'} to your shopping list` : 'Already on your list');
+    renderApp();
+    return;
+  }
+
+  if (action === 'shopping-paste-toggle') {
+    state.shoppingPasteOpen = !state.shoppingPasteOpen;
+    state.shoppingPasteError = null;
+    renderApp();
+    return;
+  }
+
+  if (action === 'shopping-paste-submit') {
+    const text = state.shoppingPasteText.trim();
+    if (!text || state.shoppingPasteLoading) return;
+    state.shoppingPasteLoading = true;
+    state.shoppingPasteError = null;
+    renderApp();
+    try {
+      const data = await api.extractIngredients(text);
+      if (data.error) throw new Error(data.error);
+      if (!data.ingredients?.length) throw new Error('No ingredients found in that text.');
+      addIngredientsToShoppingList(data.ingredients, 'Pasted recipe');
+      state.shoppingPasteOpen = false;
+      state.shoppingPasteText = '';
+    } catch (err) {
+      state.shoppingPasteError = err.message || 'Could not extract ingredients.';
+    } finally {
+      state.shoppingPasteLoading = false;
+      renderApp();
+    }
+    return;
+  }
+
+  if (action === 'shopping-toggle-item') {
+    const item = state.shoppingList.find(i => i.id === el.dataset.id);
+    if (item) { item.checked = !item.checked; saveShoppingList(); renderApp(); }
+    return;
+  }
+
+  if (action === 'shopping-remove-item') {
+    state.shoppingList = state.shoppingList.filter(i => i.id !== el.dataset.id);
+    saveShoppingList();
+    renderApp();
+    return;
+  }
+
+  if (action === 'shopping-clear-checked') {
+    state.shoppingList = state.shoppingList.filter(i => !i.checked);
+    saveShoppingList();
+    renderApp();
+    return;
+  }
+
+  if (action === 'shopping-clear-all') {
+    state.shoppingList = [];
+    saveShoppingList();
+    renderApp();
     return;
   }
 
@@ -2123,6 +2312,13 @@ document.addEventListener('input', (e) => {
     return;
   }
 
+  if (e.target.dataset.action === 'shopping-paste-text') {
+    state.shoppingPasteText = e.target.value;
+    const submitBtn = document.querySelector('[data-action="shopping-paste-submit"]');
+    if (submitBtn) submitBtn.disabled = !e.target.value.trim();
+    return;
+  }
+
   if (e.target.dataset.action !== 'search') return;
   state.searchQuery = e.target.value;
   updateAutocomplete(e.target.value);
@@ -2274,6 +2470,7 @@ async function init() {
   state.recentSearches = loadSearchHistory();
   state.mealPlan = loadMealPlan();
   state.boards = loadBoards();
+  state.shoppingList = loadShoppingList();
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
     state.cuisineFilters = savedFilters.cuisine  || [];
