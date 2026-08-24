@@ -1181,6 +1181,127 @@ app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
   }
 });
 
+// Typical grocery prices — U.S. Bureau of Labor Statistics Average Price
+// data (Northeast Census Region), a free public series covering a fixed set
+// of ~45 staple grocery items. Not a real per-store price lookup — there's
+// no legitimate API for that (see PRICE_ITEMS note in app.js) — just a
+// regional average for common staples, refreshed daily since BLS itself
+// only publishes monthly. Specialty/gourmet ingredients simply have no
+// matching series and are left unpriced by the client.
+const PRICE_ITEMS = [
+  { code: '701111', label: 'Flour', unit: 'lb', keywords: ['flour'] },
+  { code: '701312', label: 'Rice', unit: 'lb', keywords: ['rice'] },
+  { code: '701322', label: 'Pasta', unit: 'lb', keywords: ['spaghetti', 'pasta', 'penne', 'tagliatelle', 'fettuccine', 'linguine', 'macaroni', 'noodle'] },
+  { code: '702111', label: 'White bread', unit: 'lb', keywords: ['white bread'] },
+  { code: '702212', label: 'Wheat bread', unit: 'lb', keywords: ['wheat bread', 'bread'] },
+  { code: '703112', label: 'Ground beef', unit: 'lb', keywords: ['ground beef'] },
+  { code: '703213', label: 'Chuck roast', unit: 'lb', keywords: ['chuck roast'] },
+  { code: '703425', label: 'Ribeye steak', unit: 'lb', keywords: ['ribeye', 'rib eye', 'steak'] },
+  { code: '704111', label: 'Bacon', unit: 'lb', keywords: ['bacon'] },
+  { code: '704212', label: 'Pork chops', unit: 'lb', keywords: ['pork chop'] },
+  { code: '704312', label: 'Ham', unit: 'lb', keywords: ['ham'] },
+  { code: '704421', label: 'Sausage', unit: 'lb', keywords: ['sausage'] },
+  { code: '706111', label: 'Whole chicken', unit: 'lb', keywords: ['whole chicken'] },
+  { code: 'FF1101', label: 'Chicken breast', unit: 'lb', keywords: ['chicken breast'] },
+  { code: '706212', label: 'Chicken legs', unit: 'lb', keywords: ['chicken leg', 'chicken thigh', 'chicken'] },
+  { code: '706311', label: 'Turkey', unit: 'lb', keywords: ['turkey'] },
+  { code: '707111', label: 'Tuna', unit: 'lb', keywords: ['tuna'] },
+  { code: '708111', label: 'Eggs', unit: 'dozen', keywords: ['egg'] },
+  { code: '709112', label: 'Whole milk', unit: 'gallon', keywords: ['whole milk', 'milk'] },
+  { code: 'FJ1101', label: 'Low-fat milk', unit: 'gallon', keywords: ['low-fat milk', 'skim milk', '2% milk'] },
+  { code: '710111', label: 'Butter', unit: 'lb', keywords: ['butter'] },
+  { code: '710122', label: 'Yogurt', unit: '8 oz', keywords: ['yogurt'] },
+  { code: '710211', label: 'American cheese', unit: 'lb', keywords: ['american cheese'] },
+  { code: '710212', label: 'Cheddar cheese', unit: 'lb', keywords: ['cheddar', 'cheese'] },
+  { code: '710411', label: 'Ice cream', unit: 'half gallon', keywords: ['ice cream'] },
+  { code: '711111', label: 'Apples', unit: 'lb', keywords: ['apple'] },
+  { code: '711211', label: 'Bananas', unit: 'lb', keywords: ['banana'] },
+  { code: '711311', label: 'Oranges', unit: 'lb', keywords: ['orange'] },
+  { code: '711412', label: 'Lemons', unit: 'lb', keywords: ['lemon'] },
+  { code: '712112', label: 'Potatoes', unit: 'lb', keywords: ['potato'] },
+  { code: '712211', label: 'Iceberg lettuce', unit: 'lb', keywords: ['iceberg lettuce', 'lettuce'] },
+  { code: 'FL2101', label: 'Romaine lettuce', unit: 'lb', keywords: ['romaine'] },
+  { code: '712311', label: 'Tomatoes', unit: 'lb', keywords: ['fresh tomato', 'tomato'] },
+  { code: '712404', label: 'Onions', unit: 'lb', keywords: ['onion'] },
+  { code: '712403', label: 'Carrots', unit: 'lb', keywords: ['carrot'] },
+  { code: '712402', label: 'Celery', unit: 'lb', keywords: ['celery'] },
+  { code: '712406', label: 'Bell peppers', unit: 'lb', keywords: ['bell pepper'] },
+  { code: '712409', label: 'Cucumbers', unit: 'lb', keywords: ['cucumber'] },
+  { code: '712411', label: 'Mushrooms', unit: 'lb', keywords: ['mushroom'] },
+  { code: '712412', label: 'Broccoli', unit: 'lb', keywords: ['broccoli'] },
+  { code: '713111', label: 'Orange juice', unit: '16 oz', keywords: ['orange juice'] },
+  { code: '714232', label: 'Canned tomatoes', unit: 'lb', keywords: ['canned tomato', 'crushed tomato', 'peeled tomato', 'diced tomato'] },
+  { code: '714221', label: 'Canned corn', unit: 'lb', keywords: ['canned corn'] },
+  { code: '714233', label: 'Dried beans', unit: 'lb', keywords: ['dried bean', 'beans'] },
+  { code: '715211', label: 'Sugar', unit: 'lb', keywords: ['sugar'] },
+  { code: '716141', label: 'Peanut butter', unit: 'lb', keywords: ['peanut butter'] },
+  { code: '717311', label: 'Coffee', unit: 'lb', keywords: ['coffee'] },
+];
+
+const priceCache = { items: [], fetchedAt: 0 };
+const PRICE_CACHE_TTL = 24 * 60 * 60 * 1000; // BLS publishes monthly; daily cache is plenty
+
+// BLS's Northeast-region breakdown has a data gap dating back to the 2025
+// lapse in appropriations that was never backfilled for many items, so a
+// straight Northeast-only lookup silently drops most of the list. Query
+// both the Northeast (APU0100) and U.S.-city-average (APU0000) series for
+// every item and prefer Northeast when it has a recent value, falling back
+// to the national figure otherwise — and reject anything too old to be a
+// meaningful "current" price rather than surfacing a stale, misleading one.
+const PRICE_MAX_AGE_MONTHS = 15;
+function monthsAgo(year, period) {
+  const month = parseInt(period.replace('M', ''), 10);
+  const now = new Date();
+  return (now.getFullYear() - year) * 12 + (now.getMonth() + 1 - month);
+}
+async function fetchBlsPrices() {
+  const regionSeriesIds = PRICE_ITEMS.map(i => `APU0100${i.code}`);
+  const nationalSeriesIds = PRICE_ITEMS.map(i => `APU0000${i.code}`);
+  const allSeriesIds = [...regionSeriesIds, ...nationalSeriesIds];
+  const raw = {}; // seriesID -> { value, year, period } | undefined
+  for (let i = 0; i < allSeriesIds.length; i += 25) {
+    const chunk = allSeriesIds.slice(i, i + 25);
+    const res = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seriesid: chunk, latest: true }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) continue;
+    const json = await res.json();
+    for (const series of json.Results?.series || []) {
+      const point = series.data?.[0];
+      const value = point ? parseFloat(point.value) : NaN;
+      if (Number.isFinite(value) && monthsAgo(parseInt(point.year, 10), point.period) <= PRICE_MAX_AGE_MONTHS) {
+        raw[series.seriesID] = { value, date: `${point.year}-${point.period.replace('M', '')}` };
+      }
+    }
+  }
+  const values = {};
+  for (const item of PRICE_ITEMS) {
+    const regional = raw[`APU0100${item.code}`];
+    const national = raw[`APU0000${item.code}`];
+    if (regional) values[item.code] = { ...regional, region: 'Northeast' };
+    else if (national) values[item.code] = { ...national, region: 'U.S. average' };
+  }
+  return values;
+}
+
+app.get('/api/shopping-list/prices', async (req, res) => {
+  try {
+    if (!priceCache.items.length || Date.now() - priceCache.fetchedAt > PRICE_CACHE_TTL) {
+      const values = await fetchBlsPrices();
+      const items = PRICE_ITEMS
+        .filter(item => values[item.code])
+        .map(item => ({ ...item, ...values[item.code] }));
+      if (items.length) { priceCache.items = items; priceCache.fetchedAt = Date.now(); }
+    }
+    res.json({ items: priceCache.items });
+  } catch (err) {
+    res.json({ items: priceCache.items, error: err.message });
+  }
+});
+
 // In-memory cache for CalorieNinjas results (keyed by query string)
 const nutritionCache = new Map(); // query -> nutrition object
 const NUTRITION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours

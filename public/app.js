@@ -149,6 +149,9 @@ const state = {
   shoppingStores: {},        // { storeName: [aisleName in custom order, ...] }
   activeStoreName: null,
   storeEditOpen: false,      // aisle-reorder editor visible for the active store
+  priceItems: [],            // [{ code, label, unit, keywords, value, date }] from BLS, loaded lazily
+  pricesLoading: false,
+  pricesLoaded: false,
 };
 
 // --- API ---
@@ -178,6 +181,7 @@ const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
   }).then(r => r.json()),
+  shoppingPrices: () => fetch('/api/shopping-list/prices').then(r => r.json()),
 };
 
 // --- Theme (localStorage) ---
@@ -314,6 +318,56 @@ function guessAisle(ingredientText) {
   }
   return best ? best.name : 'Other';
 }
+
+// Typical-price estimate — matches an ingredient string against the BLS
+// staple-item list (state.priceItems, loaded from /api/shopping-list/prices)
+// using the same longest-keyword-wins approach as guessAisle, then tries to
+// convert whatever quantity/unit is in the ingredient text into the BLS
+// item's unit (lb, dozen, gallon, ...). Returns null rather than guessing
+// when the text can't be confidently converted — a missing estimate is
+// better than a wrong one.
+function parseLeadingQuantity(text) {
+  const m = (text || '').trim().match(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+\.?\d*)\s*([a-zA-Z%]+)?/);
+  if (!m) return null;
+  let qty;
+  if (m[1].includes('/')) {
+    const parts = m[1].split(' ');
+    const whole = parts.length > 1 ? parseFloat(parts[0]) : 0;
+    const [num, den] = (parts.length > 1 ? parts[1] : parts[0]).split('/').map(Number);
+    qty = whole + num / den;
+  } else {
+    qty = parseFloat(m[1]);
+  }
+  if (!Number.isFinite(qty)) return null;
+  return { qty, unit: (m[2] || '').toLowerCase() };
+}
+function estimateItemPrice(ingredientText) {
+  const t = (ingredientText || '').toLowerCase();
+  let best = null;
+  for (const item of state.priceItems) {
+    for (const kw of item.keywords) {
+      if (t.includes(kw) && (!best || kw.length > best.kw.length)) best = { item, kw };
+    }
+  }
+  if (!best) return null;
+  const { item } = best;
+  const parsed = parseLeadingQuantity(t);
+  const qty = parsed?.qty ?? 1;
+  const unit = parsed?.unit || '';
+  let lbs = null, gallons = null, dozens = null;
+  if (/^(lbs?|pounds?)$/.test(unit)) lbs = qty;
+  else if (/^(oz|ounces?)$/.test(unit)) lbs = qty / 16;
+  else if (/^(gal|gallons?)$/.test(unit)) gallons = qty;
+  else if (/^(qts?|quarts?)$/.test(unit)) gallons = qty / 4;
+  else if (/^doz(en)?s?$/.test(unit)) dozens = qty;
+  else if (unit === 'egg' || unit === 'eggs' || (!unit && item.label === 'Eggs')) dozens = qty / 12;
+  if (item.unit === 'lb' && lbs != null) return { ...item, estimate: lbs * item.value };
+  if (item.unit === 'gallon' && gallons != null) return { ...item, estimate: gallons * item.value };
+  if (item.unit === 'half gallon' && gallons != null) return { ...item, estimate: (gallons * 2) * item.value };
+  if (item.unit === 'dozen' && dozens != null) return { ...item, estimate: dozens * item.value };
+  return null; // matched a category but couldn't confidently convert the quantity
+}
+
 function loadShoppingList() {
   try { return JSON.parse(localStorage.getItem(SHOPPING_LIST_KEY) || '[]'); } catch { return []; }
 }
@@ -577,6 +631,22 @@ async function triggerArchiveLoad(page = 1) {
     state.archiveNextPage = null;
   } finally {
     state.archiveLoading = false;
+    renderApp();
+  }
+}
+
+async function triggerPricesLoad() {
+  if (state.pricesLoaded || state.pricesLoading) return;
+  state.pricesLoading = true;
+  renderApp();
+  try {
+    const data = await api.shoppingPrices();
+    state.priceItems = data.items || [];
+  } catch {
+    state.priceItems = [];
+  } finally {
+    state.pricesLoading = false;
+    state.pricesLoaded = true;
     renderApp();
   }
 }
@@ -1264,12 +1334,24 @@ function renderShoppingList() {
     .filter(g => g.items.length);
   const checkedCount = state.shoppingList.filter(i => i.checked).length;
   const storeNames = Object.keys(state.shoppingStores);
+  const priceByItemId = {};
+  if (state.priceItems.length) {
+    for (const item of state.shoppingList) priceByItemId[item.id] = estimateItemPrice(item.text);
+  }
+  const priced = Object.values(priceByItemId).filter(Boolean);
+  const estimatedTotal = priced.reduce((sum, p) => sum + p.estimate, 0);
 
   return `
     <div class="container" style="padding-top:20px">
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
         Ingredients you've added from recipes, grouped by typical grocery-store aisle. Tap <strong>Add to Shopping List</strong> on any recipe, or paste a recipe from anywhere below.
       </p>
+      ${priced.length ? `
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px">
+          Estimated total: <strong style="color:var(--fg)">$${estimatedTotal.toFixed(2)}</strong>
+          <span style="font-size:0.78rem"> (${priced.length} of ${state.shoppingList.length} items — BLS regional/national averages for staples, not this store's real prices)</span>
+        </p>
+      ` : ''}
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <span class="tag-label" style="margin:0">Store:</span>
@@ -1337,7 +1419,7 @@ function renderShoppingList() {
             <div class="meal-plan-slot" style="align-items:center">
               <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;${item.checked ? 'opacity:0.5;text-decoration:line-through' : ''}">
                 <input type="checkbox" data-action="shopping-toggle-item" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
-                <span>${escHtml(item.text)}${item.source ? ` <span style="color:var(--muted);font-size:0.78rem">— ${escHtml(item.source)}</span>` : ''}</span>
+                <span>${escHtml(item.text)}${item.source ? ` <span style="color:var(--muted);font-size:0.78rem">— ${escHtml(item.source)}</span>` : ''}${priceByItemId[item.id] ? ` <span style="color:var(--muted);font-size:0.78rem">~$${priceByItemId[item.id].estimate.toFixed(2)}</span>` : ''}</span>
               </label>
               <button class="meal-plan-remove" data-action="shopping-remove-item" data-id="${item.id}" aria-label="Remove">✕</button>
             </div>
@@ -1854,6 +1936,7 @@ document.addEventListener('click', async (e) => {
     if (state.view === 'archive' && !state.archiveResults.length && !state.archiveLoading) {
       triggerArchiveLoad(1);
     }
+    if (state.view === 'shoppinglist') triggerPricesLoad();
   }
 
   if (action === 'archive-search-clear') {
@@ -1937,11 +2020,17 @@ document.addEventListener('click', async (e) => {
       .filter(g => g.items.length);
     const storeLabel = state.activeStoreName ? ` (${state.activeStoreName} order)` : '';
     const lines = [`Shopping List${storeLabel}`, ''];
+    let exportTotal = 0, exportPricedCount = 0;
     for (const g of groups) {
       lines.push(g.name.toUpperCase());
-      for (const item of g.items) lines.push(`${item.checked ? '[x]' : '[ ]'} ${item.text}${item.source ? ` (${item.source})` : ''}`);
+      for (const item of g.items) {
+        const price = state.priceItems.length ? estimateItemPrice(item.text) : null;
+        if (price) { exportTotal += price.estimate; exportPricedCount++; }
+        lines.push(`${item.checked ? '[x]' : '[ ]'} ${item.text}${item.source ? ` (${item.source})` : ''}${price ? ` ~$${price.estimate.toFixed(2)}` : ''}`);
+      }
       lines.push('');
     }
+    if (exportPricedCount) lines.push(`Estimated total: $${exportTotal.toFixed(2)} (${exportPricedCount} of ${state.shoppingList.length} items — BLS regional/national averages, not real store prices)`, '');
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
