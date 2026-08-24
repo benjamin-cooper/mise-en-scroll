@@ -146,6 +146,9 @@ const state = {
   shoppingPasteText: '',
   shoppingPasteLoading: false,
   shoppingPasteError: null,
+  shoppingStores: {},        // { storeName: [aisleName in custom order, ...] }
+  activeStoreName: null,
+  storeEditOpen: false,      // aisle-reorder editor visible for the active store
 };
 
 // --- API ---
@@ -287,27 +290,59 @@ function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(st
 const SHOPPING_LIST_KEY = 'mise-en-scroll-shopping-list';
 const AISLES = [
   { name: 'Produce', keywords: ['lettuce','spinach','kale','arugula','onion','garlic','shallot','carrot','celery','pepper','tomato','potato','avocado','lemon','lime','cilantro','parsley','basil','mint','ginger','mushroom','zucchini','cucumber','broccoli','cauliflower','apple','banana','berry','berries','herb','scallion','green onion','leek','squash','corn','fruit','vegetable'] },
-  { name: 'Meat & Seafood', keywords: ['beef','chicken','pork','lamb','turkey','sausage','bacon','pancetta','prosciutto','ground beef','ground pork','ground turkey','steak','fish','salmon','shrimp','tuna','crab','scallop','cod','tilapia'] },
+  { name: 'Meat & Seafood', keywords: ['beef','chicken','pork','lamb','turkey','ground beef','ground pork','ground turkey','steak','fish','salmon','shrimp','tuna','crab','scallop','cod','tilapia'] },
+  { name: 'Deli', keywords: ['pancetta','prosciutto','salami','bacon','sausage','hot dog','bologna','pepperoni','cold cuts','charcuterie','deli ham','deli turkey','deli meat'] },
   { name: 'Dairy & Eggs', keywords: ['milk','cream','butter','cheese','parmesan','mozzarella','cheddar','yogurt','egg','sour cream','ricotta','feta','mascarpone','buttermilk'] },
   { name: 'Bakery', keywords: ['bread','bun','roll','baguette','tortilla','pita','naan','bagel'] },
-  { name: 'Pasta, Grains & Canned', keywords: ['pasta','tagliatelle','spaghetti','penne','rice','quinoa','oats','canned tomato','tomato paste','crushed tomato','beans','chickpea','lentil','broth','stock','noodle','couscous','tomato sauce'] },
+  { name: 'Pasta, Grains & Canned', keywords: ['pasta','tagliatelle','spaghetti','penne','rice','quinoa','oats','canned','can of','tomato paste','crushed tomato','peeled tomato','diced tomato','beans','chickpea','lentil','chicken broth','beef broth','vegetable broth','bone broth','chicken stock','beef stock','vegetable stock','broth','stock','noodle','couscous','tomato sauce'] },
   { name: 'Baking & Spices', keywords: ['flour','sugar','baking soda','baking powder','vanilla','salt','pepper','cinnamon','nutmeg','paprika','cumin','oregano','thyme','bay leaf','cayenne','chili powder','spice','seasoning','yeast','cocoa','honey','maple syrup'] },
   { name: 'Oils, Condiments & Sauces', keywords: ['oil','vinegar','soy sauce','miso','mustard','ketchup','mayonnaise','hot sauce','worcestershire','sesame oil','wine','sriracha'] },
   { name: 'Frozen', keywords: ['frozen'] },
   { name: 'Beverages', keywords: ['juice','soda','coffee','tea','wine','beer'] },
 ];
+// Picks the aisle whose matched keyword is the longest (most specific) —
+// not just the first aisle in list order — so a compound phrase like "beef
+// stock" or "canned tomatoes" correctly beats a shorter, more generic match
+// like "beef" or "tomato" from an earlier aisle in the list.
 function guessAisle(ingredientText) {
   const t = (ingredientText || '').toLowerCase();
+  let best = null;
   for (const aisle of AISLES) {
-    if (aisle.keywords.some(kw => t.includes(kw))) return aisle.name;
+    for (const kw of aisle.keywords) {
+      if (t.includes(kw) && (!best || kw.length > best.kw.length)) best = { name: aisle.name, kw };
+    }
   }
-  return 'Other';
+  return best ? best.name : 'Other';
 }
 function loadShoppingList() {
   try { return JSON.parse(localStorage.getItem(SHOPPING_LIST_KEY) || '[]'); } catch { return []; }
 }
 function saveShoppingList() {
   try { localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(state.shoppingList)); } catch {}
+}
+
+// Store-specific aisle order — there's no real per-store layout data source,
+// so a "store" here is just a named, user-defined ordering of the same aisle
+// categories. Picking a store re-groups the list in that saved order instead
+// of the generic default; the ordering is remembered per store name.
+const DEFAULT_AISLE_ORDER = AISLES.map(a => a.name).concat('Other');
+const SHOPPING_STORES_KEY = 'mise-en-scroll-shopping-stores';
+function loadStoreData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHOPPING_STORES_KEY) || 'null');
+    if (saved && typeof saved === 'object') return { active: saved.active || null, stores: saved.stores || {} };
+  } catch {}
+  return { active: null, stores: {} };
+}
+function saveStoreData() {
+  try { localStorage.setItem(SHOPPING_STORES_KEY, JSON.stringify({ active: state.activeStoreName, stores: state.shoppingStores })); } catch {}
+}
+function getAisleOrder() {
+  const custom = state.activeStoreName && state.shoppingStores[state.activeStoreName];
+  if (!custom) return DEFAULT_AISLE_ORDER;
+  // Any aisle not present in an older saved order (e.g. a new category added
+  // after the store was created) still needs a slot — append it at the end.
+  return [...custom, ...DEFAULT_AISLE_ORDER.filter(a => !custom.includes(a))];
 }
 // Adds ingredient strings to the list, tagged with their source recipe.
 // Dedupes on exact text match within the same source so re-adding a recipe
@@ -1223,16 +1258,50 @@ function renderMealPlan() {
 
 function renderShoppingList() {
   const emptyIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
-  const groups = AISLES.map(a => a.name).concat('Other')
+  const order = getAisleOrder();
+  const groups = order
     .map(name => ({ name, items: state.shoppingList.filter(i => i.aisle === name) }))
     .filter(g => g.items.length);
   const checkedCount = state.shoppingList.filter(i => i.checked).length;
+  const storeNames = Object.keys(state.shoppingStores);
 
   return `
     <div class="container" style="padding-top:20px">
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
         Ingredients you've added from recipes, grouped by typical grocery-store aisle. Tap <strong>Add to Shopping List</strong> on any recipe, or paste a recipe from anywhere below.
       </p>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <span class="tag-label" style="margin:0">Store:</span>
+        <button class="tag-chip ${!state.activeStoreName ? 'is-active' : ''}" data-action="store-select" data-store="">Generic order</button>
+        ${storeNames.map(name => `
+          <button class="tag-chip ${state.activeStoreName === name ? 'is-active' : ''}" data-action="store-select" data-store="${escHtml(name)}">${escHtml(name)}</button>
+        `).join('')}
+        <div class="board-new-row" style="display:inline-flex">
+          <input id="store-new-input" class="board-new-input" placeholder="New store name…" autocomplete="off">
+          <button class="board-new-btn" data-action="create-store">Add</button>
+        </div>
+      </div>
+
+      ${state.activeStoreName ? `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="filter-toggle-btn" data-action="store-edit-toggle">${state.storeEditOpen ? 'Done editing order' : `Edit ${escHtml(state.activeStoreName)}'s aisle order`}</button>
+          <button class="filter-toggle-btn" data-action="store-delete" data-store="${escHtml(state.activeStoreName)}">Delete store</button>
+        </div>
+        ${state.storeEditOpen ? `
+          <div class="ingredient-banner" style="display:block;padding:14px;margin-bottom:12px">
+            <p style="margin:0 0 8px;font-size:0.82rem;color:var(--muted)">Reorder aisles to match how ${escHtml(state.activeStoreName)} is laid out.</p>
+            ${getAisleOrder().map((name, i, arr) => `
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+                <span style="flex:1">${escHtml(name)}</span>
+                <button class="scale-btn" data-action="store-move-aisle" data-aisle="${escHtml(name)}" data-dir="up" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+                <button class="scale-btn" data-action="store-move-aisle" data-aisle="${escHtml(name)}" data-dir="down" ${i === arr.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      ` : ''}
+
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
         <button class="filter-toggle-btn" data-action="shopping-paste-toggle">
           ${state.shoppingPasteOpen ? 'Cancel' : '+ Paste a recipe'}
@@ -1240,6 +1309,7 @@ function renderShoppingList() {
         ${state.shoppingList.length ? `
           ${checkedCount ? `<button class="filter-toggle-btn" data-action="shopping-clear-checked">Clear checked (${checkedCount})</button>` : ''}
           <button class="filter-toggle-btn" data-action="shopping-clear-all">Clear all</button>
+          <button class="filter-toggle-btn" data-action="shopping-export">⭳ Export</button>
         ` : ''}
       </div>
       ${state.shoppingPasteOpen ? `
@@ -1860,6 +1930,80 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'shopping-export') {
+    const order = getAisleOrder();
+    const groups = order
+      .map(name => ({ name, items: state.shoppingList.filter(i => i.aisle === name) }))
+      .filter(g => g.items.length);
+    const storeLabel = state.activeStoreName ? ` (${state.activeStoreName} order)` : '';
+    const lines = [`Shopping List${storeLabel}`, ''];
+    for (const g of groups) {
+      lines.push(g.name.toUpperCase());
+      for (const item of g.items) lines.push(`${item.checked ? '[x]' : '[ ]'} ${item.text}${item.source ? ` (${item.source})` : ''}`);
+      lines.push('');
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'shopping-list.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  if (action === 'create-store') {
+    const input = document.getElementById('store-new-input');
+    const name = input?.value.trim();
+    if (!name || state.shoppingStores[name]) return;
+    state.shoppingStores[name] = [...DEFAULT_AISLE_ORDER];
+    state.activeStoreName = name;
+    state.storeEditOpen = true;
+    saveStoreData();
+    renderApp();
+    return;
+  }
+
+  if (action === 'store-select') {
+    state.activeStoreName = el.dataset.store || null;
+    state.storeEditOpen = false;
+    saveStoreData();
+    renderApp();
+    return;
+  }
+
+  if (action === 'store-edit-toggle') {
+    state.storeEditOpen = !state.storeEditOpen;
+    renderApp();
+    return;
+  }
+
+  if (action === 'store-delete') {
+    const name = el.dataset.store;
+    delete state.shoppingStores[name];
+    if (state.activeStoreName === name) { state.activeStoreName = null; state.storeEditOpen = false; }
+    saveStoreData();
+    renderApp();
+    return;
+  }
+
+  if (action === 'store-move-aisle') {
+    const name = state.activeStoreName;
+    if (!name) return;
+    const order = getAisleOrder();
+    const idx = order.indexOf(el.dataset.aisle);
+    const dir = el.dataset.dir === 'up' ? -1 : 1;
+    const swapIdx = idx + dir;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= order.length) return;
+    [order[idx], order[swapIdx]] = [order[swapIdx], order[idx]];
+    state.shoppingStores[name] = order;
+    saveStoreData();
+    renderApp();
+    return;
+  }
+
   if (action === 'blog-picker-toggle') {
     state.blogPickerOpen = !state.blogPickerOpen;
     renderApp();
@@ -2471,6 +2615,7 @@ async function init() {
   state.mealPlan = loadMealPlan();
   state.boards = loadBoards();
   state.shoppingList = loadShoppingList();
+  { const sd = loadStoreData(); state.shoppingStores = sd.stores; state.activeStoreName = sd.active; }
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
     state.cuisineFilters = savedFilters.cuisine  || [];
