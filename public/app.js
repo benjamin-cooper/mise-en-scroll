@@ -2614,7 +2614,12 @@ async function init() {
   state.recentSearches = loadSearchHistory();
   state.mealPlan = loadMealPlan();
   state.boards = loadBoards();
-  state.shoppingList = loadShoppingList();
+  // Re-run aisle categorization on every load, not just at add-time — so
+  // fixes/tweaks to guessAisle() apply retroactively to items already saved
+  // in someone's list, instead of leaving them stuck with whatever aisle
+  // they got assigned the day they were added.
+  state.shoppingList = loadShoppingList().map(item => ({ ...item, aisle: guessAisle(item.text) }));
+  saveShoppingList();
   { const sd = loadStoreData(); state.shoppingStores = sd.stores; state.activeStoreName = sd.active; }
   const savedFilters = loadSavedFilters();
   if (savedFilters) {
