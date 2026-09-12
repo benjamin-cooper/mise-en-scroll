@@ -151,6 +151,7 @@ const state = {
   shoppingStores: {},        // { storeName: [aisleName in custom order, ...] }
   activeStoreName: null,
   storeEditOpen: false,      // aisle-reorder editor visible for the active store
+  mealPlanToShoppingLoading: false,
 };
 
 // --- API ---
@@ -1213,8 +1214,16 @@ function renderSearchSection() {
 
 function renderMealPlan() {
   const today = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+  const hasAnyMeals = DAYS.some(day => MEAL_SLOTS.some(slot => state.mealPlan[day]?.[slot]));
   return `
     <div class="container">
+      ${hasAnyMeals ? `
+        <div style="margin-bottom:16px">
+          <button class="filter-toggle-btn has-active" data-action="mealplan-to-shopping-list" ${state.mealPlanToShoppingLoading ? 'disabled' : ''}>
+            ${state.mealPlanToShoppingLoading ? 'Adding…' : '+ Add week to Shopping List'}
+          </button>
+        </div>
+      ` : ''}
       <div class="meal-plan-grid">
         ${DAYS.map(day => {
           const slots = state.mealPlan[day] || {};
@@ -1248,7 +1257,7 @@ function renderMealPlan() {
           `;
         }).join('')}
       </div>
-      ${Object.values(state.mealPlan).every(d => !d || MEAL_SLOTS.every(s => !d[s])) ? `
+      ${!hasAnyMeals ? `
         <div class="empty" style="padding:60px 20px">
           <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
           <p>Your meal plan is empty. Open any recipe and tap <strong>Add to Plan</strong> to schedule it.</p>
@@ -1880,6 +1889,35 @@ document.addEventListener('click', async (e) => {
     const title = state.selected?.preview?.title || state.detail?.title;
     const added = addIngredientsToShoppingList(ingredients, title);
     showToast(added ? `Added ${added} ingredient${added === 1 ? '' : 's'} to your shopping list` : 'Already on your list');
+    renderApp();
+    return;
+  }
+
+  if (action === 'mealplan-to-shopping-list') {
+    if (state.mealPlanToShoppingLoading) return;
+    const recipes = [];
+    const seen = new Set();
+    for (const day of DAYS) {
+      for (const slot of MEAL_SLOTS) {
+        const r = state.mealPlan[day]?.[slot];
+        if (r && !seen.has(r.url)) { seen.add(r.url); recipes.push(r); }
+      }
+    }
+    if (!recipes.length) return;
+    state.mealPlanToShoppingLoading = true;
+    renderApp();
+    let totalAdded = 0;
+    for (const r of recipes) {
+      try {
+        const data = _prefetchCache.has(r.url) ? await _prefetchCache.get(r.url) : await api.recipe(r.url);
+        const ingredients = data?.ingredients || [];
+        if (ingredients.length) totalAdded += addIngredientsToShoppingList(ingredients, r.title);
+      } catch { /* skip recipes that fail to load, don't block the rest */ }
+    }
+    state.mealPlanToShoppingLoading = false;
+    showToast(totalAdded
+      ? `Added ${totalAdded} ingredient${totalAdded === 1 ? '' : 's'} from ${recipes.length} recipe${recipes.length === 1 ? '' : 's'}`
+      : 'No ingredients found in this week\'s recipes');
     renderApp();
     return;
   }
