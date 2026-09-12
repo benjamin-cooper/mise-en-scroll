@@ -1,76 +1,76 @@
 // Cuisine, protein, and time keyword definitions
 const FILTERS = {
   cuisine: [
-    { label: 'African',          icon: '🌍', keywords: ['nigerian', 'ethiopian', 'jollof', 'egusi', 'suya', 'injera', 'berbere', 'peri peri', 'piri piri', 'west african', 'ghanaian', 'senegalese', 'akara', 'moi moi', 'ogbono', 'pepper soup', 'ofe', 'waakye', 'thieboudienne', 'doro wat', 'misir wat', 'kenyan', 'tanzanian', 'ugali', 'chapati', 'pilau', 'nyama choma'] },
-    { label: 'American',         icon: '🍔', keywords: ['burger', 'bbq', 'mac and cheese', 'meatloaf', 'pot roast', 'biscuit', 'cornbread', 'chili', 'wings', 'ribs', 'coleslaw', 'pulled pork', 'sloppy', 'casserole', 'ranch', 'buffalo', 'mashed potato', 'gravy', 'biscuits and gravy', 'chicken fried', 'country fried', 'jambalaya', 'gumbo', 'po boy', 'hot dog', 'lobster roll', 'clam chowder', 'philly cheesesteak', 'reuben', 'corn dog'] },
-    { label: 'Caribbean',        icon: '🌺', keywords: ['caribbean', 'jamaican', 'trinidadian', 'haitian', 'cuban', 'puerto rican', 'jerk', 'plantain', 'rice and peas', 'callaloo', 'roti', 'curry goat', 'oxtail', 'ackee', 'saltfish', 'doubles', 'pelau', 'sorrel', 'escovitch', 'mofongo', 'pasteles', 'pernil', 'pollo guisado'] },
-    { label: 'Chinese',          icon: '🥟', keywords: ['chinese', 'stir fry', 'stir-fry', 'wok', 'dim sum', 'kung pao', 'mapo', 'fried rice', 'dumpling', 'wonton', 'szechuan', 'sichuan', 'cantonese', 'char siu', 'lo mein', 'chow mein', 'hot pot', 'bok choy', 'hoisin', 'five spice', 'xiaolongbao', 'dan dan', 'scallion pancake', 'congee', 'jook', 'char siu bao', 'egg tart', 'claypot', 'malatang'] },
-    { label: 'Eastern European', icon: '🥣', keywords: ['polish', 'czech', 'hungarian', 'ukrainian', 'romanian', 'russian', 'serbian', 'eastern european', 'pierogi', 'borscht', 'schnitzel', 'goulash', 'kielbasa', 'sauerkraut', 'stroganoff', 'cabbage roll', 'perogies', 'halupki', 'paczki', 'babka', 'varenyky', 'syrniki', 'blini', 'pelmeni', 'kluski', 'żurek', 'kapusniak'] },
-    { label: 'Filipino',         icon: '🍚', keywords: ['filipino', 'adobo', 'sinigang', 'kare-kare', 'lechon', 'pancit', 'lumpia', 'sisig', 'tinola', 'pinakbet', 'pinoy', 'kaldereta', 'mechado', 'menudo', 'afritada', 'kinilaw', 'dinuguan', 'arroz caldo', 'halo-halo', 'bibingka', 'puto', 'leche flan', 'ginataang'] },
-    { label: 'French',           icon: '🥐', keywords: ['french', 'coq au vin', 'bouillabaisse', 'ratatouille', 'croissant', 'brioche', 'baguette', 'béarnaise', 'bearnaise', 'beurre blanc', 'soufflé', 'souffle', 'cassoulet', 'confit', 'vichyssoise', 'provençal', 'provencal', 'niçoise', 'nicoise', 'gratin', 'tarte tatin', 'madeleines', 'croque', 'pot-au-feu', 'blanquette', 'crêpe', 'crepe', 'galette', 'french onion soup', 'quiche lorraine', 'creme brulee', 'duck confit', 'french dip'] },
-    { label: 'Indian',           icon: '🍛', keywords: ['curry', 'tikka', 'masala', 'dal', 'naan', 'biryani', 'saag', 'paneer', 'tandoori', 'chutney', 'samosa', 'korma', 'vindaloo', 'palak', 'aloo', 'indian', 'chana', 'raita', 'dosa', 'idli', 'uttapam', 'pav bhaji', 'chole', 'butter chicken', 'rogan josh', 'khichdi', 'rajma', 'kadhi', 'halwa', 'kheer', 'gulab jamun', 'lassi', 'chaat'] },
-    { label: 'Italian',          icon: '🍝', keywords: ['pasta', 'pizza', 'lasagna', 'risotto', 'gnocchi', 'carbonara', 'parmesan', 'pesto', 'linguine', 'fettuccine', 'italian', 'bolognese', 'tiramisu', 'ravioli', 'cannelloni', 'arrabbiata', 'bruschetta', 'focaccia', 'calzone', 'cacio e pepe', 'amatriciana', 'saltimbocca', 'osso buco', 'puttanesca', 'aglio e olio', 'caprese', 'arancini', 'minestrone', 'pasta e fagioli', 'ribollita', 'polenta', 'vitello tonnato'] },
-    { label: 'Japanese',         icon: '🍱', keywords: ['japanese', 'ramen', 'sushi', 'miso', 'teriyaki', 'tempura', 'udon', 'soba', 'tonkatsu', 'katsu', 'donburi', 'onigiri', 'yakitori', 'gyoza', 'okonomiyaki', 'dashi', 'matcha', 'sake', 'rice bowl', 'karaage', 'shabu shabu', 'sukiyaki', 'takoyaki', 'tsukemen', 'japanese curry', 'bento', 'tamagoyaki', 'mochi', 'agedashi'] },
-    { label: 'Korean',           icon: '🥘', keywords: ['korean', 'bibimbap', 'bulgogi', 'kimchi', 'gochujang', 'japchae', 'banchan', 'galbi', 'dakgalbi', 'sundubu', 'doenjang', 'pajeon', 'tteok', 'doenjang jjigae', 'army stew', 'samgyeopsal', 'tteokbokki', 'jajangmyeon', 'haemul pajeon', 'korean fried chicken', 'gamjatang', 'dosirak'] },
-    { label: 'Latin American',   icon: '🌶️', keywords: ['peruvian', 'brazilian', 'argentinian', 'colombian', 'venezuelan', 'chilean', 'chimichurri', 'lomo saltado', 'causa', 'aji de gallina', 'feijoada', 'brigadeiro', 'moqueca', 'pão de queijo', 'pao de queijo', 'arepa', 'arepas', 'empanada', 'sancocho', 'bandeja paisa', 'tostones', 'maduros', 'anticuchos', 'alfajor', 'dulce de leche', 'asado', 'choripan', 'pernil', 'sofrito', 'arroz con pollo', 'ropa vieja'] },
-    { label: 'Mediterranean',    icon: '🫒', keywords: ['greek', 'mediterranean', 'shakshuka', 'gyro', 'tzatziki', 'spanakopita', 'moussaka', 'turkish', 'pide', 'borek', 'meze', 'dolma', 'lahmacun', 'baklava', 'couscous', 'moroccan', 'harissa', 'chermoula', 'tagine', 'fatayer', 'pastilla', 'zaalouk', 'manakish', 'fattet', 'avgolemono', 'pastitsio', 'imam bayildi'] },
-    { label: 'Mexican',          icon: '🌮', keywords: ['taco', 'burrito', 'enchilada', 'quesadilla', 'salsa', 'guacamole', 'carnitas', 'fajita', 'tortilla', 'mexican', 'tamale', 'elote', 'pozole', 'mole', 'ceviche', 'chipotle', 'birria', 'chile verde', 'chiles rellenos', 'tlayuda', 'sopes', 'huarache', 'tostada', 'tacos al pastor', 'aguachile', 'chiles en nogada', 'horchata', 'agua de jamaica'] },
-    { label: 'Middle Eastern',   icon: '🧆', keywords: ['middle eastern', 'lebanese', 'arabic', 'persian', 'iranian', 'israeli', 'jewish', 'falafel', 'hummus', 'shawarma', 'pita', 'tahini', 'za\'atar', 'sumac', 'tabbouleh', 'baba ganoush', 'fattoush', 'kibbeh', 'kabsa', 'mujaddara', 'musakhan', 'ghormeh', 'fesenjan', 'kebab', 'mansaf', 'maqluba', 'sabich', 'knafeh', 'basbousa'] },
-    { label: 'SE Asian',         icon: '🌴', keywords: ['malaysian', 'singaporean', 'indonesian', 'laksa', 'rendang', 'nasi goreng', 'nasi lemak', 'char kway teow', 'gado gado', 'mee goreng', 'bak kut teh', 'sambal', 'rojak', 'hainanese', 'chicken rice', 'wonton mee', 'hokkien mee', 'soto ayam', 'beef rendang', 'kaya', 'ondeh ondeh', 'cendol', 'ikan bakar'] },
-    { label: 'Spanish',          icon: '🥘', keywords: ['spanish', 'paella', 'tapas', 'gazpacho', 'patatas bravas', 'tortilla española', 'tortilla espanola', 'croquetas', 'albondigas', 'romesco', 'pan con tomate', 'manchego', 'pisto', 'gambas al ajillo', 'pulpo', 'churro', 'jamón', 'jamon', 'fabada', 'cocido', 'pimientos'] },
-    { label: 'Thai',             icon: '🌿', keywords: ['thai', 'pad thai', 'green curry', 'red curry', 'massaman', 'larb', 'tom yum', 'som tum', 'satay', 'pad see ew', 'khao', 'nam prik', 'yellow curry', 'pad kra pao', 'khao soi', 'tom kha', 'crying tiger', 'mango sticky rice', 'thai iced tea', 'pad woon sen'] },
-    { label: 'Vietnamese',       icon: '🍲', keywords: ['vietnamese', 'pho', 'banh mi', 'banh', 'bun bo', 'spring roll', 'fresh roll', 'bo kho', 'com tam', 'canh chua', 'bun thit', 'chả giò', 'bun cha', 'cao lau', 'banh xeo', 'bun rieu', 'com chien'] },
+    { label: 'African', keywords: ['nigerian', 'ethiopian', 'jollof', 'egusi', 'suya', 'injera', 'berbere', 'peri peri', 'piri piri', 'west african', 'ghanaian', 'senegalese', 'akara', 'moi moi', 'ogbono', 'pepper soup', 'ofe', 'waakye', 'thieboudienne', 'doro wat', 'misir wat', 'kenyan', 'tanzanian', 'ugali', 'chapati', 'pilau', 'nyama choma'] },
+    { label: 'American', keywords: ['burger', 'bbq', 'mac and cheese', 'meatloaf', 'pot roast', 'biscuit', 'cornbread', 'chili', 'wings', 'ribs', 'coleslaw', 'pulled pork', 'sloppy', 'casserole', 'ranch', 'buffalo', 'mashed potato', 'gravy', 'biscuits and gravy', 'chicken fried', 'country fried', 'jambalaya', 'gumbo', 'po boy', 'hot dog', 'lobster roll', 'clam chowder', 'philly cheesesteak', 'reuben', 'corn dog'] },
+    { label: 'Caribbean', keywords: ['caribbean', 'jamaican', 'trinidadian', 'haitian', 'cuban', 'puerto rican', 'jerk', 'plantain', 'rice and peas', 'callaloo', 'roti', 'curry goat', 'oxtail', 'ackee', 'saltfish', 'doubles', 'pelau', 'sorrel', 'escovitch', 'mofongo', 'pasteles', 'pernil', 'pollo guisado'] },
+    { label: 'Chinese', keywords: ['chinese', 'stir fry', 'stir-fry', 'wok', 'dim sum', 'kung pao', 'mapo', 'fried rice', 'dumpling', 'wonton', 'szechuan', 'sichuan', 'cantonese', 'char siu', 'lo mein', 'chow mein', 'hot pot', 'bok choy', 'hoisin', 'five spice', 'xiaolongbao', 'dan dan', 'scallion pancake', 'congee', 'jook', 'char siu bao', 'egg tart', 'claypot', 'malatang'] },
+    { label: 'Eastern European', keywords: ['polish', 'czech', 'hungarian', 'ukrainian', 'romanian', 'russian', 'serbian', 'eastern european', 'pierogi', 'borscht', 'schnitzel', 'goulash', 'kielbasa', 'sauerkraut', 'stroganoff', 'cabbage roll', 'perogies', 'halupki', 'paczki', 'babka', 'varenyky', 'syrniki', 'blini', 'pelmeni', 'kluski', 'żurek', 'kapusniak'] },
+    { label: 'Filipino', keywords: ['filipino', 'adobo', 'sinigang', 'kare-kare', 'lechon', 'pancit', 'lumpia', 'sisig', 'tinola', 'pinakbet', 'pinoy', 'kaldereta', 'mechado', 'menudo', 'afritada', 'kinilaw', 'dinuguan', 'arroz caldo', 'halo-halo', 'bibingka', 'puto', 'leche flan', 'ginataang'] },
+    { label: 'French', keywords: ['french', 'coq au vin', 'bouillabaisse', 'ratatouille', 'croissant', 'brioche', 'baguette', 'béarnaise', 'bearnaise', 'beurre blanc', 'soufflé', 'souffle', 'cassoulet', 'confit', 'vichyssoise', 'provençal', 'provencal', 'niçoise', 'nicoise', 'gratin', 'tarte tatin', 'madeleines', 'croque', 'pot-au-feu', 'blanquette', 'crêpe', 'crepe', 'galette', 'french onion soup', 'quiche lorraine', 'creme brulee', 'duck confit', 'french dip'] },
+    { label: 'Indian', keywords: ['curry', 'tikka', 'masala', 'dal', 'naan', 'biryani', 'saag', 'paneer', 'tandoori', 'chutney', 'samosa', 'korma', 'vindaloo', 'palak', 'aloo', 'indian', 'chana', 'raita', 'dosa', 'idli', 'uttapam', 'pav bhaji', 'chole', 'butter chicken', 'rogan josh', 'khichdi', 'rajma', 'kadhi', 'halwa', 'kheer', 'gulab jamun', 'lassi', 'chaat'] },
+    { label: 'Italian', keywords: ['pasta', 'pizza', 'lasagna', 'risotto', 'gnocchi', 'carbonara', 'parmesan', 'pesto', 'linguine', 'fettuccine', 'italian', 'bolognese', 'tiramisu', 'ravioli', 'cannelloni', 'arrabbiata', 'bruschetta', 'focaccia', 'calzone', 'cacio e pepe', 'amatriciana', 'saltimbocca', 'osso buco', 'puttanesca', 'aglio e olio', 'caprese', 'arancini', 'minestrone', 'pasta e fagioli', 'ribollita', 'polenta', 'vitello tonnato'] },
+    { label: 'Japanese', keywords: ['japanese', 'ramen', 'sushi', 'miso', 'teriyaki', 'tempura', 'udon', 'soba', 'tonkatsu', 'katsu', 'donburi', 'onigiri', 'yakitori', 'gyoza', 'okonomiyaki', 'dashi', 'matcha', 'sake', 'rice bowl', 'karaage', 'shabu shabu', 'sukiyaki', 'takoyaki', 'tsukemen', 'japanese curry', 'bento', 'tamagoyaki', 'mochi', 'agedashi'] },
+    { label: 'Korean', keywords: ['korean', 'bibimbap', 'bulgogi', 'kimchi', 'gochujang', 'japchae', 'banchan', 'galbi', 'dakgalbi', 'sundubu', 'doenjang', 'pajeon', 'tteok', 'doenjang jjigae', 'army stew', 'samgyeopsal', 'tteokbokki', 'jajangmyeon', 'haemul pajeon', 'korean fried chicken', 'gamjatang', 'dosirak'] },
+    { label: 'Latin American', keywords: ['peruvian', 'brazilian', 'argentinian', 'colombian', 'venezuelan', 'chilean', 'chimichurri', 'lomo saltado', 'causa', 'aji de gallina', 'feijoada', 'brigadeiro', 'moqueca', 'pão de queijo', 'pao de queijo', 'arepa', 'arepas', 'empanada', 'sancocho', 'bandeja paisa', 'tostones', 'maduros', 'anticuchos', 'alfajor', 'dulce de leche', 'asado', 'choripan', 'pernil', 'sofrito', 'arroz con pollo', 'ropa vieja'] },
+    { label: 'Mediterranean', keywords: ['greek', 'mediterranean', 'shakshuka', 'gyro', 'tzatziki', 'spanakopita', 'moussaka', 'turkish', 'pide', 'borek', 'meze', 'dolma', 'lahmacun', 'baklava', 'couscous', 'moroccan', 'harissa', 'chermoula', 'tagine', 'fatayer', 'pastilla', 'zaalouk', 'manakish', 'fattet', 'avgolemono', 'pastitsio', 'imam bayildi'] },
+    { label: 'Mexican', keywords: ['taco', 'burrito', 'enchilada', 'quesadilla', 'salsa', 'guacamole', 'carnitas', 'fajita', 'tortilla', 'mexican', 'tamale', 'elote', 'pozole', 'mole', 'ceviche', 'chipotle', 'birria', 'chile verde', 'chiles rellenos', 'tlayuda', 'sopes', 'huarache', 'tostada', 'tacos al pastor', 'aguachile', 'chiles en nogada', 'horchata', 'agua de jamaica'] },
+    { label: 'Middle Eastern', keywords: ['middle eastern', 'lebanese', 'arabic', 'persian', 'iranian', 'israeli', 'jewish', 'falafel', 'hummus', 'shawarma', 'pita', 'tahini', 'za\'atar', 'sumac', 'tabbouleh', 'baba ganoush', 'fattoush', 'kibbeh', 'kabsa', 'mujaddara', 'musakhan', 'ghormeh', 'fesenjan', 'kebab', 'mansaf', 'maqluba', 'sabich', 'knafeh', 'basbousa'] },
+    { label: 'SE Asian', keywords: ['malaysian', 'singaporean', 'indonesian', 'laksa', 'rendang', 'nasi goreng', 'nasi lemak', 'char kway teow', 'gado gado', 'mee goreng', 'bak kut teh', 'sambal', 'rojak', 'hainanese', 'chicken rice', 'wonton mee', 'hokkien mee', 'soto ayam', 'beef rendang', 'kaya', 'ondeh ondeh', 'cendol', 'ikan bakar'] },
+    { label: 'Spanish', keywords: ['spanish', 'paella', 'tapas', 'gazpacho', 'patatas bravas', 'tortilla española', 'tortilla espanola', 'croquetas', 'albondigas', 'romesco', 'pan con tomate', 'manchego', 'pisto', 'gambas al ajillo', 'pulpo', 'churro', 'jamón', 'jamon', 'fabada', 'cocido', 'pimientos'] },
+    { label: 'Thai', keywords: ['thai', 'pad thai', 'green curry', 'red curry', 'massaman', 'larb', 'tom yum', 'som tum', 'satay', 'pad see ew', 'khao', 'nam prik', 'yellow curry', 'pad kra pao', 'khao soi', 'tom kha', 'crying tiger', 'mango sticky rice', 'thai iced tea', 'pad woon sen'] },
+    { label: 'Vietnamese', keywords: ['vietnamese', 'pho', 'banh mi', 'banh', 'bun bo', 'spring roll', 'fresh roll', 'bo kho', 'com tam', 'canh chua', 'bun thit', 'chả giò', 'bun cha', 'cao lau', 'banh xeo', 'bun rieu', 'com chien'] },
   ],
   protein: [
-    { label: 'Beef',       icon: '🥩', keywords: ['beef', 'steak', 'brisket', 'burger', 'meatball', 'ground beef', 'pot roast', 'short rib', 'flank', 'chuck', 'sirloin', 'ribeye', 'prime rib', 'smash burger', 'corned beef', 'braised beef', 'beef tenderloin', 'wagyu', 'picanha', 'skirt steak', 'hanger steak', 't-bone'] },
-    { label: 'Chicken',    icon: '🍗', keywords: ['chicken', 'poultry', 'rotisserie'] },
-    { label: 'Lamb',       icon: '🍖', keywords: ['lamb', 'mutton', 'rack of lamb', 'leg of lamb', 'lamb chop', 'lamb shank', 'ground lamb', 'lamb shoulder', 'lamb burger', 'lamb kebab', 'lamb ribs'] },
-    { label: 'Other',      icon: '🍳', keywords: ['egg', 'eggs', 'turkey', 'duck', 'venison', 'bison', 'rabbit', 'quail', 'goat', 'offal', 'liver', 'oxtail', 'bone broth', 'bone-in', 'game', 'elk', 'wild boar', 'pheasant', 'guinea fowl', 'cornish hen', 'frog legs', 'alligator'] },
-    { label: 'Pork',       icon: '🥓', keywords: ['pork', 'bacon', 'ham', 'prosciutto', 'pancetta', 'sausage', 'carnitas', 'ribs', 'tenderloin', 'chorizo', 'pork belly', 'pork chop', 'pork shoulder', 'spare rib', 'lard', 'guanciale', 'mortadella', 'coppa', 'lardo', 'bratwurst', 'andouille'] },
-    { label: 'Seafood',    icon: '🐟', keywords: ['salmon', 'shrimp', 'fish', 'tuna', 'cod', 'halibut', 'crab', 'lobster', 'scallop', 'seafood', 'tilapia', 'mahi', 'clam', 'mussel', 'oyster', 'trout', 'bass', 'snapper', 'anchovy', 'prawns', 'squid', 'calamari', 'octopus', 'sea bass', 'branzino', 'monkfish', 'sardine', 'mackerel', 'swordfish', 'catfish', 'flounder', 'grouper', 'dungeness crab', 'king crab'] },
-    { label: 'Vegetarian', icon: '🥦', keywords: ['vegetarian', 'vegan', 'tofu', 'lentil', 'chickpea', 'tempeh', 'mushroom', 'cauliflower', 'eggplant', 'veggie', 'plant-based', 'meatless', 'butternut', 'squash', 'zucchini', 'jackfruit', 'seitan', 'black bean', 'white bean', 'cannellini', 'kidney bean', 'edamame', 'portobello', 'paneer', 'halloumi', 'falafel', 'beet', 'sweet potato', 'lentil soup'] },
+    { label: 'Beef', keywords: ['beef', 'steak', 'brisket', 'burger', 'meatball', 'ground beef', 'pot roast', 'short rib', 'flank', 'chuck', 'sirloin', 'ribeye', 'prime rib', 'smash burger', 'corned beef', 'braised beef', 'beef tenderloin', 'wagyu', 'picanha', 'skirt steak', 'hanger steak', 't-bone'] },
+    { label: 'Chicken', keywords: ['chicken', 'poultry', 'rotisserie'] },
+    { label: 'Lamb', keywords: ['lamb', 'mutton', 'rack of lamb', 'leg of lamb', 'lamb chop', 'lamb shank', 'ground lamb', 'lamb shoulder', 'lamb burger', 'lamb kebab', 'lamb ribs'] },
+    { label: 'Other', keywords: ['egg', 'eggs', 'turkey', 'duck', 'venison', 'bison', 'rabbit', 'quail', 'goat', 'offal', 'liver', 'oxtail', 'bone broth', 'bone-in', 'game', 'elk', 'wild boar', 'pheasant', 'guinea fowl', 'cornish hen', 'frog legs', 'alligator'] },
+    { label: 'Pork', keywords: ['pork', 'bacon', 'ham', 'prosciutto', 'pancetta', 'sausage', 'carnitas', 'ribs', 'tenderloin', 'chorizo', 'pork belly', 'pork chop', 'pork shoulder', 'spare rib', 'lard', 'guanciale', 'mortadella', 'coppa', 'lardo', 'bratwurst', 'andouille'] },
+    { label: 'Seafood', keywords: ['salmon', 'shrimp', 'fish', 'tuna', 'cod', 'halibut', 'crab', 'lobster', 'scallop', 'seafood', 'tilapia', 'mahi', 'clam', 'mussel', 'oyster', 'trout', 'bass', 'snapper', 'anchovy', 'prawns', 'squid', 'calamari', 'octopus', 'sea bass', 'branzino', 'monkfish', 'sardine', 'mackerel', 'swordfish', 'catfish', 'flounder', 'grouper', 'dungeness crab', 'king crab'] },
+    { label: 'Vegetarian', keywords: ['vegetarian', 'vegan', 'tofu', 'lentil', 'chickpea', 'tempeh', 'mushroom', 'cauliflower', 'eggplant', 'veggie', 'plant-based', 'meatless', 'butternut', 'squash', 'zucchini', 'jackfruit', 'seitan', 'black bean', 'white bean', 'cannellini', 'kidney bean', 'edamame', 'portobello', 'paneer', 'halloumi', 'falafel', 'beet', 'sweet potato', 'lentil soup'] },
   ],
   time: [
     // Kept in logical order (fast → slow) rather than alphabetical
-    { label: 'Quick (≤30m)', icon: '⚡', keywords: ['quick', '15 minute', '15-minute', '20 minute', '20-minute', '30 minute', '30-minute', 'weeknight', 'speedy', 'fast ', 'in a hurry', 'easy weeknight'] },
-    { label: '~1 Hour',      icon: '🕐', keywords: ['45 minute', '45-minute', 'one hour', 'one-hour', '60 minute', 'sheet pan', 'sheet-pan', 'one pan', 'one-pan', 'one pot', 'one-pot', 'skillet'] },
-    { label: '2+ Hours',     icon: '⏳', keywords: ['2 hour', '2-hour', '3 hour', '3-hour', 'overnight', 'all day', 'sunday roast', 'all-day', 'long braise', 'low and slow', 'oven braised'] },
+    { label: 'Quick (≤30m)', keywords: ['quick', '15 minute', '15-minute', '20 minute', '20-minute', '30 minute', '30-minute', 'weeknight', 'speedy', 'fast ', 'in a hurry', 'easy weeknight'] },
+    { label: '~1 Hour', keywords: ['45 minute', '45-minute', 'one hour', 'one-hour', '60 minute', 'sheet pan', 'sheet-pan', 'one pan', 'one-pan', 'one pot', 'one-pot', 'skillet'] },
+    { label: '2+ Hours', keywords: ['2 hour', '2-hour', '3 hour', '3-hour', 'overnight', 'all day', 'sunday roast', 'all-day', 'long braise', 'low and slow', 'oven braised'] },
   ],
   method: [
-    { label: 'Air Fryer',   icon: '💨', keywords: ['air fryer', 'air-fryer', 'air fry', 'air fried'] },
-    { label: 'Baked',       icon: '🫓', keywords: ['baked', 'bake', 'roasted', 'oven-baked', 'sheet pan', 'sheet-pan'] },
-    { label: 'Grilled',     icon: '🔥', keywords: ['grilled', 'grill', 'grilling', 'bbq', 'barbecue', 'charred', 'smoked'] },
-    { label: 'Instant Pot', icon: '⚡', keywords: ['instant pot', 'pressure cooker', 'pressure cook', 'instant-pot'] },
-    { label: 'No-Cook',     icon: '🥗', keywords: ['no-cook', 'no cook', 'no-bake', 'no bake', 'raw', 'refrigerator', 'icebox', 'ceviche', 'tartare', 'crudo'] },
-    { label: 'One Pot',     icon: '🍲', keywords: ['one pot', 'one-pot', 'one pot meal', 'one pot dinner', 'one pot recipe', 'one pan', 'one-pan', 'sheet pan', 'sheet-pan', 'skillet meal', 'skillet dinner'] },
-    { label: 'Pan-Fried',   icon: '🍳', keywords: ['pan-fried', 'pan fried', 'pan fry', 'pan seared', 'pan-seared', 'deep fried', 'deep-fried', 'shallow fry', 'crispy fried', 'fried chicken', 'stir-fried'] },
-    { label: 'Slow Cooker', icon: '🫕', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
-    { label: 'Steamed',     icon: '♨️',  keywords: ['steamed', 'steam', 'steamer', 'poached', 'poach', 'en papillote', 'sous vide'] },
+    { label: 'Air Fryer', keywords: ['air fryer', 'air-fryer', 'air fry', 'air fried'] },
+    { label: 'Baked', keywords: ['baked', 'bake', 'roasted', 'oven-baked', 'sheet pan', 'sheet-pan'] },
+    { label: 'Grilled', keywords: ['grilled', 'grill', 'grilling', 'bbq', 'barbecue', 'charred', 'smoked'] },
+    { label: 'Instant Pot', keywords: ['instant pot', 'pressure cooker', 'pressure cook', 'instant-pot'] },
+    { label: 'No-Cook', keywords: ['no-cook', 'no cook', 'no-bake', 'no bake', 'raw', 'refrigerator', 'icebox', 'ceviche', 'tartare', 'crudo'] },
+    { label: 'One Pot', keywords: ['one pot', 'one-pot', 'one pot meal', 'one pot dinner', 'one pot recipe', 'one pan', 'one-pan', 'sheet pan', 'sheet-pan', 'skillet meal', 'skillet dinner'] },
+    { label: 'Pan-Fried', keywords: ['pan-fried', 'pan fried', 'pan fry', 'pan seared', 'pan-seared', 'deep fried', 'deep-fried', 'shallow fry', 'crispy fried', 'fried chicken', 'stir-fried'] },
+    { label: 'Slow Cooker', keywords: ['slow cooker', 'crockpot', 'crock pot', 'crock-pot', 'slow-cooked', 'slow cook', 'braised', 'low and slow'] },
+    { label: 'Steamed',  keywords: ['steamed', 'steam', 'steamer', 'poached', 'poach', 'en papillote', 'sous vide'] },
   ],
   meal: [
     // Kept in meal-order (morning → night → sweet → other) rather than alphabetical
-    { label: 'Breakfast',  icon: '🥞', keywords: ['breakfast', 'brunch', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'benedict', 'hollandaise', 'eggs florentine', 'overnight oats', 'smoothie bowl', 'morning', 'quiche', 'crepe', 'crêpe', 'avocado toast', 'hash brown', 'hashbrown', 'strata', 'shakshuka', 'breakfast burrito', 'breakfast sandwich', 'breakfast bowl', 'oatmeal', 'porridge', 'bagel', 'acai bowl', 'egg bake', 'egg casserole', 'breakfast casserole', 'dutch baby', 'chia pudding', 'breakfast tacos', 'congee', 'menemen', 'dippy eggs', 'soft boiled', 'hard boiled'] },
-    { label: 'Lunch',      icon: '🥗', keywords: ['sandwich', 'wrap', 'grain bowl', 'lunch', 'salad', 'soup', 'poke', 'bento', 'panini', 'hoagie', 'tuna melt', 'grilled cheese', 'pasta salad', 'noodle salad', 'flatbread', 'open-faced', 'tartine', 'rice bowl', 'noodle bowl', 'lettuce cup', 'summer roll', 'quesadilla', 'tostada', 'bao', 'chaat', 'lunchbox', 'meal prep'] },
-    { label: 'Dinner',     icon: '🍽️', keywords: ['dinner', 'supper', 'weeknight', 'roast', 'entrée', 'entree', 'main course', 'main dish', 'stew', 'pasta', 'curry', 'casserole', 'ragù', 'ragu', 'braise', 'braised', 'gratin', 'fricassee', 'hash', 'skillet dinner', 'sheet pan dinner', 'one pot dinner', 'noodles', 'stir fry', 'stir-fry', 'tacos', 'soup', 'pot pie', 'skillet meal', 'family dinner', 'weeknight meal'] },
-    { label: 'Soup',       icon: '🍲', keywords: ['soup', 'stew', 'bisque', 'chowder', 'gumbo', 'minestrone', 'ramen', 'pho', 'tom yum', 'gazpacho', 'consomme', 'consommé', 'posole', 'pozole', 'bouillabaisse', 'borscht', 'bowl of chili', 'chili con carne', 'vegetarian chili', 'turkey chili', 'beef chili', 'white chicken chili', 'potage', 'vichyssoise', 'ribollita', 'wonton soup', 'egg drop soup', 'hot and sour soup', 'miso soup', 'tortilla soup', 'lentil soup', 'noodle soup'] },
-    { label: 'Dessert',    icon: '🍰', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'fruit tart', 'lemon tart', 'berry tart', 'tarte tatin', 'egg tart', 'tart crust', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'apple crisp', 'fruit crisp', 'peach crisp', 'berry crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'chocolate', 'caramel', 'dessert bars', 'blondie', 'banana bread', 'zucchini bread', 'quick bread', 'bundt', 'churro', 'panna cotta', 'tres leches', 'flan', 'praline', 'toffee', 'brittle', 'lemon curd', 'clafoutis', 'financier', 'profiterole', 'beignet', 'galette', 'crumble', 'pavlova', 'mochi', 'bread pudding', 'rice pudding', 'chocolate truffle', 'lemon bars', 'cinnamon roll', 'monkey bread', 'meringue', 'coffee cake', 'shortbread', 'snickerdoodle', 'danish', 'strudel', 'streusel', 'candy', 'semifreddo', 'entremet', 'dacquoise'] },
-    { label: 'Snack/Side', icon: '🥨', keywords: ['snack', 'appetizer', 'side dish', 'dip', 'starter', 'finger food', 'small plate', 'nibble', 'chips', 'hummus', 'salsa', 'guacamole', 'bruschetta', 'crostini', 'deviled eggs', 'nachos', 'skewer', 'charcuterie', 'cheese board', 'poppers', 'fries', 'onion rings', 'spring rolls', 'potstickers', 'meatballs', 'flatbread', 'roasted vegetables', 'roasted veggies', 'pickle', 'pickled', 'potato salad', 'coleslaw', 'slaw', 'garlic bread', 'roasted potatoes', 'stuffed mushrooms', 'antipasto', 'energy bites', 'energy balls', 'bliss balls', 'pâté', 'pate', 'crudités', 'crudites', 'board'] },
-    { label: 'Drinks',     icon: '🥤', keywords: ['cocktail', 'mocktail', 'smoothie', 'fresh juice', 'cold pressed juice', 'juice recipe', 'lemonade', 'iced tea', 'milkshake', 'margarita', 'sangria', 'spritz', 'fruit punch', 'rum punch', 'party punch', 'holiday punch', 'agua fresca', 'latte', 'cold brew', 'drinking vinegar', 'cocktail syrup', 'simple syrup', 'iced coffee', 'hot chocolate', 'hard cider', 'apple cider drink', 'kombucha', 'milk tea', 'bubble tea', 'chai latte', 'chai tea', 'matcha latte', 'golden milk', 'switchel', 'kefir drink', 'infused water', 'horchata', 'lassi', 'frappe', 'espresso martini', 'ginger beer', 'green juice', 'protein shake', 'mojito', 'daiquiri', 'negroni', 'old fashioned cocktail', 'paloma', 'aperol', 'mulled wine', 'wassail', 'tepache', 'fire cider', 'electrolyte drink'] },
+    { label: 'Breakfast', keywords: ['breakfast', 'brunch', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'benedict', 'hollandaise', 'eggs florentine', 'overnight oats', 'smoothie bowl', 'morning', 'quiche', 'crepe', 'crêpe', 'avocado toast', 'hash brown', 'hashbrown', 'strata', 'shakshuka', 'breakfast burrito', 'breakfast sandwich', 'breakfast bowl', 'oatmeal', 'porridge', 'bagel', 'acai bowl', 'egg bake', 'egg casserole', 'breakfast casserole', 'dutch baby', 'chia pudding', 'breakfast tacos', 'congee', 'menemen', 'dippy eggs', 'soft boiled', 'hard boiled'] },
+    { label: 'Lunch', keywords: ['sandwich', 'wrap', 'grain bowl', 'lunch', 'salad', 'soup', 'poke', 'bento', 'panini', 'hoagie', 'tuna melt', 'grilled cheese', 'pasta salad', 'noodle salad', 'flatbread', 'open-faced', 'tartine', 'rice bowl', 'noodle bowl', 'lettuce cup', 'summer roll', 'quesadilla', 'tostada', 'bao', 'chaat', 'lunchbox', 'meal prep'] },
+    { label: 'Dinner', keywords: ['dinner', 'supper', 'weeknight', 'roast', 'entrée', 'entree', 'main course', 'main dish', 'stew', 'pasta', 'curry', 'casserole', 'ragù', 'ragu', 'braise', 'braised', 'gratin', 'fricassee', 'hash', 'skillet dinner', 'sheet pan dinner', 'one pot dinner', 'noodles', 'stir fry', 'stir-fry', 'tacos', 'soup', 'pot pie', 'skillet meal', 'family dinner', 'weeknight meal'] },
+    { label: 'Soup', keywords: ['soup', 'stew', 'bisque', 'chowder', 'gumbo', 'minestrone', 'ramen', 'pho', 'tom yum', 'gazpacho', 'consomme', 'consommé', 'posole', 'pozole', 'bouillabaisse', 'borscht', 'bowl of chili', 'chili con carne', 'vegetarian chili', 'turkey chili', 'beef chili', 'white chicken chili', 'potage', 'vichyssoise', 'ribollita', 'wonton soup', 'egg drop soup', 'hot and sour soup', 'miso soup', 'tortilla soup', 'lentil soup', 'noodle soup'] },
+    { label: 'Dessert', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'fruit tart', 'lemon tart', 'berry tart', 'tarte tatin', 'egg tart', 'tart crust', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'apple crisp', 'fruit crisp', 'peach crisp', 'berry crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'chocolate', 'caramel', 'dessert bars', 'blondie', 'banana bread', 'zucchini bread', 'quick bread', 'bundt', 'churro', 'panna cotta', 'tres leches', 'flan', 'praline', 'toffee', 'brittle', 'lemon curd', 'clafoutis', 'financier', 'profiterole', 'beignet', 'galette', 'crumble', 'pavlova', 'mochi', 'bread pudding', 'rice pudding', 'chocolate truffle', 'lemon bars', 'cinnamon roll', 'monkey bread', 'meringue', 'coffee cake', 'shortbread', 'snickerdoodle', 'danish', 'strudel', 'streusel', 'candy', 'semifreddo', 'entremet', 'dacquoise'] },
+    { label: 'Snack/Side', keywords: ['snack', 'appetizer', 'side dish', 'dip', 'starter', 'finger food', 'small plate', 'nibble', 'chips', 'hummus', 'salsa', 'guacamole', 'bruschetta', 'crostini', 'deviled eggs', 'nachos', 'skewer', 'charcuterie', 'cheese board', 'poppers', 'fries', 'onion rings', 'spring rolls', 'potstickers', 'meatballs', 'flatbread', 'roasted vegetables', 'roasted veggies', 'pickle', 'pickled', 'potato salad', 'coleslaw', 'slaw', 'garlic bread', 'roasted potatoes', 'stuffed mushrooms', 'antipasto', 'energy bites', 'energy balls', 'bliss balls', 'pâté', 'pate', 'crudités', 'crudites', 'board'] },
+    { label: 'Drinks', keywords: ['cocktail', 'mocktail', 'smoothie', 'fresh juice', 'cold pressed juice', 'juice recipe', 'lemonade', 'iced tea', 'milkshake', 'margarita', 'sangria', 'spritz', 'fruit punch', 'rum punch', 'party punch', 'holiday punch', 'agua fresca', 'latte', 'cold brew', 'drinking vinegar', 'cocktail syrup', 'simple syrup', 'iced coffee', 'hot chocolate', 'hard cider', 'apple cider drink', 'kombucha', 'milk tea', 'bubble tea', 'chai latte', 'chai tea', 'matcha latte', 'golden milk', 'switchel', 'kefir drink', 'infused water', 'horchata', 'lassi', 'frappe', 'espresso martini', 'ginger beer', 'green juice', 'protein shake', 'mojito', 'daiquiri', 'negroni', 'old fashioned cocktail', 'paloma', 'aperol', 'mulled wine', 'wassail', 'tepache', 'fire cider', 'electrolyte drink'] },
   ],
   dietary: [
-    { label: 'Dairy-Free',   icon: '🥛', keywords: ['dairy-free', 'dairy free', 'non-dairy', 'lactose-free', 'lactose free', 'vegan cheese', 'oat milk', 'almond milk'] },
-    { label: 'Gluten-Free',  icon: '🌾', keywords: ['gluten-free', 'gluten free', 'gf recipe', 'celiac', 'coeliac', 'wheat-free', 'wheat free'] },
-    { label: 'High Fiber',   icon: '🌿', keywords: ['high fiber', 'high-fiber', 'fiber rich', 'fiber-rich', 'whole grain', 'whole-grain', 'high fibre', 'gut health', 'gut-friendly'] },
-    { label: 'High Protein', icon: '💪', keywords: ['high protein', 'high-protein', 'protein packed', 'protein-packed', 'macro friendly', 'macro-friendly', 'protein bowl', 'muscle', 'bulking', 'post workout', 'post-workout'] },
-    { label: 'Keto',         icon: '🥑', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly', 'carnivore', 'zero carb'] },
-    { label: 'Low Carb',    icon: '🥬', keywords: ['low carb', 'low-carb', 'lower carb', 'low carbohydrate', 'carb conscious', 'carb-conscious', 'cauliflower rice', 'zucchini noodles', 'zoodles', 'spaghetti squash', 'lettuce wrap', 'lettuce cups', 'cloud bread', 'almond flour', 'coconut flour'] },
-    { label: 'Low Calorie',  icon: '⚖️',  keywords: ['low calorie', 'low-calorie', 'lightened up', 'lighter', 'skinny', 'reduced calorie', 'calorie conscious', 'calorie-conscious', 'slimmed down', 'guilt-free', 'guilt free'] },
-    { label: 'Low Sodium',   icon: '🧂', keywords: ['low sodium', 'low-sodium', 'low salt', 'heart healthy', 'heart-healthy', 'reduced sodium', 'no added salt'] },
-    { label: 'Nut-Free',     icon: '🚫', keywords: ['nut-free', 'nut free', 'peanut-free', 'peanut free', 'tree nut free', 'allergy friendly', 'allergy-friendly', 'nut allergy', 'school safe'] },
-    { label: 'Paleo',        icon: '🍖', keywords: ['paleo', 'primal', 'whole30', 'grain-free', 'grain free', 'ancestral'] },
-    { label: 'Sugar-Free',   icon: '🍬', keywords: ['sugar-free', 'sugar free', 'no added sugar', 'refined sugar free', 'refined sugar-free', 'zero sugar', 'no sugar', 'diabetic friendly'] },
-    { label: 'Vegan',        icon: '🌱', keywords: ['vegan', 'plant-based', 'plant based', 'dairy-free egg-free'] },
-    { label: 'Vegetarian',   icon: '🥦', keywords: ['vegetarian', 'meatless', 'no meat', 'veggie', 'meat-free'] },
+    { label: 'Dairy-Free', keywords: ['dairy-free', 'dairy free', 'non-dairy', 'lactose-free', 'lactose free', 'vegan cheese', 'oat milk', 'almond milk'] },
+    { label: 'Gluten-Free', keywords: ['gluten-free', 'gluten free', 'gf recipe', 'celiac', 'coeliac', 'wheat-free', 'wheat free'] },
+    { label: 'High Fiber', keywords: ['high fiber', 'high-fiber', 'fiber rich', 'fiber-rich', 'whole grain', 'whole-grain', 'high fibre', 'gut health', 'gut-friendly'] },
+    { label: 'High Protein', keywords: ['high protein', 'high-protein', 'protein packed', 'protein-packed', 'macro friendly', 'macro-friendly', 'protein bowl', 'muscle', 'bulking', 'post workout', 'post-workout'] },
+    { label: 'Keto', keywords: ['keto', 'ketogenic', 'low-carb', 'low carb', 'keto-friendly', 'carnivore', 'zero carb'] },
+    { label: 'Low Carb', keywords: ['low carb', 'low-carb', 'lower carb', 'low carbohydrate', 'carb conscious', 'carb-conscious', 'cauliflower rice', 'zucchini noodles', 'zoodles', 'spaghetti squash', 'lettuce wrap', 'lettuce cups', 'cloud bread', 'almond flour', 'coconut flour'] },
+    { label: 'Low Calorie',  keywords: ['low calorie', 'low-calorie', 'lightened up', 'lighter', 'skinny', 'reduced calorie', 'calorie conscious', 'calorie-conscious', 'slimmed down', 'guilt-free', 'guilt free'] },
+    { label: 'Low Sodium', keywords: ['low sodium', 'low-sodium', 'low salt', 'heart healthy', 'heart-healthy', 'reduced sodium', 'no added salt'] },
+    { label: 'Nut-Free', keywords: ['nut-free', 'nut free', 'peanut-free', 'peanut free', 'tree nut free', 'allergy friendly', 'allergy-friendly', 'nut allergy', 'school safe'] },
+    { label: 'Paleo', keywords: ['paleo', 'primal', 'whole30', 'grain-free', 'grain free', 'ancestral'] },
+    { label: 'Sugar-Free', keywords: ['sugar-free', 'sugar free', 'no added sugar', 'refined sugar free', 'refined sugar-free', 'zero sugar', 'no sugar', 'diabetic friendly'] },
+    { label: 'Vegan', keywords: ['vegan', 'plant-based', 'plant based', 'dairy-free egg-free'] },
+    { label: 'Vegetarian', keywords: ['vegetarian', 'meatless', 'no meat', 'veggie', 'meat-free'] },
   ],
 };
 
@@ -1083,7 +1083,7 @@ function renderFilterChips() {
             ${[...FILTERS.cuisine].sort((a, b) => a.label.localeCompare(b.label)).map(f => `
               <button class="tag-chip ${state.cuisineFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="cuisine" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1092,7 +1092,7 @@ function renderFilterChips() {
             ${FILTERS.meal.map(f => `
               <button class="tag-chip ${state.mealFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="meal" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1101,7 +1101,7 @@ function renderFilterChips() {
             ${FILTERS.dietary.map(f => `
               <button class="tag-chip ${state.dietaryFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="dietary" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1110,7 +1110,7 @@ function renderFilterChips() {
             ${FILTERS.protein.map(f => `
               <button class="tag-chip ${state.proteinFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="protein" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1119,7 +1119,7 @@ function renderFilterChips() {
             ${FILTERS.time.map(f => `
               <button class="tag-chip ${state.timeFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="time" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1128,7 +1128,7 @@ function renderFilterChips() {
             ${FILTERS.method.map(f => `
               <button class="tag-chip ${state.methodFilters.includes(f.label) ? 'is-active' : ''}"
                       data-action="method" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
@@ -1149,7 +1149,7 @@ function renderFilterChips() {
             ${openCat.filters.map(f => `
               <button class="tag-chip ${openCat.active.includes(f.label) ? 'is-active' : ''}"
                       data-action="${openCat.key}" data-value="${f.label}">
-                ${f.icon} ${f.label}
+                ${f.label}
               </button>
             `).join('')}
           </div>
