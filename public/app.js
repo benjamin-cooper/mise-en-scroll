@@ -2810,10 +2810,57 @@ init();
 // under the 15-minute inactivity sleep threshold.
 setInterval(() => fetch('/api/ping').catch(() => {}), 9 * 60 * 1000);
 
-// Lazy OG image loading for search results — cards without an image in the
-// Serper response get a data-needs-og attribute. When they scroll into view
-// we fetch the OG image and swap in the real photo without a full re-render.
+// Lazy OG image loading — cards without an image (search results, and
+// Archive entries whose blog's sitemap has no <image:> tag at all) get a
+// data-needs-og attribute. When they scroll into view we fetch the OG image
+// and swap in the real photo without a full re-render.
+//
+// Capped to a small concurrency instead of firing one fetch per card the
+// instant it's visible: several Archive blogs are missing images on every
+// post, so scrolling through them can reveal a dozen+ at once, which used
+// to burst past the server's per-minute rate limit. A rate-limited response
+// comes back as plain text, not JSON — r.json() threw, the catch() below
+// swallowed it, and the card was marked "done" and never retried. Now
+// capped in-flight requests avoid tripping the limit in the first place,
+// and a 429 specifically gets requeued instead of being treated as "no
+// image exists".
 const _ogFetching = new Set();
+const _ogQueue = [];
+let _ogActive = 0;
+const OG_MAX_CONCURRENT = 4;
+
+function _ogFillImage(url, img) {
+  document.querySelectorAll(`[data-needs-og="${CSS.escape(url)}"]`).forEach(imgEl => {
+    imgEl.removeAttribute('data-needs-og');
+    imgEl.classList.remove('no-image');
+    imgEl.style.removeProperty('--blog-color');
+    imgEl.innerHTML = imgEl.innerHTML.replace(
+      /<div class="card-no-image">[\s\S]*?<\/div>/,
+      `<img src="${img}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
+    );
+  });
+  const r = [...state.searchResults, ...state.archiveResults].find(r => r.url === url);
+  if (r) r.image = img;
+}
+
+function _ogProcessQueue() {
+  while (_ogActive < OG_MAX_CONCURRENT && _ogQueue.length) {
+    const url = _ogQueue.shift();
+    _ogActive++;
+    fetch(`/api/og-image?url=${encodeURIComponent(url)}`)
+      .then(res => {
+        if (res.status === 429) {
+          setTimeout(() => { _ogQueue.push(url); _ogProcessQueue(); }, 4000); // back off, don't give up
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
+      .then(data => { if (data?.img) _ogFillImage(url, data.img); })
+      .catch(() => {})
+      .finally(() => { _ogActive--; _ogProcessQueue(); });
+  }
+}
+
 const _ogObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (!entry.isIntersecting) return;
@@ -2822,25 +2869,8 @@ const _ogObserver = new IntersectionObserver((entries) => {
     if (!url || _ogFetching.has(url)) return;
     _ogFetching.add(url);
     _ogObserver.unobserve(el);
-    fetch(`/api/og-image?url=${encodeURIComponent(url)}`)
-      .then(r => r.json())
-      .then(({ img }) => {
-        if (!img) return;
-        // Update all cards for this URL (could appear in multiple grids)
-        document.querySelectorAll(`[data-needs-og="${CSS.escape(url)}"]`).forEach(imgEl => {
-          imgEl.removeAttribute('data-needs-og');
-          imgEl.classList.remove('no-image');
-          imgEl.style.removeProperty('--blog-color');
-          imgEl.innerHTML = imgEl.innerHTML.replace(
-            /<div class="card-no-image">[\s\S]*?<\/div>/,
-            `<img src="${img}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
-          );
-        });
-        // Update state so re-renders keep the image
-        const r = [...state.searchResults, ...state.archiveResults].find(r => r.url === url);
-        if (r) r.image = img;
-      })
-      .catch(() => {});
+    _ogQueue.push(url);
+    _ogProcessQueue();
   });
 }, { rootMargin: '200px' });
 
