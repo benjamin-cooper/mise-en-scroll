@@ -1580,7 +1580,6 @@ function renderContent() {
 // fallback so a missing photo reads as an intentional brand touch rather
 // than a generic colored-initial avatar placeholder.
 const NO_IMAGE_MARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`;
-const NO_IMAGE_MARK_ESCAPED = `<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><path d=\\'M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2\\'/><path d=\\'M7 2v20\\'/><path d=\\'M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7\\'/></svg>`;
 
 function renderCard(r) {
   const noImg = !r.image;
@@ -1596,7 +1595,7 @@ function renderCard(r) {
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
-          onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-mark\\'>${NO_IMAGE_MARK_ESCAPED}</span></div>'">` : ''}
+          onerror="handleCardImageError(this, '${c}')">` : ''}
         ${noImg ? `<div class="card-no-image">
           <span class="card-no-image-mark">${NO_IMAGE_MARK}</span>
         </div>` : ''}
@@ -2868,18 +2867,42 @@ function _ogProcessQueue() {
   }
 }
 
+function _ogEnqueue(url) {
+  if (!url || _ogFetching.has(url)) return;
+  _ogFetching.add(url);
+  _ogQueue.push(url);
+  _ogProcessQueue();
+}
+
 const _ogObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (!entry.isIntersecting) return;
     const el = entry.target;
     const url = el.dataset.needsOg;
     if (!url || _ogFetching.has(url)) return;
-    _ogFetching.add(url);
     _ogObserver.unobserve(el);
-    _ogQueue.push(url);
-    _ogProcessQueue();
+    _ogEnqueue(url);
   });
 }, { rootMargin: '200px' });
+
+// Fires when a card's <img> fails to actually load — e.g. the src looked
+// like a plausible image URL server-side but is a video-embed link, a
+// broken/duplicated path from a malformed feed, or a dead link. Swaps in
+// the placeholder immediately (same as before) but — unlike the old inline
+// handler — also queues an OG-image backfill attempt instead of leaving the
+// card permanently blank just because the RSS-sourced URL didn't pan out.
+function handleCardImageError(imgEl, color) {
+  const cardImage = imgEl.closest('.card-image');
+  const url = imgEl.closest('.card')?.dataset.url;
+  if (!cardImage) return;
+  cardImage.classList.add('no-image');
+  cardImage.style.setProperty('--blog-color', color);
+  cardImage.innerHTML = `<div class="card-no-image"><span class="card-no-image-mark">${NO_IMAGE_MARK}</span></div>`;
+  if (url) {
+    cardImage.setAttribute('data-needs-og', url);
+    _ogEnqueue(url);
+  }
+}
 
 // Re-observe cards whenever the DOM updates (search renders new cards)
 const _ogMutObs = new MutationObserver(() => {
