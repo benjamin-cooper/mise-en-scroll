@@ -32,6 +32,11 @@ app.use(express.json());
 
 // Rate limiting — protect paid API endpoints from abuse
 const recipeLimit    = rateLimit({ windowMs: 60_000, max: 60,  standardHeaders: true, legacyHeaders: false });
+// Higher ceiling than recipeLimit: this is a cheap, server-cached lookup
+// (see ogImageCache) that fires in bursts while scrolling through Archive
+// results — several blogs are missing images on every single post, so a
+// page of results can trigger a dozen+ lookups within a couple seconds.
+const ogImageLimit   = rateLimit({ windowMs: 60_000, max: 240, standardHeaders: true, legacyHeaders: false });
 const searchLimit    = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
 const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: true, legacyHeaders: false });
 const shoppingListLimit = rateLimit({ windowMs: 60_000, max: 15, standardHeaders: true, legacyHeaders: false });
@@ -599,7 +604,7 @@ function scrapeRecipeHtml($) {
 
 app.get('/api/ping', (req, res) => res.json({ ok: true }));
 
-app.get('/api/og-image', recipeLimit, async (req, res) => {
+app.get('/api/og-image', ogImageLimit, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ img: null });
   const img = await fetchOgImage(url).catch(() => null);
