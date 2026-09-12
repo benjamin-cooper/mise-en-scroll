@@ -1586,10 +1586,12 @@ function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#5c1a1a';
   // Cards with no image get a data attribute so the lazy OG fetcher can fill
-  // them in once scrolled into view — search results often lack one, and so
-  // do ~5.8% of Archive entries whose blog's sitemap has no <image:> tag at
-  // all (e.g. Ambitious Kitchen, Love and Lemons — every post, not just some).
-  const needsOg = noImg && (state.searchMode || state.view === 'archive') ? `data-needs-og="${escHtml(r.url)}"` : '';
+  // them in once scrolled into view. Originally gated to search/Archive
+  // only, but a missing image is just as fixable wherever the card shows up
+  // (Saved, Meal Plan, Discover) — now that the fetch is rate-limit-safe
+  // (see the og-image concurrency queue below), there's no reason to
+  // restrict it by view.
+  const needsOg = noImg ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
@@ -2839,8 +2841,13 @@ function _ogFillImage(url, img) {
       `<img src="${img}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
     );
   });
-  const r = [...state.searchResults, ...state.archiveResults].find(r => r.url === url);
+  const pool = [...state.recipes, ...state.favorites, ...state.searchResults, ...state.archiveResults,
+    ...Object.values(state.mealPlan).flatMap(d => d ? Object.values(d).filter(Boolean) : [])];
+  const r = pool.find(r => r.url === url);
   if (r) r.image = img;
+  // Favorites persist to localStorage separately from in-memory state — without
+  // this, a backfilled image would revert to blank next time Saved is opened.
+  if (isFav(url)) updateFavField(url, { image: img });
 }
 
 function _ogProcessQueue() {
