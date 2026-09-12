@@ -1264,6 +1264,18 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
     }
 
+    // Convert "1 and 1/2 teaspoons" → "1 1/2 teaspoons" so decimalFractions (and
+    // everything downstream, including the salt STRIP_PATTERNS below) can handle
+    // the mixed number. Some recipe blogs write the "and" out instead of just a
+    // space — without this, "1 and 1/2 tsp kosher salt" only has its fraction
+    // half converted ("1 and 0.5 tsp kosher salt"), which no longer matches the
+    // salt-stripping regex, so it reaches CalorieNinjas as unparseable text and
+    // produces wildly wrong sodium values instead of being excluded like every
+    // other salt line.
+    function normaliseAndFractions(ing) {
+      return ing.replace(/\b(\d+)\s+and\s+(\d+\/\d+)\b/gi, '$1 $2');
+    }
+
     // Convert ASCII fractions to decimals so CalorieNinjas parses them correctly.
     // Without this, "1/4 teaspoon salt" is unparseable and defaults to 100 g of salt
     // (≈39,000 mg sodium). "0.25 teaspoon salt" is understood correctly.
@@ -1564,6 +1576,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       .map(stripParens)
       .map(normaliseUnits)
       .map(normaliseFractions)
+      .map(normaliseAndFractions)
       .map(decimalFractions)
       .map(normaliseCondimentTsp)
       .map(normaliseCups)
