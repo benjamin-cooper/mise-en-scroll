@@ -611,6 +611,9 @@ let _discoverScrollObserver = null;
 let _archiveScrollObserver = null;
 // Hover-prefetch cache: url -> Promise<detail>
 const _prefetchCache = new Map();
+// URL of the card that opened the drawer, so closing it can return keyboard
+// focus to where the user was instead of dropping it to <body>.
+let _drawerTriggerUrl = null;
 let _prefetchTimer = null;
 
 // Sorted insertion streaming — each incoming batch is inserted into the grid at
@@ -976,7 +979,7 @@ function renderHeader() {
             <path d="M7 2v20"/>
             <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
           </svg>
-          <span class="logo-text">Mise en Scroll</span>
+          <h1 class="logo-text">Mise en Scroll</h1>
         </div>
         <nav class="header-tabs">
           <button class="header-tab ${state.view === 'discover'  ? 'is-active' : ''}" data-action="tab" data-view="discover">Discover</button>
@@ -1176,6 +1179,7 @@ function renderSearchSection() {
             <input class="search-input ${state.ingredientMode ? 'ingredient-mode' : ''}"
                    type="text"
                    placeholder="${state.view === 'favorites' ? 'Filter saved recipes…' : state.ingredientMode ? 'e.g. chicken, lemon, capers…' : 'Search recipes…'}"
+                   aria-label="${state.view === 'favorites' ? 'Filter saved recipes' : state.ingredientMode ? 'Search by ingredients you have' : 'Search recipes'}"
                    data-action="search" value="${escHtml(state.searchQuery)}" autocomplete="off">
             ${state.searchQuery ? `<button class="search-clear" data-action="search-clear" aria-label="Clear search">✕</button>` : ''}
             <div class="autocomplete-dropdown" id="autocomplete-dropdown" hidden></div>
@@ -1240,7 +1244,7 @@ function renderMealPlan() {
                   <div class="meal-plan-slot">
                     <span class="meal-plan-slot-label">${slot.charAt(0)}</span>
                     ${recipe ? `
-                      <div class="meal-plan-recipe" data-action="card" data-url="${recipe.url}">
+                      <div class="meal-plan-recipe" data-action="card" data-url="${recipe.url}" role="button" tabindex="0" aria-label="Open ${escHtml(recipe.title)}">
                         ${recipe.image ? `<img src="${recipe.image}" alt="" loading="lazy">` : `<div class="meal-plan-no-img" style="background:${recipe.blogColor}22;color:${recipe.blogColor}">${NO_IMAGE_MARK}</div>`}
                         <span class="meal-plan-recipe-title">${escHtml(recipe.title)}</span>
                       </div>
@@ -1291,7 +1295,7 @@ function renderShoppingList() {
           <button class="tag-chip ${state.activeStoreName === name ? 'is-active' : ''}" data-action="store-select" data-store="${escHtml(name)}">${escHtml(name)}</button>
         `).join('')}
         <div class="shopping-new-store">
-          <input id="store-new-input" placeholder="New store name…" autocomplete="off">
+          <input id="store-new-input" placeholder="New store name…" aria-label="New store name" autocomplete="off">
           <button data-action="create-store">Add</button>
         </div>
       </div>
@@ -1327,7 +1331,7 @@ function renderShoppingList() {
       </div>
       ${state.shoppingPasteOpen ? `
         <div class="shopping-paste-panel">
-          <textarea class="shopping-paste-textarea" data-action="shopping-paste-text" rows="6" placeholder="Paste a full recipe (ingredients + anything else) here…">${escHtml(state.shoppingPasteText)}</textarea>
+          <textarea class="shopping-paste-textarea" data-action="shopping-paste-text" rows="6" placeholder="Paste a full recipe (ingredients + anything else) here…" aria-label="Paste a recipe to extract ingredients from">${escHtml(state.shoppingPasteText)}</textarea>
           <div class="shopping-paste-actions">
             <button class="filter-toggle-btn has-active" data-action="shopping-paste-submit" ${state.shoppingPasteLoading || !state.shoppingPasteText.trim() ? 'disabled' : ''}>
               ${state.shoppingPasteLoading ? 'Extracting…' : 'Create shopping list'}
@@ -1373,7 +1377,7 @@ function renderArchive() {
              fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <input class="search-input" type="text" placeholder="Search the full archive…"
+        <input class="search-input" type="text" placeholder="Search the full archive…" aria-label="Search the full archive"
                data-action="archive-search" value="${escHtml(state.archiveQuery)}" autocomplete="off">
         ${state.archiveQuery ? `<button class="search-clear" data-action="archive-search-clear" aria-label="Clear search">✕</button>` : ''}
       </div>
@@ -1573,7 +1577,7 @@ function renderCard(r) {
   // In search mode, cards with no image get a data attribute so the lazy OG fetcher can fill them in
   const needsOg = noImg && state.searchMode ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
-    <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}">
+    <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
           onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-mark\\'>${NO_IMAGE_MARK_ESCAPED}</span></div>'">` : ''}
@@ -1707,7 +1711,7 @@ function renderDrawer() {
       ${fav ? `
         <section class="recipe-section notes-section">
           <h3>My Notes</h3>
-          <textarea class="recipe-notes" data-action="recipe-note" placeholder="Add your notes, substitutions, tips…" rows="3">${escHtml(favData?.notes || '')}</textarea>
+          <textarea class="recipe-notes" data-action="recipe-note" placeholder="Add your notes, substitutions, tips…" rows="3" aria-label="Your notes for this recipe">${escHtml(favData?.notes || '')}</textarea>
         </section>
         <div class="cooked-row">
           <button class="btn-cooked" data-action="mark-cooked">
@@ -1735,7 +1739,7 @@ function renderDrawer() {
                 ${escHtml(n)}
               </button>`).join('')}
             <div class="board-new-row">
-              <input id="board-new-input" class="board-new-input" placeholder="New board name…" autocomplete="off">
+              <input id="board-new-input" class="board-new-input" placeholder="New board name…" aria-label="New board name" autocomplete="off">
               <button class="board-new-btn" data-action="create-board">Add</button>
             </div>
           </div>
@@ -2433,6 +2437,7 @@ document.addEventListener('click', async (e) => {
     const preview = pool.find(r => r.url === url);
     if (!preview) return;
 
+    _drawerTriggerUrl = url;
     state.selected = { url, preview };
     state.detail = null;
     state.detailLoading = true;
@@ -2566,6 +2571,26 @@ document.addEventListener('mouseover', (e) => {
     }
   }, 150);
 });
+// Same prefetch on keyboard focus, so tabbing to a card is just as fast as hovering it.
+document.addEventListener('focusin', (e) => {
+  const card = e.target.closest('[data-action="card"]');
+  if (!card) return;
+  const url = card.dataset.url;
+  if (!url || _prefetchCache.has(url)) return;
+  _prefetchCache.set(url, api.recipe(url).catch(() => null));
+});
+
+// Recipe cards are role="button" elements (not real <button>s, since they
+// contain nested interactive children like Save/Hide), so Enter/Space
+// doesn't activate them natively — wire it up to fire the same click the
+// delegated handler already listens for.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target.closest('[role="button"][data-action]');
+  if (!el) return;
+  e.preventDefault();
+  el.click();
+});
 
 // Back-to-top button visibility — pure DOM toggle, no state re-render
 window.addEventListener('scroll', () => {
@@ -2625,6 +2650,8 @@ function copyText(text, successMsg = 'Copied') {
 }
 
 function closeDrawer() {
+  const triggerUrl = _drawerTriggerUrl;
+  _drawerTriggerUrl = null;
   state.selected = null;
   state.detail = null;
   state.detailError = null;
@@ -2636,6 +2663,13 @@ function closeDrawer() {
   state.boardPickerOpen = false;
   history.replaceState(null, '', '/');
   renderApp();
+  // Return focus to the card that opened the drawer, rather than dropping
+  // it to <body> — the card may no longer be in the DOM (filters changed,
+  // virtualized out of view), so this is a best-effort restore, not a hard
+  // requirement.
+  if (triggerUrl) {
+    document.querySelector(`[data-action="card"][data-url="${CSS.escape(triggerUrl)}"]`)?.focus();
+  }
 }
 
 // Lightweight update — only re-renders the card grid, leaving the rest of the
