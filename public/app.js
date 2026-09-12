@@ -726,7 +726,7 @@ async function triggerSearch(start = 1) {
   const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
   const localMatches = start === 1
     ? getVisibleRecipes().filter(r => {
-        const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
+        const full = recipeSearchText(r);
         return matchesAllTokens(full, tokens);
       })
     : [];
@@ -821,6 +821,16 @@ function matchesAnyKeyword(text, keywords) {
   return keywords.some(kw => _wordBoundaryRe(kw).test(text));
 }
 
+// The server used to send a precomputed `searchText` per recipe; it was
+// dropped to cut initial page-load size (~1MB → ~400KB), since it mostly
+// duplicated title/categories/excerpt that are already sent. Archive
+// entries have no excerpt (sitemaps don't carry one), so this still falls
+// back gracefully to title(+categories) only for those.
+function recipeSearchText(r) {
+  if (r.searchText) return r.searchText; // any legacy/cached shape that still has it
+  return [r.title, ...(r.categories || []), r.excerpt || ''].join(' ').toLowerCase();
+}
+
 let _filterMemo = null;
 function applyFilters(recipes) {
   const fp = [
@@ -833,7 +843,7 @@ function applyFilters(recipes) {
   const result = recipes.filter(r => {
     // Archive entries have no excerpt (sitemaps don't carry one) — fall back
     // to title-only matching for them.
-    const full = r.searchText || (r.title + ' ' + (r.excerpt || '')).toLowerCase();
+    const full = recipeSearchText(r);
 
     if (state.filter && r.blog !== state.filter) return false;
 
