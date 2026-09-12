@@ -239,17 +239,47 @@ function cleanRecipeUrl(link) {
   } catch { return link; }
 }
 
+// Some feeds put junk in their image fields that looks valid enough to
+// accept but fails to actually load as an <img> — a YouTube/Vimeo embed URL
+// on a video-embedded post (seen on Easy and Delish), or a WordPress feed
+// plugin bug that literally duplicates the domain in the path (seen on
+// Kevin Is Cooking: media:content pointed at
+// "keviniscooking.com/keviniscooking.com/wp-content/...", while the same
+// item's own <img> tag a few lines later had the correct URL). Either way
+// the browser's onerror fallback swaps to a placeholder without ever
+// attempting the OG-image backfill, so the card is permanently blank
+// instead of falling through to a source that would actually work.
+// Repairs the duplicated-domain case and rejects known non-image hosts;
+// returns null (rather than the bad URL) so callers fall through to the
+// next candidate source.
+function sanitizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const u = new URL(url);
+    if (/(^|\.)(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com)$/i.test(u.hostname)) return null;
+    const dupPrefix = `/${u.hostname}`;
+    if (u.pathname.startsWith(dupPrefix + '/')) {
+      u.pathname = u.pathname.slice(dupPrefix.length);
+    }
+    return u.toString();
+  } catch { return null; }
+}
+
 function extractImage(item) {
   // media:content — prefer largest
   if (item.mediaContent) {
     const mcs = Array.isArray(item.mediaContent) ? item.mediaContent : [item.mediaContent];
-    const best = mcs
-      .filter(mc => mc?.$?.url)
-      .sort((a, b) => parseInt(b.$?.width || 0) - parseInt(a.$?.width || 0))[0];
-    if (best) return best.$.url;
+    const candidates = mcs.filter(mc => mc?.$?.url).sort((a, b) => parseInt(b.$?.width || 0) - parseInt(a.$?.width || 0));
+    for (const mc of candidates) {
+      const clean = sanitizeImageUrl(mc.$.url);
+      if (clean) return clean;
+    }
   }
   // media:thumbnail
-  if (item.mediaThumbnail?.$?.url) return item.mediaThumbnail.$.url;
+  if (item.mediaThumbnail?.$?.url) {
+    const clean = sanitizeImageUrl(item.mediaThumbnail.$.url);
+    if (clean) return clean;
+  }
   const html = item.contentEncoded || item.content || '';
   // JSON-LD Recipe schema — image field (string | object | array)
   // Use matchAll to scan ALL <script> LD+JSON blocks — some pages put breadcrumbs
@@ -265,7 +295,8 @@ function extractImage(item) {
           if (!img) continue;
           const candidate = Array.isArray(img) ? img[0] : img;
           const url = typeof candidate === 'string' ? candidate : (candidate?.url || candidate?.contentUrl);
-          if (url && typeof url === 'string') return url;
+          const clean = sanitizeImageUrl(url);
+          if (clean) return clean;
         }
       }
     } catch {}
@@ -273,14 +304,23 @@ function extractImage(item) {
   // og:image in content:encoded
   const ogMatch = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
                   html.match(/content=["']([^"']+)["'][^>]+property=["']og:image["']/);
-  if (ogMatch) return ogMatch[1];
+  if (ogMatch) {
+    const clean = sanitizeImageUrl(ogMatch[1]);
+    if (clean) return clean;
+  }
   // enclosure
-  if (item.enclosure?.url && /\.(jpg|jpeg|png|webp)/i.test(item.enclosure.url)) return item.enclosure.url;
+  if (item.enclosure?.url && /\.(jpg|jpeg|png|webp)/i.test(item.enclosure.url)) {
+    const clean = sanitizeImageUrl(item.enclosure.url);
+    if (clean) return clean;
+  }
   // first <img> — prefer ones with width > 300
   const imgMatches = [...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)];
   for (const m of imgMatches) {
     const widthMatch = m[0].match(/width=["']?(\d+)/);
-    if (!widthMatch || parseInt(widthMatch[1]) > 300) return m[1];
+    if (!widthMatch || parseInt(widthMatch[1]) > 300) {
+      const clean = sanitizeImageUrl(m[1]);
+      if (clean) return clean;
+    }
   }
   return null;
 }
