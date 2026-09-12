@@ -1230,7 +1230,7 @@ function renderMealPlan() {
                     <span class="meal-plan-slot-label">${slot.charAt(0)}</span>
                     ${recipe ? `
                       <div class="meal-plan-recipe" data-action="card" data-url="${recipe.url}">
-                        ${recipe.image ? `<img src="${recipe.image}" alt="" loading="lazy">` : `<div class="meal-plan-no-img" style="background:${recipe.blogColor}22;color:${recipe.blogColor}">${recipe.blog.charAt(0)}</div>`}
+                        ${recipe.image ? `<img src="${recipe.image}" alt="" loading="lazy">` : `<div class="meal-plan-no-img" style="background:${recipe.blogColor}22;color:${recipe.blogColor}">${NO_IMAGE_MARK}</div>`}
                         <span class="meal-plan-recipe-title">${escHtml(recipe.title)}</span>
                       </div>
                       <button class="meal-plan-remove" data-action="remove-from-plan" data-day="${day}" data-slot="${slot}" aria-label="Remove">✕</button>
@@ -1550,6 +1550,12 @@ function renderContent() {
   `;
 }
 
+// Same fork-and-knife mark as the header logo, reused as the no-image
+// fallback so a missing photo reads as an intentional brand touch rather
+// than a generic colored-initial avatar placeholder.
+const NO_IMAGE_MARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`;
+const NO_IMAGE_MARK_ESCAPED = `<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\'><path d=\\'M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2\\'/><path d=\\'M7 2v20\\'/><path d=\\'M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7\\'/></svg>`;
+
 function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#5c1a1a';
@@ -1559,9 +1565,9 @@ function renderCard(r) {
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
         ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
-          onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-initial\\'>${escHtml(r.blog.charAt(0))}</span></div>'">` : ''}
+          onerror="var p=this.closest('.card-image');p.classList.add('no-image');p.style.setProperty('--blog-color','${c}');p.innerHTML='<div class=\\'card-no-image\\'><span class=\\'card-no-image-mark\\'>${NO_IMAGE_MARK_ESCAPED}</span></div>'">` : ''}
         ${noImg ? `<div class="card-no-image">
-          <span class="card-no-image-initial">${escHtml(r.blog.charAt(0))}</span>
+          <span class="card-no-image-mark">${NO_IMAGE_MARK}</span>
         </div>` : ''}
         <button class="card-save ${isFav(r.url) ? 'is-saved' : ''}" data-action="toggle-save" data-url="${r.url}" aria-label="${isFav(r.url) ? 'Remove from saved' : 'Save recipe'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="${isFav(r.url) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>

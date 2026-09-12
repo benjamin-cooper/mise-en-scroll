@@ -287,15 +287,11 @@ ul, ol { padding-left: 1.25rem; }
   align-items: center;
   justify-content: center;
 }
-.card-no-image-initial {
-  font-family: 'Bodoni Moda', Georgia, serif;
-  font-size: 4rem;
-  font-weight: 700;
+.card-no-image-mark {
   color: var(--blog-color, #5c1a1a);
-  opacity: 0.2;
-  line-height: 1;
-  text-transform: uppercase;
+  opacity: 0.25;
 }
+.card-no-image-mark svg { width: 44px; height: 44px; }
 .card-body {
   padding: 16px 18px 18px;
   display: flex;
@@ -1587,9 +1583,8 @@ ul, ol { padding-left: 1.25rem; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 700;
 }
+.meal-plan-no-img svg { width: 15px; height: 15px; }
 .meal-plan-recipe-title {
   font-size: 0.75rem;
   line-height: 1.3;
