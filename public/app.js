@@ -904,9 +904,10 @@ function renderApp() {
   document.getElementById('app').innerHTML = `
     ${renderHeader()}
     ${state.view !== 'mealplan' && state.view !== 'archive' && state.view !== 'shoppinglist' ? renderSearchSection() : ''}
-    <div class="grid-section">
+    <main class="grid-section">
+      <h2 class="sr-only">${{ discover: 'Discover', favorites: 'Saved Recipes', archive: 'Archive', mealplan: 'Meal Plan', shoppinglist: 'Shopping List' }[state.view] || 'Recipes'}</h2>
       ${renderContent()}
-    </div>
+    </main>
     ${renderDrawer()}
     <footer class="site-footer">
       <p>All recipes &copy; their original authors. This site just reads their RSS feeds.</p>
