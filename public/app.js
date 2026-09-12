@@ -1265,35 +1265,37 @@ function renderShoppingList() {
   const checkedCount = state.shoppingList.filter(i => i.checked).length;
   const storeNames = Object.keys(state.shoppingStores);
 
+  const downloadIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+
   return `
     <div class="container" style="padding-top:20px">
-      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
+      <p class="tab-intro">
         Ingredients you've added from recipes, grouped by typical grocery-store aisle. Tap <strong>Add to Shopping List</strong> on any recipe, or paste a recipe from anywhere below.
       </p>
 
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-        <span class="tag-label" style="margin:0">Store:</span>
+      <div class="shopping-store-row">
+        <span class="tag-label">Store:</span>
         <button class="tag-chip ${!state.activeStoreName ? 'is-active' : ''}" data-action="store-select" data-store="">Generic order</button>
         ${storeNames.map(name => `
           <button class="tag-chip ${state.activeStoreName === name ? 'is-active' : ''}" data-action="store-select" data-store="${escHtml(name)}">${escHtml(name)}</button>
         `).join('')}
-        <div class="board-new-row" style="display:inline-flex">
-          <input id="store-new-input" class="board-new-input" placeholder="New store name…" autocomplete="off">
-          <button class="board-new-btn" data-action="create-store">Add</button>
+        <div class="shopping-new-store">
+          <input id="store-new-input" placeholder="New store name…" autocomplete="off">
+          <button data-action="create-store">Add</button>
         </div>
       </div>
 
       ${state.activeStoreName ? `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="shopping-actions-row">
           <button class="filter-toggle-btn" data-action="store-edit-toggle">${state.storeEditOpen ? 'Done editing order' : `Edit ${escHtml(state.activeStoreName)}'s aisle order`}</button>
           <button class="filter-toggle-btn" data-action="store-delete" data-store="${escHtml(state.activeStoreName)}">Delete store</button>
         </div>
         ${state.storeEditOpen ? `
-          <div class="ingredient-banner" style="display:block;padding:14px;margin-bottom:12px">
-            <p style="margin:0 0 8px;font-size:0.82rem;color:var(--muted)">Reorder aisles to match how ${escHtml(state.activeStoreName)} is laid out.</p>
+          <div class="shopping-editor">
+            <p class="shopping-editor-intro">Reorder aisles to match how ${escHtml(state.activeStoreName)} is laid out.</p>
             ${getAisleOrder().map((name, i, arr) => `
-              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-                <span style="flex:1">${escHtml(name)}</span>
+              <div class="shopping-editor-row">
+                <span>${escHtml(name)}</span>
                 <button class="scale-btn" data-action="store-move-aisle" data-aisle="${escHtml(name)}" data-dir="up" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
                 <button class="scale-btn" data-action="store-move-aisle" data-aisle="${escHtml(name)}" data-dir="down" ${i === arr.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
               </div>
@@ -1302,24 +1304,24 @@ function renderShoppingList() {
         ` : ''}
       ` : ''}
 
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="shopping-actions-row">
         <button class="filter-toggle-btn" data-action="shopping-paste-toggle">
           ${state.shoppingPasteOpen ? 'Cancel' : '+ Paste a recipe'}
         </button>
         ${state.shoppingList.length ? `
           ${checkedCount ? `<button class="filter-toggle-btn" data-action="shopping-clear-checked">Clear checked (${checkedCount})</button>` : ''}
           <button class="filter-toggle-btn" data-action="shopping-clear-all">Clear all</button>
-          <button class="filter-toggle-btn" data-action="shopping-export">⭳ Export</button>
+          <button class="filter-toggle-btn" data-action="shopping-export">${downloadIcon} Export</button>
         ` : ''}
       </div>
       ${state.shoppingPasteOpen ? `
-        <div class="ingredient-banner" style="display:block;padding:14px">
-          <textarea data-action="shopping-paste-text" rows="6" style="width:100%;max-width:640px;font-family:inherit;font-size:0.9rem;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg)" placeholder="Paste a full recipe (ingredients + anything else) here…">${escHtml(state.shoppingPasteText)}</textarea>
-          <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+        <div class="shopping-paste-panel">
+          <textarea class="shopping-paste-textarea" data-action="shopping-paste-text" rows="6" placeholder="Paste a full recipe (ingredients + anything else) here…">${escHtml(state.shoppingPasteText)}</textarea>
+          <div class="shopping-paste-actions">
             <button class="filter-toggle-btn has-active" data-action="shopping-paste-submit" ${state.shoppingPasteLoading || !state.shoppingPasteText.trim() ? 'disabled' : ''}>
               ${state.shoppingPasteLoading ? 'Extracting…' : 'Create shopping list'}
             </button>
-            ${state.shoppingPasteError ? `<span style="color:var(--danger, #c0392b);font-size:0.85rem">${escHtml(state.shoppingPasteError)}</span>` : ''}
+            ${state.shoppingPasteError ? `<span class="shopping-paste-error">${escHtml(state.shoppingPasteError)}</span>` : ''}
           </div>
         </div>
       ` : ''}
@@ -1331,13 +1333,13 @@ function renderShoppingList() {
           <p>Your shopping list is empty.</p>
         </div>
       ` : groups.map(g => `
-        <div class="meal-plan-day" style="margin-bottom:16px">
+        <div class="meal-plan-day shopping-group">
           <div class="meal-plan-day-header"><span class="meal-plan-day-name">${escHtml(g.name)}</span></div>
           ${g.items.map(item => `
-            <div class="meal-plan-slot" style="align-items:center">
-              <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;${item.checked ? 'opacity:0.5;text-decoration:line-through' : ''}">
-                <input type="checkbox" data-action="shopping-toggle-item" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
-                <span>${escHtml(item.text)}${item.source ? ` <span style="color:var(--muted);font-size:0.78rem">— ${escHtml(item.source)}</span>` : ''}</span>
+            <div class="meal-plan-slot shopping-item">
+              <label class="shopping-item-label ${item.checked ? 'is-checked' : ''}">
+                <input class="shopping-checkbox" type="checkbox" data-action="shopping-toggle-item" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
+                <span>${escHtml(item.text)}${item.source ? ` <span class="shopping-item-source">— ${escHtml(item.source)}</span>` : ''}</span>
               </label>
               <button class="meal-plan-remove" data-action="shopping-remove-item" data-id="${item.id}" aria-label="Remove">✕</button>
             </div>
@@ -1352,7 +1354,7 @@ function renderArchive() {
   const emptyIcon = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
   const header = `
     <div class="container" style="padding-top:20px">
-      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;max-width:640px">
+      <p class="tab-intro">
         Full post history for every blog, pulled from each site's sitemap rather than its RSS feed — thousands of recipes per blog instead of the last handful. Filters here match against the title only (sitemaps don't carry excerpts), so they're less precise than on Discover.
       </p>
       <div class="search-wrap" style="max-width:480px">
