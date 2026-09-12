@@ -1585,8 +1585,11 @@ const NO_IMAGE_MARK_ESCAPED = `<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stro
 function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#5c1a1a';
-  // In search mode, cards with no image get a data attribute so the lazy OG fetcher can fill them in
-  const needsOg = noImg && state.searchMode ? `data-needs-og="${escHtml(r.url)}"` : '';
+  // Cards with no image get a data attribute so the lazy OG fetcher can fill
+  // them in once scrolled into view — search results often lack one, and so
+  // do ~5.8% of Archive entries whose blog's sitemap has no <image:> tag at
+  // all (e.g. Ambitious Kitchen, Love and Lemons — every post, not just some).
+  const needsOg = noImg && (state.searchMode || state.view === 'archive') ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
@@ -2834,7 +2837,7 @@ const _ogObserver = new IntersectionObserver((entries) => {
           );
         });
         // Update state so re-renders keep the image
-        const r = state.searchResults.find(r => r.url === url);
+        const r = [...state.searchResults, ...state.archiveResults].find(r => r.url === url);
         if (r) r.image = img;
       })
       .catch(() => {});
