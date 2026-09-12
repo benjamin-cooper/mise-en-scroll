@@ -1040,6 +1040,24 @@ ul, ol { padding-left: 1.25rem; }
   /* Hide desktop chip rows, show mobile dropdown buttons */
   .desktop-filters { display: none !important; }
 
+  /* The search row (blog picker + search box + ingredient toggle) doesn't
+     fit on one line at phone widths — the two non-shrinking buttons were
+     squeezing the search input down to ~80px, showing just the icon and
+     the first letter of its placeholder. Put the search box on its own
+     full-width row, with the two buttons sharing the row below it. */
+  .search-row { flex-wrap: wrap; }
+  .search-wrap { flex: 1 1 100%; order: -1; }
+  .blog-picker-wrap { flex: 1; }
+  .blog-picker-btn { width: 100%; justify-content: center; }
+  .ingredient-toggle { flex: 1; justify-content: center; }
+
+  /* Same overflow problem in the feed meta bar — "Updated…" text, the
+     sort pills, and the refresh button all fought for one row, pushing
+     Refresh feed off-screen entirely rather than wrapping. */
+  .feed-meta-bar { flex-wrap: wrap; row-gap: 8px; }
+  .feed-updated { flex: 1 1 100%; }
+  .sort-controls { flex-wrap: wrap; }
+
   .mobile-filter-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
