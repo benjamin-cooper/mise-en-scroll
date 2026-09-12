@@ -766,16 +766,18 @@ async function fetchBlogFeed(blog) {
     throw err; // re-throw so SSE handler logs it
   }
 
+  // Each recipe used to also carry a precomputed `searchText` (title +
+  // categories + up to 500 raw chars of the feed snippet) — it was the
+  // single biggest contributor to the initial page load's network weight
+  // (~1MB across ~1,800 recipes from 121 blogs), largely duplicating
+  // title/categories/excerpt that are already sent below. The client now
+  // builds the equivalent search string itself from those existing fields
+  // (see recipeSearchText in app.js) instead of us shipping it pre-baked.
   const recipes = feed.items
     .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
     .slice(0, 20).map((item) => {
     const categories = normalizeCategories(item);
     const cleanSnippet = stripFeedBoilerplate(item.contentSnippet);
-    // Cap at ~500 chars — some blogs' feeds include full article text rather
-    // than a short excerpt, and a stray mention buried deep in the body
-    // (an aside, a "you might also like" callout) shouldn't be able to
-    // false-match a category filter keyword for the whole post.
-    const searchText = [item.title || '', ...categories, (cleanSnippet || '').slice(0, 500)].join(' ').toLowerCase();
     const cookTimeMinutes = extractCookTimeMinutes(item);
     const cleanLink = cleanRecipeUrl(item.link);
     return {
@@ -788,7 +790,6 @@ async function fetchBlogFeed(blog) {
       blogColor: blog.color,
       excerpt: cleanSnippet ? decodeHtml(cleanSnippet.slice(0, 140).trim()) + '…' : '',
       categories,
-      searchText,
       ...(cookTimeMinutes !== null ? { cookTimeMinutes } : {}),
     };
   });
