@@ -130,25 +130,42 @@ async function crawlBlog(blog) {
   return { blog: blog.name, count: total, status: 'ok' };
 }
 
+// Blogs used to be crawled one at a time. At 121 blogs, a handful of slow or
+// hanging hosts (each retrying up to 3 sitemap-discovery URLs at a 15s
+// timeout, then N child sitemaps at another 15s each) was enough to blow
+// past the GitHub Action's 90-minute budget — the run always started over
+// from blog #0, so it silently never reached blogs past roughly #50 every
+// single week. Different blogs are different hosts, so crawling several at
+// once doesn't hammer any one site — the per-blog DELAY_BETWEEN_REQUESTS
+// politeness pause still applies within a single blog's own sitemap fetches.
+const CONCURRENCY = 8;
+
+async function crawlPool(targets) {
+  let idx = 0, done = 0;
+  const results = new Array(targets.length);
+  async function worker() {
+    while (idx < targets.length) {
+      const i = idx++;
+      const blog = targets[i];
+      try {
+        results[i] = await crawlBlog(blog);
+      } catch (err) {
+        results[i] = { blog: blog.name, count: 0, status: 'error' };
+      }
+      done++;
+      console.log(`[${done}/${targets.length}] ${results[i].blog}: ${results[i].status} (${results[i].count} recipes)`);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
+  return results;
+}
+
 async function main() {
   const filter = process.argv[2];
   const targets = filter ? BLOGS.filter(b => b.name.toLowerCase().includes(filter.toLowerCase())) : BLOGS;
   console.log(`Crawling ${targets.length} blog(s)...\n`);
 
-  let done = 0;
-  const results = [];
-  for (const blog of targets) {
-    try {
-      const r = await crawlBlog(blog);
-      results.push(r);
-      done++;
-      console.log(`[${done}/${targets.length}] ${r.blog}: ${r.status} (${r.count} recipes)`);
-    } catch (err) {
-      results.push({ blog: blog.name, count: 0, status: 'error' });
-      done++;
-      console.log(`[${done}/${targets.length}] ${blog.name}: ERROR ${err.message}`);
-    }
-  }
+  const results = await crawlPool(targets);
 
   const countResult = await client.execute('SELECT COUNT(*) AS c FROM recipes');
   const totalRecipes = countResult.rows[0].c;
