@@ -1,14 +1,14 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 104 food blogs into a single, filterable feed — plus full-archive search powered by Serper.dev.
+A recipe discovery app that aggregates the latest posts from 96 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 104 blogs simultaneously, rendering cards as each feed loads
-- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; filter clicks search the full archive via Serper.dev
-- **Archive search** — search the full history of all blogs (not just recent posts) using the search bar
+- **Live feed** — streams the latest recipes from 96 blogs simultaneously, rendering cards as each feed loads
+- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; applied instantly against whatever's currently loaded (live feed, search results, or saved)
+- **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
 - **Saved** — bookmark recipes to a dedicated Saved tab (stored in your browser, private to you)
@@ -21,35 +21,41 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 
 ## Blogs
 
+*(96 blogs total, generated from `blogs.js` — the source of truth. A number of
+blogs originally on this list were dropped for being inactive for 6+ months,
+having a permanently broken feed, or sitting behind bot-protection that blocks
+even image fetches: Ambitious Kitchen, Roti n Rice, The First Mess, Memorie di
+Angelina, Maangchi, Laylita's Recipes, Brian Lagerstrom, Swasthi's Recipes, and
+several long-dormant blogs.)*
+
 ### General / American
 | Blog | Blog |
 |------|------|
-| Half Baked Harvest | The Modern Proper |
-| Budget Bytes | Pinch of Yum |
-| Smitten Kitchen | Minimalist Baker |
-| Serious Eats | Damn Delicious |
+| Half Baked Harvest | Budget Bytes |
+| Pinch of Yum | Smitten Kitchen |
+| Minimalist Baker | Damn Delicious |
 | Cookie and Kate | Skinnytaste |
-| Ambitious Kitchen | Cafe Delites |
-| Once Upon a Chef | Well Plated |
-| The Recipe Critic | Natasha's Kitchen |
-| Spend With Pennies | The Chunky Chef |
-| Gimme Some Oven | Two Peas & Their Pod |
-| The Cozy Cook | Jo Cooks |
-| Feasting at Home | Plays Well With Butter |
-| Wholesome Yum | Carlsbad Cravings |
-| The Mediterranean Dish | Dishing Out Health |
-| The Food Charlatan | Foxes Love Lemons |
-| RecipeTin Eats | How Sweet Eats |
-| A Couple Cooks | Love and Lemons |
-| Cooking Classy | Tastes Better From Scratch |
-| The Stay At Home Chef | Dinner at the Zoo |
-| Kevin Is Cooking | Little Spice Jar |
-| Creme de la Crumb | Fifteen Spatulas |
+| Cafe Delites | Once Upon a Chef |
+| Well Plated | The Recipe Critic |
+| Natasha's Kitchen | Spend With Pennies |
+| The Chunky Chef | Gimme Some Oven |
+| Two Peas & Their Pod | The Cozy Cook |
+| Jo Cooks | Feasting at Home |
+| Plays Well With Butter | Wholesome Yum |
+| Carlsbad Cravings | The Mediterranean Dish |
+| Dishing Out Health | The Food Charlatan |
+| Foxes Love Lemons | Alexandra Cooks |
+| Averie Cooks | Inspired Taste |
+| Sweet Peas and Saffron | RecipeTin Eats |
+| How Sweet Eats | A Couple Cooks |
+| Love and Lemons | Cooking Classy |
+| Tastes Better From Scratch | The Stay At Home Chef |
+| Dinner at the Zoo | Kevin Is Cooking |
+| Little Spice Jar | Creme de la Crumb |
 | Downshiftology | The Defined Dish |
-| Sam the Cooking Guy | Justine Snacks |
-| Alexandra Cooks | Averie Cooks |
-| Inspired Taste | Sweet Peas and Saffron |
-| The Kitchn | |
+| Justine Snacks | I Am A Food Blog |
+| Culinary Hill | Salt & Lavender |
+| Chili Pepper Madness | Foolproof Living |
 
 ### Asian
 | Blog | Cuisine Focus |
@@ -58,7 +64,6 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 | Omnivore's Cookbook | Chinese |
 | Just One Cookbook | Japanese |
 | Pickled Plum | Japanese / Asian fusion |
-| Maangchi | Korean |
 | My Korean Kitchen | Korean |
 | Hot Thai Kitchen | Thai |
 | Rasa Malaysia | Malaysian / Southeast Asian |
@@ -81,17 +86,18 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 ### Mexican / Latin
 | Blog |
 |------|
-| Mexico in My Kitchen |
-| Laylita's Recipes |
 | Isabel Eats |
+| Mexican Please |
+| Mexican Food Journal |
+| My Colombian Recipes |
+| Easy and Delish |
+| Spain on a Fork |
 
 ### Middle Eastern
 | Blog | Focus |
 |------|-------|
 | Give Recipe | Turkish |
 | Ozlem's Turkish Table | Turkish |
-| Tori Avey | Israeli / Jewish |
-| Feel Good Foodie | Lebanese / Arabic |
 | Zaatar and Zaytoun | Palestinian |
 
 ### African / Caribbean
@@ -99,6 +105,8 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 |------|
 | Immaculate Bites |
 | Chef Lola's Kitchen |
+| Caribbean Pot |
+| Cooking with Ria |
 
 ### Filipino
 | Blog |
@@ -115,13 +123,7 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 | The Vanilla Bean Blog |
 | Joy the Baker |
 
-### Plant-forward / Seasonal
-| Blog |
-|------|
-| The First Mess |
-| Naturally Ella |
-
-### Comfort Food / Sourdough
+### Comfort Food
 | Blog |
 |------|
 | Everyday Homemade |
@@ -130,7 +132,6 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 | Blog |
 |------|
 | An Italian in my Kitchen |
-| Memorie di Angelina |
 | Italian Food Forever |
 
 ### Eastern European
@@ -139,17 +140,11 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 | Valentina's Corner |
 | Eating European |
 
-### Nordic / Scandinavian
-| Blog |
-|------|
-| Nordic Kitchen Stories |
-
 ### Drinks / Cocktails
 | Blog |
 |------|
-| Punch |
 | Cocktail Contessa |
-| Alcademics |
+| Jeffrey Morgenthaler |
 
 ### French / European
 | Blog |
@@ -160,11 +155,21 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 | Blog |
 |------|
 | Hey Grill Hey |
-| Sam the Cooking Guy |
+
+### Vegan
+| Blog |
+|------|
+| Oh She Glows |
+| Vegan Richa |
+
+### Bread / Sourdough
+| Blog |
+|------|
+| The Perfect Loaf |
 
 ## Filters
 
-Clicking any filter chip searches the full blog archive via Serper.dev.
+Filters apply instantly, client-side, against whatever's currently loaded — the live feed, an active keyword search's results, or Saved.
 
 | Category | Options |
 |----------|---------|
@@ -182,8 +187,8 @@ Multiple filters can be selected at once (OR logic within each category).
 - **Backend** — Node.js / Express
 - **RSS parsing** — `rss-parser` with `media:content`, `media:thumbnail`, `content:encoded` support
 - **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
-- **Search** — Serper.dev (Google results, 2,500 free queries/month)
-- **Ingredient AI** — Claude Haiku converts fridge-contents descriptions into optimised search queries
+- **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted, sitemap-crawled archive of every blog's full post history — free, no per-query cost
+- **Ingredient search** — Claude Haiku converts fridge-contents descriptions into a search query, run through Serper.dev (Google results); this is the one search path that still needs Serper, since it's a semantic web search rather than a title lookup
 - **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
 - **Streaming** — Server-Sent Events so recipes appear as each feed loads
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant

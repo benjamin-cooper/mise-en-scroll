@@ -1389,7 +1389,7 @@ function renderContent() {
     if (state.searchLoading && !state.searchResults.length) {
       return `<div class="container"><div class="grid">${Array(9).fill(0).map(renderSkeleton).join('')}</div></div>`;
     }
-    if (!state.searchResults.length && !state.searchLoading) {
+    if (!applyFilters(state.searchResults.filter(r => !isHidden(r.url))).length && !state.searchLoading) {
       return `
         <div class="container">
           <div class="empty">
@@ -1400,11 +1400,19 @@ function renderContent() {
         </div>
       `;
     }
+    // Active filter chips (cuisine/protein/etc.) used to be folded directly
+    // into the Serper query text, so they narrowed results without any
+    // client-side re-filtering here. Now that keyword search runs against
+    // the archive DB's title-only FTS index, chip terms wouldn't match
+    // reliably as part of that query — so apply them the same way the
+    // regular RSS/favorites view does, via applyFilters (it also re-applies
+    // the keyword match, which is redundant but harmless here).
+    const visibleSearchResults = applyFilters(state.searchResults.filter(r => !isHidden(r.url)));
     return `
       <div class="container">
-        <p class="result-count">Archive search: ${state.searchResults.filter(r => !isHidden(r.url)).length.toLocaleString()} result${state.searchResults.filter(r => !isHidden(r.url)).length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
+        <p class="result-count">Archive search: ${visibleSearchResults.length.toLocaleString()} result${visibleSearchResults.length === 1 ? '' : 's'}${state.searchLoading ? '…' : ''}</p>
         <div class="grid">
-          ${state.searchResults.filter(r => !isHidden(r.url)).map(renderCard).join('')}
+          ${visibleSearchResults.map(renderCard).join('')}
         </div>
         ${state.searchNextStart ? `<div id="infinite-scroll-sentinel"></div>` : ''}
         ${state.searchLoading && state.searchResults.length ? `<div class="load-more-wrap"><div class="spinner"></div></div>` : ''}

@@ -313,12 +313,29 @@ function extractImage(item) {
     const clean = sanitizeImageUrl(item.enclosure.url);
     if (clean) return clean;
   }
-  // first <img> — prefer ones with width > 300
-  const imgMatches = [...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)];
-  for (const m of imgMatches) {
-    const widthMatch = m[0].match(/width=["']?(\d+)/);
+  // first <img> — a WordPress-embedded post thumbnail's own src is often a
+  // small 150-300px crop, but its srcset attribute usually lists a much
+  // larger version at the same path; check that before falling back to
+  // width-gating the plain src (this was silently discarding a real, usable
+  // thumbnail for any feed that only ever embeds a small one, e.g. Wholesome
+  // Yum/Downshiftology/Immaculate Bites, among ~30 other blogs).
+  const imgTagMatches = [...html.matchAll(/<img[^>]+>/gi)];
+  for (const tag of imgTagMatches) {
+    const srcMatch = tag[0].match(/\ssrc=["']([^"']+)["']/);
+    if (!srcMatch) continue;
+    const srcsetMatch = tag[0].match(/\ssrcset=["']([^"']+)["']/);
+    if (srcsetMatch) {
+      const candidates = srcsetMatch[1].split(',').map(part => {
+        const [url, size] = part.trim().split(/\s+/);
+        return { url, width: size?.endsWith('w') ? parseInt(size) : 0 };
+      }).filter(c => c.url);
+      candidates.sort((a, b) => b.width - a.width);
+      const clean = candidates.length ? sanitizeImageUrl(candidates[0].url) : null;
+      if (clean) return clean;
+    }
+    const widthMatch = tag[0].match(/\swidth=["']?(\d+)/);
     if (!widthMatch || parseInt(widthMatch[1]) > 300) {
-      const clean = sanitizeImageUrl(m[1]);
+      const clean = sanitizeImageUrl(srcMatch[1]);
       if (clean) return clean;
     }
   }
@@ -751,12 +768,22 @@ function persistFeedCache() {
   }, 2000);
 }
 
-// Load persisted cache on startup
+// Load persisted cache on startup. Entries for blogs no longer in BLOGS
+// (removed for being inactive/bot-blocked) are dropped rather than kept
+// around forever — feedCache.values() is read directly by /sitemap.xml,
+// /recipe, and the search image lookup, none of which re-check BLOGS
+// membership, so a stale entry for a removed blog would otherwise linger
+// indefinitely instead of aging out like a normal cache miss.
 try {
   const raw = fs.readFileSync(CACHE_FILE, 'utf8');
   const data = JSON.parse(raw);
-  for (const [name, entry] of Object.entries(data)) feedCache.set(name, entry);
-  console.log(`Feed cache loaded from disk (${feedCache.size} entries)`);
+  const activeBlogNames = new Set(BLOGS.map(b => b.name));
+  let pruned = 0;
+  for (const [name, entry] of Object.entries(data)) {
+    if (activeBlogNames.has(name)) feedCache.set(name, entry);
+    else pruned++;
+  }
+  console.log(`Feed cache loaded from disk (${feedCache.size} entries${pruned ? `, pruned ${pruned} stale blog(s)` : ''})`);
 } catch {}
 
 // Try to extract totalTime in minutes from JSON-LD embedded in RSS content
