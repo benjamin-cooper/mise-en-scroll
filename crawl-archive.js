@@ -58,6 +58,26 @@ function parseUrlset(xml) {
   return entries;
 }
 
+// Some blogs' sitemaps carry non-recipe alternate versions of the same post
+// as their own indexable URLs: AMP "Web Stories" summaries (/web-stories/…),
+// video-embed pages (/videos/…), and, for multilingual blogs (e.g. Hebbars
+// Kitchen), the identical recipe re-published under a language-code path
+// (/hi/…, /kn/…). None of these are a distinct recipe — they're the same
+// content under a different URL — but URL-based dedup elsewhere can't catch
+// them since the URLs are genuinely different. Confirmed by auditing the
+// archive DB: Hebbars Kitchen alone had every recipe tripled (English +
+// Hindi + Kannada paths), ~1,400 extra rows; six other blogs' /web-stories/
+// and /videos/ paths accounted for several hundred more.
+function isAlternateFormatUrl(url) {
+  try {
+    const path = new URL(url).pathname;
+    if (/\/(web-stories|videos)\//i.test(path)) return true;
+    const firstSegment = path.split('/').filter(Boolean)[0] || '';
+    if (/^[a-z]{2}$/i.test(firstSegment)) return true; // language-code path prefix
+    return false;
+  } catch { return false; }
+}
+
 function isSitemapIndex(xml) {
   return /<sitemapindex/i.test(xml);
 }
@@ -116,6 +136,7 @@ async function crawlBlog(blog) {
     for (const entry of entries) {
       const cleanUrl = cleanRecipeUrl(entry.loc);
       if (!itemBelongsToFeed(blog.feed, cleanUrl)) continue;
+      if (isAlternateFormatUrl(cleanUrl)) continue;
       const title = titleFromSlug(cleanUrl);
       if (!title || isRoundup(title, cleanUrl, [])) continue;
       toUpsert.push({ url: cleanUrl, blog: blog.name, blog_color: blog.color, title, image: entry.image, date: entry.lastmod });
