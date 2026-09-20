@@ -68,12 +68,28 @@ function parseUrlset(xml) {
 // archive DB: Hebbars Kitchen alone had every recipe tripled (English +
 // Hindi + Kannada paths), ~1,400 extra rows; six other blogs' /web-stories/
 // and /videos/ paths accounted for several hundred more.
+// WordPress custom-taxonomy archive pages (e.g. /diet/keto/, /occasion/
+// christmas/) sometimes end up in a "post" sitemap alongside real recipes —
+// isPostSitemap() below only filters by sitemap FILE name (category-sitemap,
+// tag-sitemap, etc.), so a taxonomy under a different name slips through as
+// an individual URL. These aren't recipes — they're listing pages with a
+// one-or-two-word derived title ("Keto", "Christmas") and no actual content.
+// Matched by an exact first-path-segment name, not a substring, so a real
+// recipe slug that happens to start with one of these words (unlikely, but
+// e.g. "diet-friendly-lasagna") is never affected.
+const TAXONOMY_SEGMENTS = new Set(['cook-method', 'course', 'cuisine', 'diet', 'ingredient', 'season', 'occasion', 'category', 'tag', 'method']);
+
 function isAlternateFormatUrl(url) {
   try {
     const path = new URL(url).pathname;
     if (/\/(web-stories|videos)\//i.test(path)) return true;
-    const firstSegment = path.split('/').filter(Boolean)[0] || '';
-    if (/^[a-z]{2}$/i.test(firstSegment)) return true; // language-code path prefix
+    const segs = path.split('/').filter(Boolean);
+    if (/^[a-z]{2}$/i.test(segs[0] || '')) return true; // language-code path prefix
+    // Exactly /taxonomy/term/ is the archive page itself (e.g. /diet/keto/).
+    // Some blogs (Jo Cooks) also use a taxonomy word as part of a REAL
+    // recipe's permalink (/course/desserts-2/some-actual-recipe/) — that has
+    // a 3rd segment, so it's excluded from this check on purpose.
+    if (segs.length === 2 && TAXONOMY_SEGMENTS.has(segs[0].toLowerCase())) return true;
     return false;
   } catch { return false; }
 }
