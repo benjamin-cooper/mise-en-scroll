@@ -845,8 +845,20 @@ async function fetchBlogFeed(blog) {
   // title/categories/excerpt that are already sent below. The client now
   // builds the equivalent search string itself from those existing fields
   // (see recipeSearchText in app.js) instead of us shipping it pre-baked.
+  // Some blogs (Budget Bytes does this regularly) republish a "refreshed"
+  // recipe under a brand new URL/slug while the identical old post stays
+  // live too — same title, same pubDate, genuinely different links, so
+  // URL-based dedup elsewhere in the pipeline can't catch it. Feed order is
+  // newest-first, so keep the first occurrence of a title within this
+  // blog's own feed and drop later duplicates.
+  const seenTitles = new Set();
   const recipes = feed.items
     .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
+    .filter(item => {
+      const key = decodeHtml(item.title || '').trim().toLowerCase();
+      if (!key || !seenTitles.has(key)) { if (key) seenTitles.add(key); return true; }
+      return false;
+    })
     .slice(0, 20).map((item) => {
     const categories = normalizeCategories(item);
     const cleanSnippet = stripFeedBoilerplate(item.contentSnippet);
