@@ -525,42 +525,8 @@ function timeChips(d) {
   return parts.length ? `<div class="time-chips">${parts.join('')}</div>` : '';
 }
 
-// --- Search query builder ---
-function buildSearchQuery() {
-  const parts = [];
-  if (state.searchQuery.trim()) parts.push(state.searchQuery.trim());
-
-  const filterMap = [
-    { vals: state.cuisineFilters,  group: 'cuisine'  },
-    { vals: state.proteinFilters,  group: 'protein'  },
-    { vals: state.timeFilters,     group: 'time'     },
-    { vals: state.mealFilters,     group: 'meal'     },
-    { vals: state.dietaryFilters,  group: 'dietary'  },
-    { vals: state.methodFilters,   group: 'method'   },
-  ];
-  for (const { vals, group } of filterMap) {
-    for (const val of vals) {
-      const f = FILTERS[group].find(f => f.label === val);
-      if (!f) continue;
-      // Use only the label for Serper — expanding all 20+ synonyms makes
-      // the query too long and causes silent failures from Serper/Google.
-      // Sanitise: strip parentheticals like "(≤30m)", replace non-word
-      // chars with spaces, collapse whitespace.  Skip "Other" (too generic).
-      const term = f.label
-        .replace(/\s*\([^)]*\)/g, '')   // "(≤30m)" → ""
-        .replace(/[^\w\s-]/g, ' ')       // ~, +, / → space
-        .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
-      if (term && term !== 'other') parts.push(term);
-    }
-  }
-  if (!parts.some(p => p.includes('recipe'))) parts.push('recipe');
-  return parts.join(' ');
-}
-
 let searchDebounceTimer = null;
-let activeSearchSource = null;
+let activeSearchSource = null; // AbortController for the in-flight archive-search fetch
 let archiveSearchDebounceTimer = null;
 
 // Loads a page of the sitemap-crawled archive — either a plain browse (newest
@@ -709,21 +675,26 @@ async function triggerSearch(start = 1) {
 
   // Keyword mode — only fire when user has typed an explicit query.
   // Filter chips alone stay in local RSS mode.
-  const q = buildSearchQuery();
-  if (!q.trim() || q.trim() === 'recipe' || !state.searchQuery.trim()) {
+  if (!state.searchQuery.trim()) {
     state.searchMode = false;
     state.searchResults = [];
     renderApp();
     return;
   }
+  const rawQuery = state.searchQuery.trim();
 
-  if (start === 1 && state.searchQuery.trim()) saveSearchToHistory(state.searchQuery.trim());
+  if (start === 1) saveSearchToHistory(rawQuery);
 
-  // Close any in-flight search stream before starting a new one
-  if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
+  // Cancel any in-flight archive-search fetch before starting a new one
+  if (activeSearchSource) { activeSearchSource.abort(); activeSearchSource = null; }
 
-  // Hybrid: seed results with local matches immediately, then stream Serper on top
-  const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
+  // Hybrid: seed results with local matches (last ~20 posts/blog, from the
+  // RSS pool already loaded client-side) instantly, then supplement with the
+  // sitemap-crawled archive DB (archive-db.js) — full-text search over each
+  // blog's entire history, hosted free on Turso. This replaced a paid Serper
+  // web-search call: same "search every blog's whole history" job, but free
+  // and with no per-query cost or rate limit to burn through.
+  const tokens = rawQuery.toLowerCase().split(/\s+/);
   const localMatches = start === 1
     ? getVisibleRecipes().filter(r => {
         const full = recipeSearchText(r);
@@ -737,20 +708,11 @@ async function triggerSearch(start = 1) {
   state.searchError = null;
   if (start === 1) state.searchResults = localMatches;  // show local results instantly
 
-  // If local results are already plentiful, skip Serper entirely
-  const LOCAL_THRESHOLD = 10;
-  if (start === 1 && localMatches.length >= LOCAL_THRESHOLD) {
-    state.searchLoading = false;
-    state.searchNextStart = null;
-    renderApp();
-    return;
-  }
-
   state.searchLoading = true;
   renderApp();
 
   // Check client-side cache before hitting the server
-  const cached = getSearchCache(q, start);
+  const cached = getSearchCache(rawQuery, start);
   if (cached) {
     const fresh = cached.results.filter(r => !seenUrls.has(r.url));
     state.searchResults = [...state.searchResults, ...fresh];
@@ -761,40 +723,23 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  const src = new EventSource(`/api/search/stream?q=${encodeURIComponent(q)}&page=${start}`);
-  activeSearchSource = src;
-  const streamedResults = [];
-
-  src.onmessage = e => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'chunk') {
-      const fresh = msg.results.filter(r => !seenUrls.has(r.url));
-      fresh.forEach(r => seenUrls.add(r.url));
-      streamedResults.push(...fresh);
-      state.searchResults = [...state.searchResults, ...fresh];
-      renderApp();
-    } else if (msg.type === 'done') {
-      state.searchTotal = msg.totalResults;
-      state.searchNextStart = msg.nextStart;
-      state.searchLoading = false;
-      src.close(); activeSearchSource = null;
-      setSearchCache(q, start, { results: streamedResults, totalResults: msg.totalResults, nextStart: msg.nextStart });
-      renderApp();
-    } else if (msg.type === 'error') {
-      state.searchError = msg.message || 'Search failed. Please try again.';
-      state.searchLoading = false;
-      src.close(); activeSearchSource = null;
-      renderApp();
-    }
-  };
-
-  src.onerror = () => {
-    if (src.readyState === EventSource.CLOSED) return;
-    state.searchError = 'Search failed. Please try again.';
+  const ac = new AbortController();
+  activeSearchSource = ac;
+  try {
+    const data = await fetch(`/api/archive/search?q=${encodeURIComponent(rawQuery)}&page=${start}`, { signal: ac.signal }).then(r => r.json());
+    const fresh = (data.results || []).filter(r => !seenUrls.has(r.url));
+    fresh.forEach(r => seenUrls.add(r.url));
+    state.searchResults = [...state.searchResults, ...fresh];
+    state.searchTotal = data.total || state.searchResults.length;
+    state.searchNextStart = data.nextPage || null;
+    setSearchCache(rawQuery, start, { results: fresh, totalResults: state.searchTotal, nextStart: state.searchNextStart });
+  } catch (err) {
+    if (err.name !== 'AbortError') state.searchError = 'Search failed. Please try again.';
+  } finally {
     state.searchLoading = false;
-    src.close(); activeSearchSource = null;
+    activeSearchSource = null;
     renderApp();
-  };
+  }
 }
 
 // --- Filter logic ---
@@ -2288,7 +2233,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'toggle-ingredient-mode') {
     clearTimeout(searchDebounceTimer);
-    if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
+    if (activeSearchSource) { activeSearchSource.abort(); activeSearchSource = null; }
     state.ingredientMode = !state.ingredientMode;
     state.searchQuery = '';
     state.searchMode = false;
@@ -2302,7 +2247,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'search-clear') {
     clearTimeout(searchDebounceTimer);
-    if (activeSearchSource) { activeSearchSource.close(); activeSearchSource = null; }
+    if (activeSearchSource) { activeSearchSource.abort(); activeSearchSource = null; }
     state.searchQuery = '';
     const ac = document.getElementById('autocomplete-dropdown');
     if (ac) { ac.innerHTML = ''; ac.hidden = true; }
