@@ -92,4 +92,22 @@ async function setCrawlState({ blog, last_crawled_at, url_count, status }) {
   });
 }
 
-module.exports = { client, ready, upsertRecipe, batchUpsertRecipes, setCrawlState };
+// Deletes every archived recipe (and crawl_state row) for a blog that's no
+// longer in blogs.js. Removing a blog from the config only stops future
+// crawls — rows already upserted here would otherwise linger forever and
+// keep surfacing in Archive browsing and Discover's archive-backed keyword
+// search, even though the blog was deliberately dropped (inactive, dead
+// feed, or bot-blocked so its images can never show).
+async function pruneRemovedBlogs(activeBlogNames) {
+  await ready;
+  const activeSet = new Set(activeBlogNames);
+  const { rows } = await client.execute('SELECT DISTINCT blog FROM recipes');
+  const stale = rows.map(r => r.blog).filter(b => !activeSet.has(b));
+  for (const blog of stale) {
+    await client.execute({ sql: 'DELETE FROM recipes WHERE blog = ?', args: [blog] });
+    await client.execute({ sql: 'DELETE FROM crawl_state WHERE blog = ?', args: [blog] });
+  }
+  return stale;
+}
+
+module.exports = { client, ready, upsertRecipe, batchUpsertRecipes, setCrawlState, pruneRemovedBlogs };

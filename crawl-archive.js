@@ -6,7 +6,7 @@
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
 const { isRoundup, itemBelongsToFeed, cleanRecipeUrl } = require('./server.js');
-const { batchUpsertRecipes, setCrawlState, client } = require('./archive-db.js');
+const { batchUpsertRecipes, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
@@ -166,6 +166,14 @@ async function main() {
   console.log(`Crawling ${targets.length} blog(s)...\n`);
 
   const results = await crawlPool(targets);
+
+  // Only prune on a full, unfiltered run — a `node crawl-archive.js someBlog`
+  // partial run only looked at one blog and has no business judging every
+  // other blog in the archive as "removed".
+  if (!filter) {
+    const pruned = await pruneRemovedBlogs(BLOGS.map(b => b.name));
+    if (pruned.length) console.log(`\nPruned ${pruned.length} blog(s) no longer in blogs.js: ${pruned.join(', ')}`);
+  }
 
   const countResult = await client.execute('SELECT COUNT(*) AS c FROM recipes');
   const totalRecipes = countResult.rows[0].c;
