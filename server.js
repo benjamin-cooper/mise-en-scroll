@@ -718,30 +718,59 @@ app.get('/api/archive', async (req, res) => {
   }
 });
 
+// Accepts any mix of: q (typed keywords), groups (JSON: one array of keyword
+// strings per active filter category — OR within a category, AND across
+// categories), and blog. Filter keywords are matched against titles only, since
+// that's all the archive stores (sitemaps carry no excerpts or categories).
+const quoteFts = t => `"${String(t).replace(/"/g, '""')}"`;
+
 app.get('/api/archive/search', async (req, res) => {
   if (!archiveClient) return res.json({ results: [], total: 0, nextPage: null });
   const q = (req.query.q || '').trim();
-  if (!q) return res.json({ results: [], total: 0, nextPage: null });
+  const blog = (req.query.blog || '').trim();
+  let groups = [];
+  try {
+    const parsed = req.query.groups ? JSON.parse(req.query.groups) : [];
+    if (Array.isArray(parsed)) {
+      groups = parsed.slice(0, 8)
+        .map(g => (Array.isArray(g) ? g : []).slice(0, 80).map(String).map(k => k.trim()).filter(k => k && k.length <= 40))
+        .filter(g => g.length);
+    }
+  } catch { return res.status(400).json({ results: [], total: 0, nextPage: null, error: 'Invalid groups.' }); }
+  if (!q && !groups.length && !blog) return res.json({ results: [], total: 0, nextPage: null });
+
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const offset = (page - 1) * ARCHIVE_PAGE_SIZE;
 
-  // FTS5 query syntax treats punctuation specially — quote each token and
-  // AND them together so a plain "chicken tikka" search doesn't 500.
-  const ftsQuery = q.split(/\s+/).filter(Boolean).map(t => `"${t.replace(/"/g, '""')}"`).join(' AND ');
+  // FTS5 query syntax treats punctuation specially — quote every term so a
+  // plain "chicken tikka" search doesn't 500.
+  const parts = [];
+  if (q) parts.push(q.split(/\s+/).filter(Boolean).map(quoteFts).join(' AND '));
+  for (const g of groups) parts.push(`title : (${g.map(quoteFts).join(' OR ')})`);
+
+  const where = [];
+  const params = [];
+  let from = 'recipes r';
+  if (parts.length) {
+    from = 'recipes_fts f JOIN recipes r ON r.id = f.rowid';
+    where.push('recipes_fts MATCH ?');
+    params.push(parts.join(' AND '));
+  }
+  if (blog) { where.push('r.blog = ?'); params.push(blog); }
+  // With typed keywords, best match first; with chips/blog only there is no
+  // meaningful relevance, so newest first.
+  const orderBy = q ? 'ORDER BY rank' : 'ORDER BY r.date IS NULL, r.date DESC';
 
   try {
-    const totalRes = await archiveClient.execute({
-      sql: `SELECT COUNT(*) AS c FROM recipes_fts WHERE recipes_fts MATCH ?`,
-      args: [ftsQuery],
-    });
+    const totalRes = await archiveClient.execute({ sql: `SELECT COUNT(*) AS c FROM ${from} WHERE ${where.join(' AND ')}`, args: params });
     const total = totalRes.rows[0].c;
     const rowsRes = await archiveClient.execute({
       sql: `SELECT r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date
-            FROM recipes_fts f JOIN recipes r ON r.id = f.rowid
-            WHERE recipes_fts MATCH ?
-            ORDER BY rank
+            FROM ${from}
+            WHERE ${where.join(' AND ')}
+            ${orderBy}
             LIMIT ? OFFSET ?`,
-      args: [ftsQuery, ARCHIVE_PAGE_SIZE, offset],
+      args: [...params, ARCHIVE_PAGE_SIZE, offset],
     });
     res.json({ results: rowsRes.rows, total, nextPage: offset + rowsRes.rows.length < total ? page + 1 : null });
   } catch (err) {
