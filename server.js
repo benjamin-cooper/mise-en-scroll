@@ -8,6 +8,13 @@ const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 const { BLOGS } = require('./blogs.js');
 
+// Identify ourselves truthfully when fetching recipe pages. Claiming to be
+// Chrome made Cloudflare challenge ~40 of the blogs (a browser UA without a
+// browser's TLS/JS fingerprint is a classic bot signal), while an honest
+// bot UA passes on sites that don't block bots outright. Sites that do
+// block all bots stay blocked — we don't try to defeat that.
+const PAGE_FETCH_UA = 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com)';
+
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 // Lazy — don't instantiate at startup so a missing key doesn't crash the server
 let _anthropic = null;
@@ -942,7 +949,7 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': PAGE_FETCH_UA,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
       signal: AbortSignal.timeout(15000),
@@ -1029,7 +1036,7 @@ async function fetchOgImage(url) {
   let img = null;
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
+      headers: { 'User-Agent': PAGE_FETCH_UA, 'Accept': 'text/html' },
       signal: AbortSignal.timeout(5000),
     });
     const reader = res.body.getReader();
