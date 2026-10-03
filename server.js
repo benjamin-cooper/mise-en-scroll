@@ -373,7 +373,7 @@ const ROUNDUP_PATTERNS = [
   /\bfavorite\s+recipes\b/i,
   /\brecipes?\s+to\s+(try|make)\b/i,
   /\b(gift\s+guide|holiday\s+guide)\b/i,
-  /\bhow\s+to\s+(stock|build|make)\s+a\b/i,
+  /\bhow\s+to\s+(stock|build)\s+a\b/i,                  // "How to Stock a Pantry" ("How to Make a Bloody Mary" is a recipe)
   /\beveryone\s+will\s+love\b/i,
   /\bthis\s+week'?s?\s+recipes?\b/i,
   /\brecipes?\s+for\s+(easter|christmas|thanksgiving|halloween|the\s+holidays?)\b/i,
@@ -394,7 +394,7 @@ const ROUNDUP_PATTERNS = [
   /\b(travel|trip|visit)\s+to\b/i,
   /\brecap\b/i,
   /\bnewsletter\b/i,
-  /\(plus\b/i,                                        // "(Plus the Sides I Always Bring With Them)"
+  /\(plus\s+(the|my|our|some|more|other|all|\d+)\b/i,   // "(Plus the Sides I Always Bring With Them)" — not "(Plus VIDEO)"
   // "The Best Potato Salads", "The Best Weeknight Dinners" — only when the plural
   // is a generic category word. A specific-food plural ("The Best Chocolate Chip
   // Cookies", "The Best Birria Tacos", "The Best Fudgy Brownies") is a real recipe.
@@ -416,7 +416,7 @@ const ROUNDUP_PATTERNS = [
   /\b(every|all)\s+\w+\s+(need|should|must)\b/i,          // "Every Cook Needs This"
   /\bwhy\s+(i|we|you)\s+(love|make|always)\b/i,           // "Why I Always Have This"
   /\b(obsessed|addicted)\s+with\b/i,                      // lifestyle post style
-  /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\b/i, // "My Go-To Dinner Party Dishes"
+  /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\s+(?:\w+\s+){0,3}(dishes|recipes|meals|dinners|desserts|appetizers|snacks|ideas|sides|cocktails|drinks)\b/i, // "My Go-To Dinner Party Dishes" — not "My Go-To Cheese Ball"
   /\bitinerary\b/i,                                    // travel posts ("My Dolomites Hiking Guide and Itinerary")
   /\bweeknight\s+(dinner\s+)?ideas?\b/i,                  // "Weeknight Dinner Ideas"
   /\b(spring|summer|fall|winter|autumn)\s+(recipes?|dinners?|meals?|produce|eats?)\b(?!.*:)/i, // "Spring Recipes" roundup (not "Spring Pasta: recipe")
@@ -512,6 +512,8 @@ const ROUNDUP_PATTERNS = [
   /\bwe\s+asked\b.{5,60}\band\s+they\b/i,                             // "We Asked 3 Grandmas...and They All Said"
   /\bthey\s+all\s+said\b/i,                                           // "...and They All Said the Same Thing"
   /^this\s+and\s+that\b/i,                                            // "This and That" lifestyle catch-all
+  // Recurring numbered link/diary series (hundreds of near-identical titles, none a recipe)
+  /^(let\s+it\s+be\s+sunday|photographs?\s*\+\s*links|highlights\s+of\s+the\s+week|weekend\s+things|latest\s+recipe\s+testing|blog\s+notes|links\s+i\s+love\s+this\s+week|things\s+i\s+am\s+going\s+crazy\s+for\s+this\s+week)\b/i,                                            // "This and That" lifestyle catch-all
   // Beauty / fashion / lifestyle shopping (How Sweet Eats, etc.)
   /\b(sephora|ulta|nordstrom|net.a.porter|revolve|anthropologie)\b/i,
   /\b(beauty|skincare|makeup|fragrance|perfume|moisturizer|serum|foundation)\b.{0,30}\b(sale|haul|favorites?|picks?|finds?)\b/i,
@@ -813,7 +815,7 @@ app.get('/api/archive/search', async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 11;
+const CACHE_VERSION = 12;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -1119,6 +1121,9 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
 // Fetch og:image from a recipe page — streams the response body and aborts
 // as soon as we've seen </head>, so we only download the page <head> (~5-20 KB)
 // instead of the full page (100-500 KB). Results are cached for OG_IMAGE_TTL.
+const OG_IMAGE_RE_A = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/;
+const OG_IMAGE_RE_B = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/;
+
 async function fetchOgImage(url) {
   const entry = ogImageCache.get(url);
   if (entry && Date.now() - entry.at < OG_IMAGE_TTL) return entry.img;
@@ -1135,11 +1140,12 @@ async function fetchOgImage(url) {
       const { done, value } = await reader.read();
       if (done) break;
       html += dec.decode(value, { stream: true });
-      // Stop as soon as we have the <head> section — og:image is always there
-      if (html.includes('</head>') || html.includes('<body')) { reader.cancel(); break; }
+      // Stop as soon as the tag shows up. Waiting for </head> is too slow on
+      // sites with a huge <head> (Cooking with Ria's is ~166KB with og:image at
+      // byte ~41K), which blew the 5s timeout and left those cards imageless.
+      if (OG_IMAGE_RE_A.test(html) || OG_IMAGE_RE_B.test(html) || html.includes('</head>') || html.includes('<body')) { reader.cancel(); break; }
     }
-    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/) ||
-              html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/);
+    const m = html.match(OG_IMAGE_RE_A) || html.match(OG_IMAGE_RE_B);
     if (m?.[1]) img = m[1];
   } catch {}
   if (ogImageCache.size > 2000) ogImageCache.clear(); // simple eviction cap

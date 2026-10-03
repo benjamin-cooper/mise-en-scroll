@@ -6,7 +6,7 @@
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
 const { isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml } = require('./server.js');
-const { batchUpsertRecipes, batchUpsertRestRecipes, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
+const { batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
@@ -77,7 +77,18 @@ function parseUrlset(xml) {
 // Matched by an exact first-path-segment name, not a substring, so a real
 // recipe slug that happens to start with one of these words (unlikely, but
 // e.g. "diet-friendly-lasagna") is never affected.
-const TAXONOMY_SEGMENTS = new Set(['cook-method', 'course', 'cuisine', 'diet', 'ingredient', 'season', 'occasion', 'category', 'tag', 'method']);
+// Two-level /<base>/<term>/ URLs under these bases are listing/index pages, not
+// posts. Found by grouping unenriched archive rows by first path segment
+// (31 groups, ~660 rows). Deliberately NOT here: "recipes" — Wholesome Yum, Jo
+// Cooks and Once Upon a Chef keep real recipes at /recipes/<slug>/.
+const TAXONOMY_SEGMENTS = new Set([
+  'cook-method', 'course', 'courses', 'cuisine', 'cuisines', 'diet', 'dietary', 'special-diet', 'ingredient',
+  'season', 'occasion', 'category', 'tag', 'method', 'recipe-method', 'recipe-type', 'recipe-length',
+  'recipe-course', 'recipe-category', 'recipe-collection', 'cook-time', 'prep', 'collection', 'collections',
+  'featured-group', 'groups', 'everyday', 'inspiration', 'topic', 'topics', 'glossary', 'recommendation',
+  'recommendations', 'shop', 'product-category', 'download', 'downloads', 'challenge', 'book', 'books',
+  'guides', 'travel', 'korean-drama',
+]);
 
 function isAlternateFormatUrl(url) {
   try {
@@ -250,6 +261,7 @@ async function crawlBlog(blog) {
     if (childSitemaps.length === 0) childSitemaps = locs; // fallback: walk everything
   }
 
+  const restCovered = await isRestCovered(blog.name);
   let total = 0;
   for (const sitemapUrl of childSitemaps) {
     let xml;
@@ -270,7 +282,9 @@ async function crawlBlog(blog) {
       toUpsert.push({ url: cleanUrl, blog: blog.name, blog_color: blog.color, title, image: entry.image, date: entry.lastmod });
     }
     for (let i = 0; i < toUpsert.length; i += BATCH_CHUNK_SIZE) {
-      await batchUpsertRecipes(toUpsert.slice(i, i + BATCH_CHUNK_SIZE));
+      const chunk = toUpsert.slice(i, i + BATCH_CHUNK_SIZE);
+      if (restCovered) await batchUpdateImages(chunk.filter(r => r.image).map(r => ({ url: r.url, image: r.image })));
+      else await batchUpsertRecipes(chunk);
     }
     total += toUpsert.length;
   }
@@ -296,18 +310,21 @@ async function crawlPool(targets, { restOnly = false } = {}) {
     while (idx < targets.length) {
       const i = idx++;
       const blog = targets[i];
+      // REST first: it supplies the real titles/excerpts/categories, and once a
+      // blog has REST data the sitemap pass only fills in images (see
+      // crawlBlog), so the order decides whether sitemap-only junk gets inserted.
+      let rest;
+      try {
+        rest = await enrichFromRest(blog);
+      } catch (err) {
+        rest = { status: 'error', count: 0, error: err.message };
+      }
       try {
         results[i] = restOnly ? { blog: blog.name, count: 0, status: 'skipped' } : await crawlBlog(blog);
       } catch (err) {
         results[i] = { blog: blog.name, count: 0, status: 'error' };
       }
-      // REST pass runs after the sitemap pass so its real titles win, and runs
-      // even when the sitemap couldn't be found.
-      try {
-        results[i].rest = await enrichFromRest(blog);
-      } catch (err) {
-        results[i].rest = { status: 'error', count: 0, error: err.message };
-      }
+      results[i].rest = rest;
       done++;
       const r = results[i];
       console.log(`[${done}/${targets.length}] ${r.blog}: sitemap ${r.status} (${r.count}) | rest ${r.rest.status}${r.rest.http ? ' ' + r.rest.http : ''}${r.rest.error ? ' ' + r.rest.error : ''} (${r.rest.count})`);
@@ -315,6 +332,26 @@ async function crawlPool(targets, { restOnly = false } = {}) {
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
   return results;
+}
+
+// Quiet blogs are kept on purpose; a blog is only treated as gone when its feed
+// 404s/410s or its domain stops resolving. Bot blocks (403), timeouts and 5xx
+// are NOT counted — those are transient or someone else's policy, not death.
+async function checkBlogsAlive(blogs) {
+  const dead = [];
+  let i = 0;
+  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+    while (i < blogs.length) {
+      const b = blogs[i++];
+      try {
+        const res = await fetch(b.feed, { headers: { 'User-Agent': 'rss-parser' }, signal: AbortSignal.timeout(20000) });
+        if (res.status === 404 || res.status === 410) dead.push(`${b.name} (HTTP ${res.status})`);
+      } catch (err) {
+        if ((err.cause && err.cause.code) === 'ENOTFOUND') dead.push(`${b.name} (domain no longer resolves)`);
+      }
+    }
+  }));
+  return dead;
 }
 
 async function main() {
@@ -332,6 +369,14 @@ async function main() {
   if (!filter) {
     const pruned = await pruneRemovedBlogs(BLOGS.map(b => b.name));
     if (pruned.length) console.log(`\nPruned ${pruned.length} blog(s) no longer in blogs.js: ${pruned.join(', ')}`);
+  }
+
+  if (!filter) {
+    const dead = await checkBlogsAlive(BLOGS);
+    if (dead.length) {
+      console.error(`\nDEAD BLOGS (remove from blogs.js): ${dead.join(', ')}`);
+      process.exitCode = 1;
+    }
   }
 
   const countResult = await client.execute('SELECT COUNT(*) AS c FROM recipes');
@@ -352,4 +397,5 @@ async function main() {
   console.log(`Archive now has ${totalRecipes} total recipes.`);
 }
 
-main();
+if (require.main === module) main();
+module.exports = { isAlternateFormatUrl };

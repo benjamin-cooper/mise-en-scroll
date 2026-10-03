@@ -151,6 +151,25 @@ async function batchUpsertRestRecipes(rows) {
   })), 'write');
 }
 
+// For blogs whose posts come from the REST API, the sitemap is only useful for
+// the <image:loc> thumbnails REST doesn't provide. Fills in a missing image on
+// rows that already exist; never inserts, so sitemap-only entries that REST
+// deliberately skipped (roundups, pages, guides) can't creep back in.
+async function batchUpdateImages(rows) {
+  await ready;
+  if (!rows.length) return;
+  return client.batch(rows.map(r => ({
+    sql: 'UPDATE recipes SET image = ? WHERE url = ? AND image IS NULL',
+    args: [r.image, r.url],
+  })), 'write');
+}
+
+async function isRestCovered(blog) {
+  await ready;
+  const r = await client.execute({ sql: 'SELECT rest_count FROM crawl_state WHERE blog = ?', args: [blog] });
+  return (r.rows[0]?.rest_count || 0) > 0;
+}
+
 async function getRestSyncedAt(blog) {
   await ready;
   const r = await client.execute({ sql: 'SELECT rest_synced_at FROM crawl_state WHERE blog = ?', args: [blog] });
@@ -185,4 +204,4 @@ async function pruneRemovedBlogs(activeBlogNames) {
   return stale;
 }
 
-module.exports = { client, ready, upsertRecipe, batchUpsertRecipes, batchUpsertRestRecipes, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs };
+module.exports = { client, ready, upsertRecipe, batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs };
