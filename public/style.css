@@ -573,6 +573,16 @@ ul, ol { padding-left: 1.25rem; }
 }
 
 /* === Drawer Actions === */
+.drawer-cta {
+  display: flex;
+  width: 100%;
+  margin: 4px 0 20px;
+  padding: 14px 20px;
+  font-size: 0.9375rem;
+  white-space: normal;
+  text-align: center;
+}
+
 .drawer-actions {
   display: flex;
   gap: 10px;

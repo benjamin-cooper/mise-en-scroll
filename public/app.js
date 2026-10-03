@@ -1590,8 +1590,19 @@ function renderDrawer() {
   if (!state.selected) {
     return '<div class="drawer-overlay" id="drawer-overlay"><div class="drawer" id="drawer"></div></div>';
   }
-  const { url, preview } = state.selected;
+  const { url, preview: rawPreview } = state.selected;
   const d = state.detail;
+  // Deep links (/recipe?url=…) open with an empty preview. Fill in what we can:
+  // the matching feed entry if it has streamed in, else the recipe's own name,
+  // else the site's hostname so labels and the "read on…" button never go blank.
+  const pooled = rawPreview.blog ? null : state.recipes.find(r => r.url === url);
+  const hostLabel = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'the blog'; } })();
+  const preview = {
+    ...rawPreview,
+    title: rawPreview.title || pooled?.title || d?.name || '',
+    blog: rawPreview.blog || pooled?.blog || hostLabel,
+    blogColor: rawPreview.blogColor && rawPreview.blogColor !== '#888' ? rawPreview.blogColor : (pooled?.blogColor || rawPreview.blogColor),
+  };
   const fav = isFav(url);
   const image = d?.image || preview.image;
 
@@ -1605,7 +1616,6 @@ function renderDrawer() {
     body = `
       <div class="drawer-error">
         <p>${/blocks automated access/.test(state.detailError) ? `${escHtml(preview.blog)} doesn't allow apps to load its recipe card, so it has to be read on their site.` : `Couldn't load structured recipe data for this post.`}</p>
-        <a href="${url}" target="_blank" rel="noopener" class="btn btn-secondary">View on ${escHtml(preview.blog)} →</a>
       </div>
     `;
   } else if (d) {
@@ -1717,7 +1727,6 @@ function renderDrawer() {
         <button class="btn btn-primary ${fav ? 'is-saved' : ''}" data-action="${fav ? 'unsave' : 'save'}">
           ${fav ? 'Saved ✓' : 'Save Recipe'}
         </button>
-        <a href="${url}" target="_blank" rel="noopener" class="btn btn-secondary">View Original →</a>
         <button class="btn btn-secondary" data-action="share">Share</button>
       </div>
     `;
@@ -1731,11 +1740,25 @@ function renderDrawer() {
         <div class="drawer-content">
           <div class="drawer-meta">${badge(preview.blog, preview.blogColor)}</div>
           <h2 class="drawer-title">${escHtml(preview.title)}</h2>
+          <a href="${escHtml(outboundUrl(url))}" target="_blank" rel="noopener" class="btn btn-primary drawer-cta" data-action="view-original">Read the full recipe on ${escHtml(preview.blog)} →</a>
           ${body}
         </div>
       </aside>
     </div>
   `;
+}
+
+// Outbound links to the original post carry utm_source so the blog's own
+// analytics shows Mise en Scroll as a referrer.
+function outboundUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!u.searchParams.has('utm_source')) {
+      u.searchParams.set('utm_source', 'mise-en-scroll');
+      u.searchParams.set('utm_medium', 'referral');
+    }
+    return u.toString();
+  } catch { return url; }
 }
 
 // --- Toast ---
