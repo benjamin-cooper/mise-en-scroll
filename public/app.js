@@ -1604,7 +1604,7 @@ function renderDrawer() {
   } else if (state.detailError) {
     body = `
       <div class="drawer-error">
-        <p>Couldn't load structured recipe data for this post.</p>
+        <p>${/blocks automated access/.test(state.detailError) ? `${escHtml(preview.blog)} doesn't allow apps to load its recipe card, so it has to be read on their site.` : `Couldn't load structured recipe data for this post.`}</p>
         <a href="${url}" target="_blank" rel="noopener" class="btn btn-secondary">View on ${escHtml(preview.blog)} →</a>
       </div>
     `;
