@@ -7,7 +7,7 @@ A recipe discovery app that aggregates the latest posts from 96 food blogs into 
 ## What it does
 
 - **Live feed** — streams the latest recipes from 96 blogs simultaneously, rendering cards as each feed loads
-- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; applied instantly against whatever's currently loaded (live feed, search results, or saved)
+- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses post titles only)
 - **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
@@ -169,7 +169,7 @@ several long-dormant blogs.)*
 
 ## Filters
 
-Filters apply instantly, client-side, against whatever's currently loaded — the live feed, an active keyword search's results, or Saved.
+Filters narrow the live feed instantly, and also search the full archive (title matches only, since the archive stores no excerpts or categories). They combine with typed keywords and with the blog picker; within a category choices are OR, across categories AND.
 
 | Category | Options |
 |----------|---------|

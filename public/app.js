@@ -637,6 +637,29 @@ function insertSortedStreamCards(batch) {
     }
   });
 }
+// One keyword list per active filter category (OR within a category, AND
+// across categories) — sent to the archive search so chips reach beyond the
+// recent posts loaded in the page.
+function activeFilterGroups() {
+  return [
+    ['cuisine', state.cuisineFilters], ['protein', state.proteinFilters],
+    ['time', state.timeFilters], ['meal', state.mealFilters],
+    ['dietary', state.dietaryFilters], ['method', state.methodFilters],
+  ].filter(([, sel]) => sel.length)
+   .map(([key, sel]) => sel.flatMap(label => FILTERS[key].find(f => f.label === label)?.keywords || []))
+   .filter(g => g.length);
+}
+
+// When the live feed finishes streaming while a filtered/keyword view is open,
+// fold its matches into the results (the view was seeded from a partial pool,
+// and posts newer than the last archive crawl only exist in the feed).
+function mergeFeedIntoSearchResults() {
+  if (!state.searchMode || state.ingredientMode || state.view !== 'discover') return;
+  const have = new Set(state.searchResults.map(r => r.url));
+  const extra = applyFilters(getVisibleRecipes()).filter(r => !have.has(r.url));
+  if (extra.length) state.searchResults = [...extra, ...state.searchResults];
+}
+
 async function triggerSearch(start = 1) {
   // In saved/archive views, never hit the RSS search API — just re-render
   // with local filtering (applyFilters runs against whatever's already loaded).
@@ -673,34 +696,32 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  // Keyword mode — only fire when user has typed an explicit query.
-  // Filter chips alone stay in local RSS mode.
-  if (!state.searchQuery.trim()) {
+  // Keyword / filter mode — fires when there's a typed query, an active filter
+  // chip, or a blog picked. Chips and the blog picker used to be local-only,
+  // so they could only ever narrow the ~800 most recent posts already loaded
+  // in the page (e.g. "Slow Cooker" showed ~25 results); they now also query
+  // the full archive.
+  const rawQuery = state.searchQuery.trim();
+  const groups = activeFilterGroups();
+  const blogFilter = state.filter || '';
+  if (!rawQuery && !groups.length && !blogFilter) {
     state.searchMode = false;
     state.searchResults = [];
     renderApp();
     return;
   }
-  const rawQuery = state.searchQuery.trim();
 
-  if (start === 1) saveSearchToHistory(rawQuery);
+  if (start === 1 && rawQuery) saveSearchToHistory(rawQuery);
 
   // Cancel any in-flight archive-search fetch before starting a new one
   if (activeSearchSource) { activeSearchSource.abort(); activeSearchSource = null; }
 
-  // Hybrid: seed results with local matches (last ~20 posts/blog, from the
-  // RSS pool already loaded client-side) instantly, then supplement with the
-  // sitemap-crawled archive DB (archive-db.js) — full-text search over each
-  // blog's entire history, hosted free on Turso. This replaced a paid Serper
-  // web-search call: same "search every blog's whole history" job, but free
-  // and with no per-query cost or rate limit to burn through.
-  const tokens = rawQuery.toLowerCase().split(/\s+/);
-  const localMatches = start === 1
-    ? getVisibleRecipes().filter(r => {
-        const full = recipeSearchText(r);
-        return matchesAllTokens(full, tokens);
-      })
-    : [];
+  // Hybrid: seed results with local matches (the last ~20 posts/blog from the
+  // RSS pool already loaded client-side, run through the same keyword + chip
+  // + blog filters) instantly, then supplement from the sitemap-crawled
+  // archive DB (archive-db.js) — each blog's entire history, hosted free on
+  // Turso. This replaced a paid Serper web-search call.
+  const localMatches = start === 1 ? applyFilters(getVisibleRecipes()) : [];
 
   const seenUrls = new Set(localMatches.map(r => r.url));
 
@@ -712,7 +733,8 @@ async function triggerSearch(start = 1) {
   renderApp();
 
   // Check client-side cache before hitting the server
-  const cached = getSearchCache(rawQuery, start);
+  const cacheKey = JSON.stringify([rawQuery, groups, blogFilter]);
+  const cached = getSearchCache(cacheKey, start);
   if (cached) {
     const fresh = cached.results.filter(r => !seenUrls.has(r.url));
     state.searchResults = [...state.searchResults, ...fresh];
@@ -726,13 +748,17 @@ async function triggerSearch(start = 1) {
   const ac = new AbortController();
   activeSearchSource = ac;
   try {
-    const data = await fetch(`/api/archive/search?q=${encodeURIComponent(rawQuery)}&page=${start}`, { signal: ac.signal }).then(r => r.json());
+    const qs = new URLSearchParams({ page: String(start) });
+    if (rawQuery) qs.set('q', rawQuery);
+    if (groups.length) qs.set('groups', JSON.stringify(groups));
+    if (blogFilter) qs.set('blog', blogFilter);
+    const data = await fetch(`/api/archive/search?${qs}`, { signal: ac.signal }).then(r => r.json());
     const fresh = (data.results || []).filter(r => !seenUrls.has(r.url));
     fresh.forEach(r => seenUrls.add(r.url));
     state.searchResults = [...state.searchResults, ...fresh];
     state.searchTotal = data.total || state.searchResults.length;
     state.searchNextStart = data.nextPage || null;
-    setSearchCache(rawQuery, start, { results: fresh, totalResults: state.searchTotal, nextStart: state.searchNextStart });
+    setSearchCache(cacheKey, start, { results: fresh, totalResults: state.searchTotal, nextStart: state.searchNextStart });
   } catch (err) {
     if (err.name !== 'AbortError') state.searchError = 'Search failed. Please try again.';
   } finally {
@@ -2063,7 +2089,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'filter') {
     state.filter = el.dataset.blog || null;
     state.blogPickerOpen = false;
-    renderApp();
+    state.discoverRenderLimit = DISCOVER_RENDER_LIMIT;
+    triggerSearch();
   }
 
   if (action === 'recent-search') {
@@ -2130,7 +2157,8 @@ document.addEventListener('click', async (e) => {
     state.streamingMore = false;
     state.loading = false;
     if (state.recipes.length) state.feedLastLoaded = Date.now();
-    if (!state.searchMode && !state.selected) renderApp();
+    mergeFeedIntoSearchResults();
+    if (!state.selected) renderApp();
     return;
   }
 
@@ -2726,6 +2754,7 @@ async function init() {
   }
 
   renderApp();
+  if (activeFilterGroups().length) triggerSearch(); // saved filter chips -> full-archive results
 
   // Stream recipes in as each blog loads.
   // First batch: swap skeletons for real cards via renderApp(), track rendered URLs.
@@ -2778,7 +2807,8 @@ async function init() {
   _streamAppendedSet.clear();
   state.streamingMore = false;
   state.feedLastLoaded = Date.now();
-  if (!state.searchMode && !state.selected) renderApp();
+  mergeFeedIntoSearchResults();
+  if (!state.selected) renderApp();
 }
 
 init();
