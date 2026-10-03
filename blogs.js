@@ -5,7 +5,6 @@ const BLOGS = [
   // --- General / American ---
   { name: 'Half Baked Harvest',    feed: 'https://www.halfbakedharvest.com/feed/',        color: '#b8620a' },
   { name: 'Budget Bytes',          feed: 'https://www.budgetbytes.com/feed/',               color: '#c0392b' },
-  { name: 'Pinch of Yum',          feed: 'https://pinchofyum.com/feed',                    color: '#7b5ea7' },
   { name: 'Smitten Kitchen',       feed: 'https://smittenkitchen.com/feed/',                color: '#2471a3' },
   { name: 'Minimalist Baker',      feed: 'https://minimalistbaker.com/feed/',               color: '#c0803e' },
   { name: 'Damn Delicious',        feed: 'https://damndelicious.net/feed/',                 color: '#d63584' },
@@ -121,7 +120,6 @@ const BLOGS = [
   // --- Bread / Sourdough ---
   { name: 'The Perfect Loaf',    feed: 'https://www.theperfectloaf.com/feed/',         color: '#c8a050' },
   // --- Vegan ---
-  { name: 'Oh She Glows',        feed: 'https://ohsheglows.com/feed/',                 color: '#7ab648' },
   { name: 'Vegan Richa',         feed: 'https://www.veganricha.com/feed/',             color: '#c0392b' },
   // --- Creative / Personal ---
   // --- Asian fusion ---
