@@ -24,6 +24,9 @@ function getAnthropic() {
 }
 
 const app = express();
+// Render terminates TLS in front of us: without this every visitor looks like
+// the proxy's address, so the per-IP rate limits were one shared bucket.
+app.set('trust proxy', 1);
 const parser = new RSSParser({
   customFields: {
     item: [
@@ -46,6 +49,10 @@ const recipeLimit    = rateLimit({ windowMs: 60_000, max: 60,  standardHeaders: 
 const ogImageLimit   = rateLimit({ windowMs: 60_000, max: 240, standardHeaders: true, legacyHeaders: false });
 const searchLimit    = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
 const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: true, legacyHeaders: false });
+// Archive endpoints run 2 Turso queries per request (results + COUNT) and were
+// the only public endpoints with no limit. Normal use (chips, typing, infinite
+// scroll) stays far below this.
+const archiveLimit   = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 const shoppingListLimit = rateLimit({ windowMs: 60_000, max: 15, standardHeaders: true, legacyHeaders: false });
 
 // Serve sw.js with an injected cache version derived from asset mtimes.
@@ -719,7 +726,7 @@ try { archiveClient = require('./archive-db.js').client; } catch { /* archive db
 
 const ARCHIVE_PAGE_SIZE = 60;
 
-app.get('/api/archive', async (req, res) => {
+app.get('/api/archive', archiveLimit, async (req, res) => {
   if (!archiveClient) return res.json({ results: [], total: 0, nextPage: null });
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const blog = req.query.blog || null;
@@ -751,7 +758,7 @@ app.get('/api/archive', async (req, res) => {
 // without a REST API only have a title, so they match on that alone.
 const quoteFts = t => `"${String(t).replace(/"/g, '""')}"`;
 
-app.get('/api/archive/search', async (req, res) => {
+app.get('/api/archive/search', archiveLimit, async (req, res) => {
   if (!archiveClient) return res.json({ results: [], total: 0, nextPage: null });
   const q = (req.query.q || '').trim();
   const blog = (req.query.blog || '').trim();
