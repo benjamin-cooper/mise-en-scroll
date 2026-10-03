@@ -1558,6 +1558,12 @@ function renderContent() {
 // Same fork-and-knife mark as the header logo, reused as the no-image
 // fallback so a missing photo reads as an intentional brand touch rather
 // than a generic colored-initial avatar placeholder.
+// 1x1 transparent GIF. Cards render with this and only get their real photo
+// (data-src) once they're near the screen — see _imgObserver. The browser's own
+// loading="lazy" fetches ~2,500px ahead on slow connections, which on a phone
+// is ~20 full-size blog photos (4.5MB) competing with the one you can see.
+const LAZY_IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 const NO_IMAGE_MARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`;
 
 function renderCard(r) {
@@ -1573,7 +1579,7 @@ function renderCard(r) {
   return `
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
       <div class="card-image ${noImg ? 'no-image' : ''}" ${noImg ? `style="--blog-color:${c}"` : ''} ${needsOg}>
-        ${r.image ? `<img src="${r.image}" alt="${escHtml(r.title)}" loading="lazy"
+        ${r.image ? `<img src="${LAZY_IMG_PLACEHOLDER}" data-src="${r.image}" alt="${escHtml(r.title)}" decoding="async"
           onerror="handleCardImageError(this, '${c}')">` : ''}
         ${noImg ? `<div class="card-no-image">
           <span class="card-no-image-mark">${NO_IMAGE_MARK}</span>
@@ -2880,6 +2886,16 @@ function _ogEnqueue(url) {
   _ogProcessQueue();
 }
 
+const _imgObserver = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    const img = e.target;
+    _imgObserver.unobserve(img);
+    const src = img.dataset.src;
+    if (src) { img.removeAttribute('data-src'); img.src = src; }
+  }
+}, { rootMargin: '250px 0px' });
+
 const _ogObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (!entry.isIntersecting) return;
@@ -2912,8 +2928,10 @@ function handleCardImageError(imgEl, color) {
 
 // Re-observe cards whenever the DOM updates (search renders new cards)
 const _ogMutObs = new MutationObserver(() => {
+  document.querySelectorAll('img[data-src]').forEach(img => _imgObserver.observe(img));
   document.querySelectorAll('[data-needs-og]').forEach(el => {
     if (!_ogFetching.has(el.dataset.needsOg)) _ogObserver.observe(el);
   });
 });
 _ogMutObs.observe(document.body, { childList: true, subtree: true });
+document.querySelectorAll('img[data-src]').forEach(img => _imgObserver.observe(img));
