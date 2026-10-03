@@ -417,6 +417,7 @@ const ROUNDUP_PATTERNS = [
   /\bwhy\s+(i|we|you)\s+(love|make|always)\b/i,           // "Why I Always Have This"
   /\b(obsessed|addicted)\s+with\b/i,                      // lifestyle post style
   /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\b/i, // "My Go-To Dinner Party Dishes"
+  /\bitinerary\b/i,                                    // travel posts ("My Dolomites Hiking Guide and Itinerary")
   /\bweeknight\s+(dinner\s+)?ideas?\b/i,                  // "Weeknight Dinner Ideas"
   /\b(spring|summer|fall|winter|autumn)\s+(recipes?|dinners?|meals?|produce|eats?)\b(?!.*:)/i, // "Spring Recipes" roundup (not "Spring Pasta: recipe")
   /\b\d+\s+(ways?|ideas?)\s+to\b/i,                       // "5 Ways to Use Leftover Chicken"
@@ -587,6 +588,12 @@ const NON_RECIPE_CATEGORIES = new Set([
   'behind the scenes', 'life', 'personal', 'site news', 'community',
   'article', 'articles', 'culture', 'food culture & travel',
   'beyond the kitchen', 'tools',
+  // Travel/lifestyle/blogging-business categories. A post is only dropped when
+  // EVERY one of its categories is in this set, so a recipe that also carries a
+  // recipe category is never affected.
+  'travel', 'dining & travel', 'life in italy', 'lifestyle', 'news and updates',
+  'whining', 'meal plans', 'meal plan', 'making money from a food blog',
+  'blogging', 'podcast', 'giveaway', 'giveaways',
   // Roundup/list posts — reliably tagged as such even when the title itself
   // doesn't match the ROUNDUP_PATTERNS regexes below (e.g. "15 Homemade
   // Condiments" or "8 Easy No-Bake Desserts" don't match "over X" patterns)
@@ -806,7 +813,7 @@ app.get('/api/archive/search', async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 10;
+const CACHE_VERSION = 11;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
