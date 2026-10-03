@@ -395,12 +395,17 @@ const ROUNDUP_PATTERNS = [
   /\brecap\b/i,
   /\bnewsletter\b/i,
   /\(plus\b/i,                                        // "(Plus the Sides I Always Bring With Them)"
-  /\bthe\s+best\s+(?:\w+\s+){0,3}\w+s\b(?!\s+recipe)/i, // "The Best Potato Salads", "The Best Simple Weeknight Dinners"
+  // "The Best Potato Salads", "The Best Weeknight Dinners" — only when the plural
+  // is a generic category word. A specific-food plural ("The Best Chocolate Chip
+  // Cookies", "The Best Birria Tacos", "The Best Fudgy Brownies") is a real recipe.
+  /\bthe\s+best\s+(?:\w+\s+){0,3}(recipes|desserts|dinners|meals|dishes|ideas|sides|appetizers|snacks|breakfasts|lunches|salads|soups|cocktails|drinks|gifts|books|treats|casseroles|foods)\b/i,
   /\btested\s+by\s+experts?\b/i,                      // "Tested By Experts"
   /\(20\d\d\)/,                                       // "(2026)" — gear/product roundups with year
   /\bfor\s+\w+,\s*\w+.*?,\s*and\b/i,                 // "for Picnics, Potlucks, and Meal Prep"
-  /\b(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer).*(review|guide|best|tested)\b/i,
-  /\b(review|guide|best|tested).*(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer)\b/i,
+  // ("best" deliberately not in these: "The Best One Pot Pasta" and "Best Crockpot
+  // Beef Bourguignon" are recipes, not gear roundups)
+  /\b(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer).*(review|guide|tested)\b/i,
+  /\b(review|guide|tested).*(gear|equipment|gadget|appliance|knife|pan|pot|blender|kettle|air\s*fryer)\b/i,
   /\bI\s+tested\s+the\b/i,                            // "I Tested the Multicooker..."
   /\bhere'?s?\s+my\s+verdict\b/i,                     // "Here's My Verdict"
   /\bhas\s+\w+\s+separate\b/i,                        // "Has Five Separate Hot Sauces"
@@ -604,7 +609,10 @@ function isRoundup(title = '', url = '', categories = []) {
       // as their post permalink structure, so only the single-segment case
       // is safe to treat as a non-post archive/index page).
       if (segments.length === 1 && /^(all-)?recipes?(-index|-archive|-list)?$|^index$/i.test(segments[0])) return true;
-      if (segments.length === 1 && /-(recipes?|dinners?|meals?|ideas?)$/.test(segments[0])) return true; // /chicken-recipes/
+      // Plural only (/chicken-recipes/, /easy-dinners/). The singular also ends
+      // a huge share of real recipe slugs (/chocolate-chip-cookies-recipe/,
+      // /sheet-pan-dinner/) and was dropping ~7% of all posts.
+      if (segments.length === 1 && /-(recipes|dinners|meals|ideas)$/.test(segments[0])) return true;
     } catch {}
   }
   // Filter site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name".
@@ -798,7 +806,7 @@ app.get('/api/archive/search', async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 9;
+const CACHE_VERSION = 10;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
