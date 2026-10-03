@@ -588,6 +588,8 @@ const NON_RECIPE_CATEGORIES = new Set([
   'round up', 'round-ups', 'roundup', 'roundups',
 ]);
 
+const BLOG_NAMES_LOWER = new Set(BLOGS.map(b => b.name.toLowerCase()));
+
 function isRoundup(title = '', url = '', categories = []) {
   if (ROUNDUP_PATTERNS.some(p => p.test(title))) return true;
   // Filter homepage/category URLs
@@ -605,8 +607,15 @@ function isRoundup(title = '', url = '', categories = []) {
       if (segments.length === 1 && /-(recipes?|dinners?|meals?|ideas?)$/.test(segments[0])) return true; // /chicken-recipes/
     } catch {}
   }
-  // Filter site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name"
-  if (/^[^|]{3,60}\|\s*.{3,60}$/.test(title) && /recipes?|kitchen|cook|food|eat/i.test(title)) return true;
+  // Filter site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name".
+  // Only when a segment IS a known blog name or a generic label — a bare
+  // "has a pipe and the word recipe" test also matched ordinary post titles
+  // like Hebbars Kitchen's "Veg Pakora Recipe | Crispy Mix Veg Pakoda",
+  // dropping ~80% of that blog's posts.
+  if (title.includes('|')) {
+    const parts = title.split('|').map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (parts.some(t => BLOG_NAMES_LOWER.has(t)) || /^(home|recipes?|all recipes|blog)$/.test(parts[0] || '')) return true;
+  }
   // Filter "Over 30 / More than X" roundup titles
   if (/^(over|more\s+than)\s+\d+/i.test(title)) return true;
   // Filter posts tagged only with generic non-recipe categories (news,
@@ -720,8 +729,9 @@ app.get('/api/archive', async (req, res) => {
 
 // Accepts any mix of: q (typed keywords), groups (JSON: one array of keyword
 // strings per active filter category — OR within a category, AND across
-// categories), and blog. Filter keywords are matched against titles only, since
-// that's all the archive stores (sitemaps carry no excerpts or categories).
+// categories), and blog. Filter keywords are matched against title, excerpt and
+// categories (the same text recent posts are filtered on); rows from blogs
+// without a REST API only have a title, so they match on that alone.
 const quoteFts = t => `"${String(t).replace(/"/g, '""')}"`;
 
 app.get('/api/archive/search', async (req, res) => {
@@ -746,7 +756,7 @@ app.get('/api/archive/search', async (req, res) => {
   // plain "chicken tikka" search doesn't 500.
   const parts = [];
   if (q) parts.push(q.split(/\s+/).filter(Boolean).map(quoteFts).join(' AND '));
-  for (const g of groups) parts.push(`title : (${g.map(quoteFts).join(' OR ')})`);
+  for (const g of groups) parts.push(`{title excerpt categories} : (${g.map(quoteFts).join(' OR ')})`);
 
   const where = [];
   const params = [];
@@ -757,22 +767,28 @@ app.get('/api/archive/search', async (req, res) => {
     params.push(parts.join(' AND '));
   }
   if (blog) { where.push('r.blog = ?'); params.push(blog); }
-  // With typed keywords, best match first; with chips/blog only there is no
-  // meaningful relevance, so newest first.
-  const orderBy = q ? 'ORDER BY rank' : 'ORDER BY r.date IS NULL, r.date DESC';
+  // With typed keywords, best match first (title hits outweigh excerpt and
+  // category hits); with chips/blog only there is no meaningful relevance, so
+  // newest first.
+  const orderBy = q ? 'ORDER BY bm25(recipes_fts, 10.0, 2.0, 2.0, 1.0)' : 'ORDER BY r.date IS NULL, r.date DESC';
 
   try {
     const totalRes = await archiveClient.execute({ sql: `SELECT COUNT(*) AS c FROM ${from} WHERE ${where.join(' AND ')}`, args: params });
     const total = totalRes.rows[0].c;
     const rowsRes = await archiveClient.execute({
-      sql: `SELECT r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date
+      sql: `SELECT r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date, r.excerpt, r.categories
             FROM ${from}
             WHERE ${where.join(' AND ')}
             ${orderBy}
             LIMIT ? OFFSET ?`,
       args: [...params, ARCHIVE_PAGE_SIZE, offset],
     });
-    res.json({ results: rowsRes.rows, total, nextPage: offset + rowsRes.rows.length < total ? page + 1 : null });
+    const results = rowsRes.rows.map(r => {
+      let categories = [];
+      try { categories = r.categories ? JSON.parse(r.categories) : []; } catch {}
+      return { ...r, excerpt: r.excerpt || '', categories };
+    });
+    res.json({ results, total, nextPage: offset + rowsRes.rows.length < total ? page + 1 : null });
   } catch (err) {
     res.json({ results: [], total: 0, nextPage: null, error: err.message });
   }

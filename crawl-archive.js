@@ -5,8 +5,8 @@
 // Safe to re-run: upserts by URL, so it's fine to stop and resume, or to
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
-const { isRoundup, itemBelongsToFeed, cleanRecipeUrl } = require('./server.js');
-const { batchUpsertRecipes, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
+const { isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml } = require('./server.js');
+const { batchUpsertRecipes, batchUpsertRestRecipes, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
@@ -94,6 +94,118 @@ function isAlternateFormatUrl(url) {
   } catch { return false; }
 }
 
+// --- WordPress REST enrichment -------------------------------------------
+// Sitemaps only give a URL (the title is guessed from the slug), so archive
+// rows had nothing but a title to match filter chips against. Most of these
+// blogs are WordPress, whose public REST API returns the real title, excerpt,
+// categories/tags and publish date, 100 posts per request (~1,200 requests for
+// the whole archive vs ~100K page fetches). Blogs that don't expose it (or
+// challenge bots) simply keep their sitemap-only rows.
+const REST_UA = 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com)';
+const REST_DELAY = 500;
+const REST_MAX_PAGES = 400;
+
+async function restGet(url) {
+  let res;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(url, { headers: { 'User-Agent': REST_UA, Accept: 'application/json' }, signal: AbortSignal.timeout(25000) });
+    if (res.status !== 429 && res.status < 500) return res;
+    await sleep(2000 * (attempt + 1));
+  }
+  return res;
+}
+
+async function fetchTermMap(origin, taxonomy, maxPages) {
+  const map = new Map();
+  for (let page = 1; page <= maxPages; page++) {
+    await sleep(REST_DELAY);
+    const res = await restGet(`${origin}/wp-json/wp/v2/${taxonomy}?per_page=100&page=${page}&orderby=count&order=desc&_fields=id,name`);
+    if (!res.ok) break;
+    const rows = await res.json();
+    for (const t of rows) map.set(t.id, decodeHtml(String(t.name || '')).trim());
+    if (page >= (parseInt(res.headers.get('x-wp-totalpages')) || 1)) break;
+  }
+  return map;
+}
+
+const stripTags = h => String(h || '').replace(/<[^>]*>/g, ' ');
+// A lone surrogate (e.g. from cutting an emoji in half) is invalid text that
+// Turso rejects with an HTTP 400 for the whole batch.
+const wellFormed = t => String(t).replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+function cleanExcerpt(html) {
+  const text = decodeHtml(stripTags(html))
+    .replace(/\s+/g, ' ')
+    .replace(/\s*The post .{0,200}? appeared first on .*$/i, '')
+    .replace(/\s*(Read more|Continue reading|Get the recipe)\W*$/i, '')
+    .trim();
+  return wellFormed(Array.from(text).slice(0, 220).join(''));
+}
+
+async function enrichFromRest(blog) {
+  const origin = new URL(blog.feed).origin;
+  const since = process.argv.includes('--full') ? null : await getRestSyncedAt(blog.name);
+  const after = since ? new Date(Date.parse(since) - 3 * 864e5).toISOString().replace(/\.\d+Z$/, '') : null;
+  const listUrl = (base, page) => `${origin}/wp-json/wp/v2/${base}?per_page=100&page=${page}&orderby=date&order=desc&_fields=link,title,excerpt,date_gmt,categories,tags${after ? `&after=${after}` : ''}`;
+
+  const first = await restGet(listUrl('posts', 1));
+  if (!first.ok) return { status: 'unavailable', http: first.status, count: 0 };
+
+  // Some blogs keep their actual recipes in a custom post type (Downshiftology
+  // uses "recipes"), so crawl that alongside regular posts when it's exposed.
+  const bases = ['posts'];
+  try {
+    await sleep(REST_DELAY);
+    const typesRes = await restGet(`${origin}/wp-json/wp/v2/types`);
+    if (typesRes.ok) {
+      const types = await typesRes.json();
+      for (const t of Object.values(types)) if (/^recipes?$/.test(t.slug) && t.rest_base) bases.push(t.rest_base);
+    }
+  } catch { /* posts alone is fine */ }
+
+  let catMap = null, tagMap = null, count = 0;
+  for (const base of bases) {
+    const head = base === 'posts' ? first : await restGet(listUrl(base, 1));
+    if (!head.ok) continue;
+    const totalPages = Math.min(parseInt(head.headers.get('x-wp-totalpages')) || 1, REST_MAX_PAGES);
+    let posts = await head.json();
+    if (!Array.isArray(posts) || !posts.length) continue;
+    if (!catMap) { catMap = await fetchTermMap(origin, 'categories', 10); tagMap = await fetchTermMap(origin, 'tags', 15); }
+
+    for (let page = 1; page <= totalPages; page++) {
+      if (page > 1) {
+        await sleep(REST_DELAY);
+        const res = await restGet(listUrl(base, page));
+        // A failure here must not look like "finished": marking the blog synced
+        // would make later incremental runs skip every older post we missed.
+        if (!res.ok) throw new Error(`REST ${base} page ${page} failed with HTTP ${res.status}`);
+        posts = await res.json();
+        if (!Array.isArray(posts)) throw new Error(`REST ${base} page ${page} returned non-array`);
+        if (!posts.length) break;
+      }
+      const rows = [];
+      for (const p of posts) {
+        const url = cleanRecipeUrl(p.link);
+        if (!url || !itemBelongsToFeed(blog.feed, url) || isAlternateFormatUrl(url)) continue;
+        const title = wellFormed(decodeHtml(stripTags(p.title && p.title.rendered)).replace(/\s+/g, ' ').trim());
+        if (!title) continue;
+        const names = [...(p.categories || []).map(id => catMap.get(id)), ...(p.tags || []).map(id => tagMap.get(id))]
+          .filter(n => n && !/^uncategorized$/i.test(n));
+        const categories = [...new Set(names)].slice(0, 14).map(wellFormed);
+        if (isRoundup(title, url, categories)) continue;
+        rows.push({
+          url, blog: blog.name, blog_color: blog.color, title,
+          date: p.date_gmt ? `${p.date_gmt}+00:00` : null,
+          excerpt: cleanExcerpt(p.excerpt && p.excerpt.rendered), categories,
+        });
+      }
+      for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) await batchUpsertRestRecipes(rows.slice(i, i + BATCH_CHUNK_SIZE));
+      count += rows.length;
+    }
+  }
+  await setRestSynced(blog.name, count);
+  return { status: 'ok', count };
+}
+
 function isSitemapIndex(xml) {
   return /<sitemapindex/i.test(xml);
 }
@@ -177,7 +289,7 @@ async function crawlBlog(blog) {
 // politeness pause still applies within a single blog's own sitemap fetches.
 const CONCURRENCY = 8;
 
-async function crawlPool(targets) {
+async function crawlPool(targets, { restOnly = false } = {}) {
   let idx = 0, done = 0;
   const results = new Array(targets.length);
   async function worker() {
@@ -185,12 +297,20 @@ async function crawlPool(targets) {
       const i = idx++;
       const blog = targets[i];
       try {
-        results[i] = await crawlBlog(blog);
+        results[i] = restOnly ? { blog: blog.name, count: 0, status: 'skipped' } : await crawlBlog(blog);
       } catch (err) {
         results[i] = { blog: blog.name, count: 0, status: 'error' };
       }
+      // REST pass runs after the sitemap pass so its real titles win, and runs
+      // even when the sitemap couldn't be found.
+      try {
+        results[i].rest = await enrichFromRest(blog);
+      } catch (err) {
+        results[i].rest = { status: 'error', count: 0, error: err.message };
+      }
       done++;
-      console.log(`[${done}/${targets.length}] ${results[i].blog}: ${results[i].status} (${results[i].count} recipes)`);
+      const r = results[i];
+      console.log(`[${done}/${targets.length}] ${r.blog}: sitemap ${r.status} (${r.count}) | rest ${r.rest.status}${r.rest.http ? ' ' + r.rest.http : ''}${r.rest.error ? ' ' + r.rest.error : ''} (${r.rest.count})`);
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
@@ -198,11 +318,13 @@ async function crawlPool(targets) {
 }
 
 async function main() {
-  const filter = process.argv[2];
+  const args = process.argv.slice(2);
+  const restOnly = args.includes('--rest-only');
+  const filter = args.find(a => !a.startsWith('--'));
   const targets = filter ? BLOGS.filter(b => b.name.toLowerCase().includes(filter.toLowerCase())) : BLOGS;
-  console.log(`Crawling ${targets.length} blog(s)...\n`);
+  console.log(`Crawling ${targets.length} blog(s)${restOnly ? ' (REST only)' : ''}...\n`);
 
-  const results = await crawlPool(targets);
+  const results = await crawlPool(targets, { restOnly });
 
   // Only prune on a full, unfiltered run — a `node crawl-archive.js someBlog`
   // partial run only looked at one blog and has no business judging every
@@ -218,6 +340,8 @@ async function main() {
   const noSitemap = results.filter(r => r.status === 'no_sitemap').length;
   const errors = results.filter(r => r.status === 'error').length;
   console.log(`\nDone. ${ok} crawled, ${noSitemap} had no discoverable sitemap, ${errors} errored.`);
+  const restOk = results.filter(r => r.rest?.status === 'ok').length;
+  console.log(`REST enrichment: ${restOk} blog(s) ok, ${results.length - restOk} unavailable/errored; ${results.reduce((a, r) => a + (r.rest?.count || 0), 0)} posts upserted.`);
   console.log(`Archive now has ${totalRecipes} total recipes.`);
 }
 

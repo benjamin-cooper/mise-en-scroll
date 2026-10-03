@@ -7,7 +7,7 @@ A recipe discovery app that aggregates the latest posts from 96 food blogs into 
 ## What it does
 
 - **Live feed** — streams the latest recipes from 96 blogs simultaneously, rendering cards as each feed loads
-- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses post titles only)
+- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses title, excerpt and categories)
 - **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
@@ -169,7 +169,7 @@ several long-dormant blogs.)*
 
 ## Filters
 
-Filters narrow the live feed instantly, and also search the full archive (title matches only, since the archive stores no excerpts or categories). They combine with typed keywords and with the blog picker; within a category choices are OR, across categories AND.
+Filters narrow the live feed instantly, and also search the full archive (matched on title, excerpt and categories; ~8% of archived posts, from blogs that block or don't expose WordPress's REST API, only have a title to match on). They combine with typed keywords and with the blog picker; within a category choices are OR, across categories AND.
 
 | Category | Options |
 |----------|---------|
@@ -187,7 +187,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **Backend** — Node.js / Express
 - **RSS parsing** — `rss-parser` with `media:content`, `media:thumbnail`, `content:encoded` support
 - **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
-- **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted, sitemap-crawled archive of every blog's full post history — free, no per-query cost
+- **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted archive of every blog's full post history — free, no per-query cost. URLs come from each blog's sitemap, then the WordPress REST API adds the real title, excerpt, categories and publish date (about 1,200 requests for the whole archive, incremental after that)
 - **Ingredient search** — Claude Haiku converts fridge-contents descriptions into a search query, run through Serper.dev (Google results); this is the one search path that still needs Serper, since it's a semantic web search rather than a title lookup
 - **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
 - **Streaming** — Server-Sent Events so recipes appear as each feed loads
