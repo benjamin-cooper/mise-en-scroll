@@ -342,6 +342,13 @@ async function main() {
   console.log(`\nDone. ${ok} crawled, ${noSitemap} had no discoverable sitemap, ${errors} errored.`);
   const restOk = results.filter(r => r.rest?.status === 'ok').length;
   console.log(`REST enrichment: ${restOk} blog(s) ok, ${results.length - restOk} unavailable/errored; ${results.reduce((a, r) => a + (r.rest?.count || 0), 0)} posts upserted.`);
+  // Runs from CI come from datacenter IPs that Cloudflare may challenge, which
+  // would make most blogs "unavailable" while the job still looked green. If a
+  // full run couldn't reach most of the blogs, fail the job so it gets noticed.
+  if (!filter && restOk < results.length * 0.6) {
+    console.error(`\nERROR: REST enrichment reached only ${restOk}/${results.length} blogs (normally ~90 of 96). Likely bot-blocking of this runner's IP.`);
+    process.exitCode = 1;
+  }
   console.log(`Archive now has ${totalRecipes} total recipes.`);
 }
 
