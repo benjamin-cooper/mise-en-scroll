@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const path = require('path');
@@ -27,6 +28,10 @@ const app = express();
 // Render terminates TLS in front of us: without this every visitor looks like
 // the proxy's address, so the per-IP rate limits were one shared bucket.
 app.set('trust proxy', 1);
+// Text (app.js 144KB, style.css 47KB, the 556KB recipe stream) was going out
+// uncompressed. Brotli/gzip cuts it ~5x, which is most of the first-load cost on a
+// phone connection.
+app.use(compression());
 const parser = new RSSParser({
   customFields: {
     item: [
@@ -970,7 +975,9 @@ app.get('/api/recipes/stream', async (req, res) => {
 
   let closed = false;
   req.on('close', () => { closed = true; });
-  const send = (data) => { if (!closed && !res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
+  // flush(): compression buffers by default, which would hold every batch until the
+  // stream ends and defeat progressive loading.
+  const send = (data) => { if (!closed && !res.writableEnded) { res.write(`data: ${JSON.stringify(data)}\n\n`); res.flush?.(); } };
   const CONCURRENCY = 10;
 
   for (let i = 0; i < BLOGS.length; i += CONCURRENCY) {
@@ -1302,7 +1309,7 @@ app.get('/api/search/stream', searchLimit, async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const send = data => { res.write(`data: ${JSON.stringify(data)}\n\n`); res.flush?.(); };
   try {
     const result = await runSerperSearch(q, page, {
       onChunk: results => send({ type: 'chunk', results }),
