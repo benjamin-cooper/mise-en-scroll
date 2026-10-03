@@ -1549,7 +1549,7 @@ function renderContent() {
           ${visible.map(renderCard).join('')}
         </div>
         ${hasMoreCards ? `<div id="discover-scroll-sentinel"></div>` : ''}
-        ${state.streamingMore ? `<div class="stream-loading" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : ''}
+        ${state.streamingMore ? `<div class="stream-loading" role="status" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : ''}
       </div>
     </div>
   `;
@@ -2709,7 +2709,7 @@ function refreshDiscoverContent() {
   const countNote = hasActiveFilters() && allFiltered.length < base.length
     ? `<p class="result-count">Showing ${allFiltered.length} of ${base.length} recent recipes</p>` : '';
   const streamBar = state.streamingMore
-    ? `<div class="stream-loading" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : '';
+    ? `<div class="stream-loading" role="status" aria-live="polite" aria-label="Loading more recipes"><span></span><span></span><span></span></div>` : '';
   el.innerHTML = `${countNote}<div class="grid">${visible.map(renderCard).join('')}</div>${hasMoreCards ? '<div id="discover-scroll-sentinel"></div>' : ''}${streamBar}`;
   setupInfiniteScroll();
 }
