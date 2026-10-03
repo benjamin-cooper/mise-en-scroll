@@ -467,8 +467,39 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// Blog badge text must reach WCAG AA (4.5:1) on the card background in BOTH themes,
+// but the blog colors were chosen as brand accents, several are too light for
+// light mode (e.g. #b8620a is 3.9:1) and many too dark for dark mode. Mix each
+// toward black (light theme) or white (dark theme) by the smallest amount that
+// clears the bar, so a blog keeps its recognizable hue.
+const _BADGE_BG = { light: '#fffdf8', dark: '#241a16' };
+const _badgeShadeCache = new Map();
+function _relLuminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+function _contrastRatio(a, b) {
+  const [hi, lo] = [_relLuminance(a), _relLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+function _badgeShade(color, theme) {
+  const key = color + '|' + theme;
+  if (_badgeShadeCache.has(key)) return _badgeShadeCache.get(key);
+  let hex = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase()
+    : /^#[0-9a-f]{3}$/i.test(color) ? '#' + [...color.slice(1)].map(c => c + c).join('').toLowerCase() : '#888888';
+  const bg = _BADGE_BG[theme], target = theme === 'light' ? [0, 0, 0] : [255, 255, 255];
+  const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  let out = hex;
+  for (let t = 0; t <= 1.0001 && _contrastRatio(out, bg) < 4.5; t += 0.02) {
+    out = '#' + rgb.map((v, i) => Math.round(v + (target[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  }
+  _badgeShadeCache.set(key, out);
+  return out;
+}
 function badge(name, color) {
-  return `<span class="badge-blog" style="color:${color}">${escHtml(name)}</span>`;
+  return `<span class="badge-blog" style="--badge-light:${_badgeShade(color, 'light')};--badge-dark:${_badgeShade(color, 'dark')}">${escHtml(name)}</span>`;
 }
 function nutritionChips(d) {
   const hasBlog = !!d.nutrition;

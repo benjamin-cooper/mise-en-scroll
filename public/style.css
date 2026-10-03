@@ -342,6 +342,7 @@ ul, ol { padding-left: 1.25rem; }
 
 /* === Blog Badge === */
 .badge-blog {
+  color: var(--badge-light, var(--text));
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -352,6 +353,10 @@ ul, ol { padding-left: 1.25rem; }
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge-blog { color: var(--badge-dark, var(--text)); }
+}
+:root[data-theme="dark"] .badge-blog { color: var(--badge-dark, var(--text)); }
 .badge-blog::before {
   content: '';
   display: inline-block;
