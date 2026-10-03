@@ -931,6 +931,42 @@ const _allowedRecipeDomains = new Set(
   })
 );
 
+// Looks up a post's full content in its blog's own RSS feed. Used when the
+// post page itself is behind a bot challenge: some blogs (e.g. Damn Delicious)
+// publish the complete post, recipe card included, in the feed, which they
+// offer to readers like us.
+async function fetchFeedItemHtml(pageUrl) {
+  const target = new URL(pageUrl);
+  const root = target.hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
+  const blog = BLOGS.find(b => {
+    try { return new URL(b.feed).hostname.replace(/^www\./, '').split('.').slice(-2).join('.') === root; } catch { return false; }
+  });
+  if (!blog) return null;
+  const res = await fetch(blog.feed, { headers: { 'User-Agent': 'rss-parser', 'Accept': 'application/rss+xml' }, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return null;
+  const feed = await parser.parseString(await res.text());
+  const norm = u => { try { const x = new URL(u); return x.hostname.replace(/^www\./, '') + x.pathname.replace(/\/+$/, ''); } catch { return u; } };
+  const item = feed.items.find(i => norm(i.link) === norm(pageUrl));
+  return item ? (item.contentEncoded || item.content || null) : null;
+}
+
+async function fetchRecipeHtml(url) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': PAGE_FETCH_UA,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.ok) return { html: await response.text(), fromFeed: false };
+  if (response.status === 403 || response.status === 503) {
+    const fromFeed = await fetchFeedItemHtml(url).catch(() => null);
+    if (fromFeed) return { html: fromFeed, fromFeed: true };
+    throw new Error('This blog blocks automated access, so the recipe card can\'t be loaded here.');
+  }
+  throw new Error(`HTTP ${response.status}`);
+}
+
 app.get('/api/recipe', recipeLimit, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url is required' });
@@ -947,16 +983,7 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
   }
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': PAGE_FETCH_UA,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
+    const { html, fromFeed } = await fetchRecipeHtml(url);
     const $ = cheerio.load(html);
 
     let recipeData = null;
@@ -985,7 +1012,9 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
     }
 
     if (!recipeData) {
-      return res.status(422).json({ error: 'No structured recipe data found on this page.' });
+      return res.status(422).json({ error: fromFeed
+        ? 'This blog blocks automated access, so the recipe card can\'t be loaded here.'
+        : 'No structured recipe data found on this page.' });
     }
 
     const img = recipeData.image;
