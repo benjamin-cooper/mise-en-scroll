@@ -533,6 +533,7 @@ const ROUNDUP_PATTERNS = [
   /\b\d+x\s+more\b/i,                                                 // "100x More Tasty"
   /\bwe\s+asked\b.{5,60}\band\s+they\b/i,                             // "We Asked 3 Grandmas...and They All Said"
   /\bthey\s+all\s+said\b/i,                                           // "...and They All Said the Same Thing"
+  /\brecipe\s+(index|archive|collection)\b/i,                     // "Recipe Index" pages
   /^this\s+and\s+that\b/i,                                            // "This and That" lifestyle catch-all
   // Recurring numbered link/diary series (hundreds of near-identical titles, none a recipe)
   /^(let\s+it\s+be\s+sunday|photographs?\s*\+\s*links|highlights\s+of\s+the\s+week|weekend\s+things|latest\s+recipe\s+testing|blog\s+notes|links\s+i\s+love\s+this\s+week|things\s+i\s+am\s+going\s+crazy\s+for\s+this\s+week)\b/i,                                            // "This and That" lifestyle catch-all
@@ -709,7 +710,91 @@ function scrapeRecipeHtml($) {
       recipeInstructions: instructions,
     };
   }
-  return null;
+  return scrapeHeadingRecipe($);
+}
+
+// Last resort for blogs with no recipe plugin or schema (e.g. Substack newsletters):
+// read the post body by its headings. Looks for an "Ingredients" heading followed by
+// list items and a "Preparation / Instructions / Directions / Method" heading followed
+// by steps. Deliberately strict (>= 3 ingredients AND >= 2 steps) so an ordinary
+// article that merely mentions ingredients is never mistaken for a recipe.
+function scrapeHeadingRecipe($) {
+  const root = $('.available-content, .body.markup, article, .post-content').first();
+  const scope = root.length ? root : $('body');
+  const level = el => (/^h([1-6])$/i.exec(el.tagName || '') || [])[1] | 0;
+  const clean = t => String(t || '').replace(/\s+/g, ' ').trim();
+  const nodes = scope.find('h1,h2,h3,h4,h5,h6,p,ul,ol,hr').toArray()
+    .filter(el => !$(el).parents('li, ul, ol, blockquote, figure').length);
+  // A bold one-line paragraph ("Ingredients:") acts as a heading too.
+  const headingOf = el => {
+    if (level(el)) return { text: clean($(el).text()), lvl: level(el) };
+    if (el.tagName === 'p') {
+      const strong = $(el).children('strong, b');
+      const t = clean($(el).text());
+      if (strong.length && clean(strong.text()) === t && t.length < 40) return { text: t, lvl: 6 };
+    }
+    return null;
+  };
+  const isIng = t => /^ingredients\b/i.test(t);
+  const isIns = t => /^(instructions|directions|method|preparation|steps|procedure)\b/i.test(t);
+
+  let section = null, secLvl = 0;
+  const ingredients = [], steps = [];
+  let prep = null, cook = null, total = null, servings = null;
+  const minutes = txt => {
+    const h = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i.exec(txt), m = /(\d+)\s*(?:minutes?|mins?)/i.exec(txt);
+    const mins = (h ? Math.round(parseFloat(h[1]) * 60) : 0) + (m ? parseInt(m[1]) : 0);
+    return mins ? 'PT' + Math.floor(mins / 60) + 'H' + (mins % 60) + 'M' : null;
+  };
+  for (const el of nodes) {
+    const hd = headingOf(el);
+    if (hd) {
+      if (isIng(hd.text)) { section = 'ing'; secLvl = hd.lvl; continue; }
+      if (isIns(hd.text)) { section = 'ins'; secLvl = hd.lvl; continue; }
+      if (section && hd.lvl > secLvl) {
+        // deeper heading: an ingredient group label, or a step written as a heading
+        if (section === 'ins' && hd.text.length > 25) steps.push(hd.text);
+        continue;
+      }
+      section = null;
+      continue;
+    }
+    if (el.tagName === 'hr') { if (section === 'ins') section = null; continue; }
+    const text = clean($(el).text());
+    if (!section) {
+      const pt = /^prep(?:aration)?\s*time:?\s*(.+)$/i.exec(text); if (pt && !prep) prep = minutes(pt[1]);
+      const ct = /^cook\s*time:?\s*(.+)$/i.exec(text); if (ct && !cook) cook = minutes(ct[1]);
+      const tt = /^total\s*time:?\s*(.+)$/i.exec(text); if (tt && !total) total = minutes(tt[1]);
+      const sv = /^(?:servings?|serves|yield):?\s*(.+)$/i.exec(text); if (sv && !servings) servings = clean(sv[1]);
+      continue;
+    }
+    if (el.tagName === 'ul' || el.tagName === 'ol') {
+      const items = $(el).children('li').map((_, li) => clean($(li).text())).get().filter(Boolean);
+      if (section === 'ing') ingredients.push(...items); else steps.push(...items);
+    } else if (section === 'ins' && text.length > 25) {
+      steps.push(text);
+    }
+  }
+  // Newsletters often publish the ingredients free and put the whole method behind a
+  // paywall (zero public steps, or one teaser). Accept that: the ingredient list is public
+  // (it's in the free RSS feed too), and flag it so the UI can say the method is paid.
+  const paywalled = /this post is for (paid|paying) subscribers/i.test(scope.text());
+  if (ingredients.length < 3 || (!paywalled && steps.length < 2)) return null;
+
+  // "Flanken Cut Beef Short Ribs (2.5 lbs)" -> "2.5 lbs Flanken Cut Beef Short Ribs", so the
+  // quantity leads like every other recipe and scaling / nutrition / shopping lists work.
+  const quantityFirst = line => {
+    const m = /^(.+?)\s*\(([^)]*[\d\u00bc-\u00be\u2150-\u215e][^)]*)\)\s*$/.exec(line);
+    return m ? clean(m[2]) + ' ' + clean(m[1]) : line;
+  };
+  return {
+    name: clean($('meta[property="og:title"]').attr('content') || $('h1').first().text()),
+    description: $('meta[name="description"]').attr('content') || '',
+    prepTime: prep, cookTime: cook, totalTime: total, recipeYield: servings,
+    recipeIngredient: ingredients.slice(0, 60).map(quantityFirst),
+    recipeInstructions: steps.slice(0, 40),
+    paywalled,
+  };
 }
 
 // --- Routes ---
@@ -854,7 +939,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 15;
+const CACHE_VERSION = 16;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -1056,11 +1141,15 @@ app.get('/api/recipes/stream', async (req, res) => {
 });
 
 // Build an allowed-domain set from BLOGS for SSRF protection — computed once at startup
+// Platforms where each customer is a subdomain: allow only that exact host, not the
+// whole platform (substack.com would otherwise let /api/recipe fetch ANY substack site).
+const MULTI_TENANT_ROOTS = new Set(['substack.com', 'blogspot.com', 'wordpress.com', 'medium.com', 'squarespace.com', 'wixsite.com', 'ghost.io']);
 const _allowedRecipeDomains = new Set(
   BLOGS.flatMap(b => {
     try {
       const h = new URL(b.feed).hostname.replace(/^www\./, '');
-      return [h, h.split('.').slice(-2).join('.')];
+      const root = h.split('.').slice(-2).join('.');
+      return MULTI_TENANT_ROOTS.has(root) ? [h] : [h, root];
     } catch { return []; }
   })
 );
@@ -1181,6 +1270,7 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
         decodeHtml(typeof s === 'string' ? s : s.text || '')
       ).filter(Boolean),
       nutrition: Object.keys(nutrition).length ? nutrition : null,
+      partial: !!recipeData.paywalled,
       category: recipeData.recipeCategory,
       cuisine: recipeData.recipeCuisine,
       url,

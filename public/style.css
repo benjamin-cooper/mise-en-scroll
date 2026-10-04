@@ -2083,3 +2083,10 @@ ul, ol { padding-left: 1.25rem; }
   transform: rotate(45deg) translate(-1px, -2px);
 }
 .shopping-item-source { color: var(--muted); font-size: 0.78rem; }
+
+.recipe-partial {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
+}

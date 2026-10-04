@@ -1672,12 +1672,18 @@ function renderDrawer() {
   // the matching feed entry if it has streamed in, else the recipe's own name,
   // else the site's hostname so labels and the "read on…" button never go blank.
   const pooled = rawPreview.blog ? null : state.recipes.find(r => r.url === url);
-  const hostLabel = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'the blog'; } })();
+  const knownBlog = (() => {
+    try {
+      const h = new URL(url).hostname.replace(/^www\./, '');
+      return (typeof BLOGS !== 'undefined' ? BLOGS : []).find(b => { try { return new URL(b.website).hostname.replace(/^www\./, '') === h; } catch { return false; } });
+    } catch { return null; }
+  })();
+  const hostLabel = knownBlog ? knownBlog.name : (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'the blog'; } })();
   const preview = {
     ...rawPreview,
     title: rawPreview.title || pooled?.title || d?.name || '',
     blog: rawPreview.blog || pooled?.blog || hostLabel,
-    blogColor: rawPreview.blogColor && rawPreview.blogColor !== '#888' ? rawPreview.blogColor : (pooled?.blogColor || rawPreview.blogColor),
+    blogColor: rawPreview.blogColor && rawPreview.blogColor !== '#888' ? rawPreview.blogColor : (pooled?.blogColor || knownBlog?.color || rawPreview.blogColor),
   };
   const fav = isFav(url);
   const image = d?.image || preview.image;
@@ -1760,8 +1766,10 @@ function renderDrawer() {
           <ol class="instructions">
             ${d.instructions.map(s => `<li>${escHtml(s)}</li>`).join('')}
           </ol>
+         
         </section>
       ` : ''}
+      ${d.partial ? `<p class="recipe-partial">${d.instructions?.length ? 'The rest of the method' : 'The method'} is for ${escHtml(preview.blog)}'s paid subscribers. The button at the top takes you to the full post.</p>` : ''}
       ${fav ? `
         <section class="recipe-section notes-section">
           <h3>My Notes</h3>

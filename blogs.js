@@ -92,6 +92,7 @@ const BLOGS = [
   { name: 'Hey Grill Hey',         feed: 'https://heygrillhey.com/feed/',                   color: '#c0392b' },
   // --- Modern / Creative ---
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
+  { name: 'Ian Fujimoto',          feed: 'https://ianfujimoto.substack.com/feed',           color: '#d9622b' },
   // --- Baking ---
   { name: "Sally's Baking Addiction", feed: 'https://sallysbakingaddiction.com/feed/',      color: '#c0607a' },
   { name: 'Handle the Heat',       feed: 'https://handletheheat.com/feed/',                 color: '#e05a2b' },
@@ -121,6 +122,7 @@ const BLOGS = [
   { name: 'The Perfect Loaf',    feed: 'https://www.theperfectloaf.com/feed/',         color: '#c8a050' },
   // --- Vegan ---
   { name: 'Vegan Richa',         feed: 'https://www.veganricha.com/feed/',             color: '#c0392b' },
+  { name: 'Rainbow Plant Life',  feed: 'https://rainbowplantlife.com/feed/',           color: '#3f9b5f' },
   // --- Creative / Personal ---
   // --- Asian fusion ---
   // --- World cuisines ---
