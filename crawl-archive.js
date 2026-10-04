@@ -5,7 +5,7 @@
 // Safe to re-run: upserts by URL, so it's fine to stop and resume, or to
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
-const { isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml } = require('./server.js');
+const { isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
 const { batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
@@ -202,7 +202,7 @@ async function enrichFromRest(blog) {
         // Categories are the blog's curated groupings ("Soups & Stews", "Mexican"); tags are
         // free-form and mostly ingredients. Kept apart so filter chips use only categories.
         const clean = names => [...new Set(names.filter(n => n && !/^uncategorized$/i.test(n)))].map(wellFormed);
-        const categories = clean((p.categories || []).map(id => catMap.get(id))).slice(0, 14);
+        const categories = clean((p.categories || []).map(id => catMap.get(id))).filter(n => !isMixedBucketCategory(n)).slice(0, 14);
         const tags = clean((p.tags || []).map(id => tagMap.get(id))).slice(0, 24);
         if (isRoundup(title, url, categories)) continue;
         rows.push({
