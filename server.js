@@ -623,7 +623,7 @@ const NON_RECIPE_CATEGORIES = new Set([
   'opinion', 'editorial', 'press', 'press release', 'updates', 'update',
   'behind the scenes', 'life', 'personal', 'site news', 'community',
   'article', 'articles', 'culture', 'food culture & travel',
-  'beyond the kitchen', 'tools',
+  'beyond the kitchen', 'tools', 'kitchen fundamentals',
   // Travel/lifestyle/blogging-business categories. A post is only dropped when
   // EVERY one of its categories is in this set, so a recipe that also carries a
   // recipe category is never affected.
@@ -646,7 +646,7 @@ function isRoundup(title = '', url = '', categories = []) {
       const path = new URL(url).pathname.replace(/\/$/, '');
       const segments = path.split('/').filter(Boolean);
       if (segments.length === 0) return true;                                        // homepage
-      if (segments.some(s => /^(category|tag|tags|cuisine|blog|posts?|archive)$/i.test(s))) return true; // category/tag path
+      if (segments.some(s => /^(category|tag|tags|cuisine|blog|posts?|archive|newsletters)$/i.test(s))) return true; // category/tag path
       // Bare index pages like /recipes/ or /recipe/ (the whole path, not an
       // intermediate segment — some blogs legitimately use /recipe/<slug>/
       // as their post permalink structure, so only the single-segment case
@@ -673,7 +673,18 @@ function isRoundup(title = '', url = '', categories = []) {
   // opinion pieces, site announcements — e.g. a post about AI recipe
   // content that's itself categorized only "Blog", not a real recipe)
   if (categories.length && categories.every(c => NON_RECIPE_CATEGORIES.has(c.toLowerCase().trim()))) return true;
+  // Preppy Kitchen files its technique guides ("How To Frost Cupcakes") under "Academy"; real recipes never are.
+  if (categories.some(c => String(c).toLowerCase().trim() === 'academy')) return true;
   return false;
+}
+
+// recipeInstructions is a string, a list of strings/HowToSteps, or a list of HowToSections
+// (each with its own itemListElement of steps, e.g. "Toast & Grind the Whole Spices").
+function flattenInstructions(v) {
+  if (!v) return [];
+  if (typeof v === 'string') return [v];
+  if (!Array.isArray(v)) return flattenInstructions(v.itemListElement || v.text || []);
+  return v.flatMap(s => typeof s === 'string' ? [s] : (s && s.itemListElement) ? flattenInstructions(s.itemListElement) : [s && s.text || '']);
 }
 
 // Fallback HTML scraper for common WordPress recipe plugins
@@ -959,7 +970,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 19;
+const CACHE_VERSION = 20;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -1340,9 +1351,7 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
         ? recipeData.recipeYield[0]
         : recipeData.recipeYield,
       ingredients: (recipeData.recipeIngredient || []).map(decodeHtml),
-      instructions: (recipeData.recipeInstructions || []).map((s) =>
-        decodeHtml(typeof s === 'string' ? s : s.text || '')
-      ).filter(Boolean),
+      instructions: flattenInstructions(recipeData.recipeInstructions).map(decodeHtml).filter(Boolean),
       nutrition: Object.keys(nutrition).length ? nutrition : null,
       partial: !!recipeData.paywalled,
       category: recipeData.recipeCategory,

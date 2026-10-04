@@ -96,7 +96,9 @@ function isAlternateFormatUrl(url) {
     // A Substack sitemap also lists /archive, /about, section pages: only /p/<slug> are posts.
     if (/\.substack\.com$/i.test(u.hostname) && !u.pathname.startsWith('/p/')) return true;
     const path = u.pathname;
-    if (/\/(web-stories|videos)\//i.test(path)) return true;
+    // Alison Roman's site (Ghost, no REST API) lists every page in its sitemap; only /recipes/<slug>/ are recipes (not /recipes/collections/...).
+    if (/(^|\.)alisoneroman\.com$/i.test(u.hostname) && !/^\/recipes\/(?!collections\/)[^/]+\/?$/.test(path)) return true;
+    if (/\/(web-stories|videos|newsletters)\//i.test(path)) return true;
     const segs = path.split('/').filter(Boolean);
     if (/^[a-z]{2}$/i.test(segs[0] || '')) return true; // language-code path prefix
     // Exactly /taxonomy/term/ is the archive page itself (e.g. /diet/keto/).
