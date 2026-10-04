@@ -53,7 +53,7 @@ const FILTERS = {
     { label: 'Breakfast', keywords: ['breakfast', 'brunch', 'pancake', 'waffle', 'french toast', 'omelette', 'omelet', 'frittata', 'granola', 'muffin', 'scone', 'benedict', 'hollandaise', 'eggs florentine', 'overnight oats', 'smoothie bowl', 'morning', 'quiche', 'crepe', 'crêpe', 'avocado toast', 'hash brown', 'hashbrown', 'strata', 'shakshuka', 'breakfast burrito', 'breakfast sandwich', 'breakfast bowl', 'oatmeal', 'porridge', 'bagel', 'acai bowl', 'egg bake', 'egg casserole', 'breakfast casserole', 'dutch baby', 'chia pudding', 'breakfast tacos', 'congee', 'menemen', 'dippy eggs', 'soft boiled', 'hard boiled'] },
     { label: 'Lunch', keywords: ['sandwich', 'wrap', 'grain bowl', 'lunch', 'salad', 'soup', 'poke', 'bento', 'panini', 'hoagie', 'tuna melt', 'grilled cheese', 'pasta salad', 'noodle salad', 'flatbread', 'open-faced', 'tartine', 'rice bowl', 'noodle bowl', 'lettuce cup', 'summer roll', 'quesadilla', 'tostada', 'bao', 'chaat', 'lunchbox', 'meal prep'] },
     { label: 'Dinner', keywords: ['dinner', 'supper', 'weeknight', 'roast', 'entrée', 'entree', 'main course', 'main dish', 'stew', 'pasta', 'curry', 'casserole', 'ragù', 'ragu', 'braise', 'braised', 'gratin', 'fricassee', 'hash', 'skillet dinner', 'sheet pan dinner', 'one pot dinner', 'noodles', 'stir fry', 'stir-fry', 'tacos', 'soup', 'pot pie', 'skillet meal', 'family dinner', 'weeknight meal'] },
-    { label: 'Soup', keywords: ['soup', 'stew', 'bisque', 'chowder', 'gumbo', 'minestrone', 'ramen', 'pho', 'tom yum', 'gazpacho', 'consomme', 'consommé', 'posole', 'pozole', 'bouillabaisse', 'borscht', 'bowl of chili', 'chili con carne', 'vegetarian chili', 'turkey chili', 'beef chili', 'white chicken chili', 'potage', 'vichyssoise', 'ribollita', 'wonton soup', 'egg drop soup', 'hot and sour soup', 'miso soup', 'tortilla soup', 'lentil soup', 'noodle soup'] },
+    { label: 'Soup', keywords: ['soup', 'stew', 'bisque', 'chowder', 'gumbo', 'minestrone', 'ramen', 'pho', 'tom yum goong', 'gazpacho', 'consomme', 'consommé', 'posole', 'pozole', 'bouillabaisse', 'borscht', 'bowl of chili', 'chili con carne', 'vegetarian chili', 'turkey chili', 'beef chili', 'white chicken chili', 'potage', 'vichyssoise', 'ribollita', 'wonton soup', 'egg drop soup', 'hot and sour soup', 'miso soup', 'tortilla soup', 'lentil soup', 'noodle soup'] },
     { label: 'Dessert', keywords: ['cake', 'cookie', 'brownie', 'dessert', 'pie', 'fruit tart', 'lemon tart', 'berry tart', 'tarte tatin', 'egg tart', 'tart crust', 'ice cream', 'pudding', 'cheesecake', 'cupcake', 'frosting', 'fudge', 'mousse', 'tiramisu', 'gelato', 'sorbet', 'apple crisp', 'fruit crisp', 'peach crisp', 'berry crisp', 'cobbler', 'biscotti', 'macaron', 'donut', 'doughnut', 'pastry', 'éclair', 'custard', 'creme brulee', 'chocolate', 'caramel', 'dessert bars', 'blondie', 'banana bread', 'zucchini bread', 'quick bread', 'bundt', 'churro', 'panna cotta', 'tres leches', 'flan', 'praline', 'toffee', 'brittle', 'lemon curd', 'clafoutis', 'financier', 'profiterole', 'beignet', 'galette', 'crumble', 'pavlova', 'mochi', 'bread pudding', 'rice pudding', 'chocolate truffle', 'lemon bars', 'cinnamon roll', 'monkey bread', 'meringue', 'coffee cake', 'shortbread', 'snickerdoodle', 'danish', 'strudel', 'streusel', 'candy', 'semifreddo', 'entremet', 'dacquoise'] },
     { label: 'Snack/Side', keywords: ['snack', 'appetizer', 'side dish', 'dip', 'starter', 'finger food', 'small plate', 'nibble', 'chips', 'hummus', 'salsa', 'guacamole', 'bruschetta', 'crostini', 'deviled eggs', 'nachos', 'skewer', 'charcuterie', 'cheese board', 'poppers', 'fries', 'onion rings', 'spring rolls', 'potstickers', 'meatballs', 'flatbread', 'roasted vegetables', 'roasted veggies', 'pickle', 'pickled', 'potato salad', 'coleslaw', 'slaw', 'garlic bread', 'roasted potatoes', 'stuffed mushrooms', 'antipasto', 'energy bites', 'energy balls', 'bliss balls', 'pâté', 'pate', 'crudités', 'crudites', 'board'] },
     { label: 'Salad', keywords: ['salad', 'slaw', 'coleslaw', 'caesar salad', 'greek salad', 'cobb salad', 'pasta salad', 'potato salad', 'fruit salad', 'grain bowl salad', 'quinoa salad', 'kale salad', 'chopped salad', 'wedge salad', 'caprese salad', 'chicken salad', 'egg salad', 'tuna salad', 'vinaigrette', 'panzanella', 'tabbouleh', 'fattoush'] },
@@ -674,14 +674,20 @@ function insertSortedStreamCards(batch) {
 // One keyword list per active filter category (OR within a category, AND
 // across categories) — sent to the archive search so chips reach beyond the
 // recent posts loaded in the page.
+// Which text a chip category is matched against. Meal/protein/cuisine words show up
+// in excerpts incidentally ("serve alongside a bowl of soup", "great for lunch"), so
+// those match title + categories only ('tc'). Method/time/dietary phrases in an
+// excerpt usually describe the dish itself ("ready in 30 minutes", "vegan"), so
+// they also use it ('all'). Kept in sync with applyFilters.
+const CHIP_TEXT_POLICY = { cuisine: 'tc', protein: 'tc', meal: 'tc', time: 'all', dietary: 'all', method: 'all' };
 function activeFilterGroups() {
   return [
     ['cuisine', state.cuisineFilters], ['protein', state.proteinFilters],
     ['time', state.timeFilters], ['meal', state.mealFilters],
     ['dietary', state.dietaryFilters], ['method', state.methodFilters],
   ].filter(([, sel]) => sel.length)
-   .map(([key, sel]) => sel.flatMap(label => FILTERS[key].find(f => f.label === label)?.keywords || []))
-   .filter(g => g.length);
+   .map(([key, sel]) => ({ k: sel.flatMap(label => FILTERS[key].find(f => f.label === label)?.keywords || []), c: CHIP_TEXT_POLICY[key] }))
+   .filter(g => g.k.length);
 }
 
 // When the live feed finishes streaming while a filtered/keyword view is open,
@@ -851,6 +857,8 @@ function applyFilters(recipes) {
     // Archive entries have no excerpt (sitemaps don't carry one) — fall back
     // to title-only matching for them.
     const full = recipeSearchText(r);
+    // title + categories only (see CHIP_TEXT_POLICY)
+    const tc = [r.title, ...(r.categories || [])].join(' ').toLowerCase();
 
     if (state.filter && r.blog !== state.filter) return false;
 
@@ -860,11 +868,11 @@ function applyFilters(recipes) {
     }
     if (state.cuisineFilters.length) {
       const kws = state.cuisineFilters.flatMap(label => FILTERS.cuisine.find(f => f.label === label)?.keywords || []);
-      if (!matchesAnyKeyword(full, kws)) return false;
+      if (!matchesAnyKeyword(tc, kws)) return false;
     }
     if (state.proteinFilters.length) {
       const kws = state.proteinFilters.flatMap(label => FILTERS.protein.find(f => f.label === label)?.keywords || []);
-      if (!matchesAnyKeyword(full, kws)) return false;
+      if (!matchesAnyKeyword(tc, kws)) return false;
     }
     if (state.timeFilters.length) {
       if (r.cookTimeMinutes != null) {
@@ -883,7 +891,7 @@ function applyFilters(recipes) {
     }
     if (state.mealFilters.length) {
       const kws = state.mealFilters.flatMap(label => FILTERS.meal.find(f => f.label === label)?.keywords || []);
-      if (!matchesAnyKeyword(full, kws)) return false;
+      if (!matchesAnyKeyword(tc, kws)) return false;
     }
     if (state.dietaryFilters.length) {
       const kws = state.dietaryFilters.flatMap(label => FILTERS.dietary.find(f => f.label === label)?.keywords || []);

@@ -761,9 +761,11 @@ app.get('/api/archive', archiveLimit, async (req, res) => {
 
 // Accepts any mix of: q (typed keywords), groups (JSON: one array of keyword
 // strings per active filter category — OR within a category, AND across
-// categories), and blog. Filter keywords are matched against title, excerpt and
-// categories (the same text recent posts are filtered on); rows from blogs
-// without a REST API only have a title, so they match on that alone.
+// categories), and blog. Each group says which text it matches: title + categories
+// only (meal/protein/cuisine: an excerpt saying "serve with a bowl of soup" must not
+// make a focaccia a soup), or also the excerpt (method/time/dietary, where the
+// excerpt describes the dish). Rows from blogs without a REST API only have a
+// title, so they match on that alone.
 const quoteFts = t => `"${String(t).replace(/"/g, '""')}"`;
 
 app.get('/api/archive/search', archiveLimit, async (req, res) => {
@@ -775,8 +777,13 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
     const parsed = req.query.groups ? JSON.parse(req.query.groups) : [];
     if (Array.isArray(parsed)) {
       groups = parsed.slice(0, 8)
-        .map(g => (Array.isArray(g) ? g : []).slice(0, 80).map(String).map(k => k.trim()).filter(k => k && k.length <= 40))
-        .filter(g => g.length);
+        .map(g => {
+          // { k: [keywords], c: 'tc' } restricts matching to title + categories; a bare
+          // array (older cached clients) matches title + excerpt + categories as before.
+          const kw = (Array.isArray(g) ? g : (g && Array.isArray(g.k) ? g.k : [])).slice(0, 80).map(String).map(k => k.trim()).filter(k => k && k.length <= 40);
+          return { kw, cols: g && g.c === 'tc' ? 'title categories' : 'title excerpt categories' };
+        })
+        .filter(g => g.kw.length);
     }
   } catch { return res.status(400).json({ results: [], total: 0, nextPage: null, error: 'Invalid groups.' }); }
   if (!q && !groups.length && !blog) return res.json({ results: [], total: 0, nextPage: null });
@@ -788,7 +795,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
   // plain "chicken tikka" search doesn't 500.
   const parts = [];
   if (q) parts.push(q.split(/\s+/).filter(Boolean).map(quoteFts).join(' AND '));
-  for (const g of groups) parts.push(`{title excerpt categories} : (${g.map(quoteFts).join(' OR ')})`);
+  for (const g of groups) parts.push(`{${g.cols}} : (${g.kw.map(quoteFts).join(' OR ')})`);
 
   const where = [];
   const params = [];
