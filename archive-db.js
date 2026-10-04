@@ -16,17 +16,17 @@ const client = createClient({
 // sitemaps alone only give a URL, from which the title is guessed.
 const FTS_STATEMENTS = [
   `CREATE VIRTUAL TABLE IF NOT EXISTS recipes_fts USING fts5(
-    title, blog, excerpt, categories, content='recipes', content_rowid='id'
+    title, blog, excerpt, categories, tags, content='recipes', content_rowid='id'
   )`,
   `CREATE TRIGGER IF NOT EXISTS recipes_ai AFTER INSERT ON recipes BEGIN
-    INSERT INTO recipes_fts(rowid, title, blog, excerpt, categories) VALUES (new.id, new.title, new.blog, new.excerpt, new.categories);
+    INSERT INTO recipes_fts(rowid, title, blog, excerpt, categories, tags) VALUES (new.id, new.title, new.blog, new.excerpt, new.categories, new.tags);
   END`,
   `CREATE TRIGGER IF NOT EXISTS recipes_ad AFTER DELETE ON recipes BEGIN
-    INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories);
+    INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories, tags) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories, old.tags);
   END`,
   `CREATE TRIGGER IF NOT EXISTS recipes_au AFTER UPDATE ON recipes BEGIN
-    INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories);
-    INSERT INTO recipes_fts(rowid, title, blog, excerpt, categories) VALUES (new.id, new.title, new.blog, new.excerpt, new.categories);
+    INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories, tags) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories, old.tags);
+    INSERT INTO recipes_fts(rowid, title, blog, excerpt, categories, tags) VALUES (new.id, new.title, new.blog, new.excerpt, new.categories, new.tags);
   END`,
 ];
 
@@ -40,7 +40,24 @@ async function migrateEnrichmentColumns() {
     await client.batch([
       'ALTER TABLE recipes ADD COLUMN excerpt TEXT',
       'ALTER TABLE recipes ADD COLUMN categories TEXT',
+      'ALTER TABLE recipes ADD COLUMN tags TEXT',
       'ALTER TABLE recipes ADD COLUMN rest INTEGER DEFAULT 0',
+      'DROP TRIGGER IF EXISTS recipes_ai',
+      'DROP TRIGGER IF EXISTS recipes_ad',
+      'DROP TRIGGER IF EXISTS recipes_au',
+      'DROP TABLE IF EXISTS recipes_fts',
+      ...FTS_STATEMENTS,
+      `INSERT INTO recipes_fts(recipes_fts) VALUES('rebuild')`,
+    ], 'write');
+  }
+  // Tags are stored apart from categories: blogs use tags for ingredients ("cream of
+  // mushroom soup", "chicken broth", "parmesan cheese"), which made filter chips match
+  // dishes that merely contain an ingredient. Categories drive the chips; tags stay
+  // searchable by typed query only. The FTS table can't be altered, so it is rebuilt.
+  const cols2 = (await client.execute('PRAGMA table_info(recipes)')).rows.map(r => r.name);
+  if (!cols2.includes('tags')) {
+    await client.batch([
+      'ALTER TABLE recipes ADD COLUMN tags TEXT',
       'DROP TRIGGER IF EXISTS recipes_ai',
       'DROP TRIGGER IF EXISTS recipes_ad',
       'DROP TRIGGER IF EXISTS recipes_au',
@@ -69,6 +86,7 @@ const ready = client.batch([
     date TEXT,
     excerpt TEXT,
     categories TEXT,
+    tags TEXT,
     rest INTEGER DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_recipes_blog ON recipes(blog)`,
@@ -139,15 +157,16 @@ async function batchUpsertRestRecipes(rows) {
   await ready;
   if (!rows.length) return;
   return client.batch(rows.map(r => ({
-    sql: `INSERT INTO recipes (url, blog, blog_color, title, image, date, excerpt, categories, rest)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    sql: `INSERT INTO recipes (url, blog, blog_color, title, image, date, excerpt, categories, tags, rest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
           ON CONFLICT(url) DO UPDATE SET
             title = excluded.title,
             date = COALESCE(excluded.date, recipes.date),
             excerpt = excluded.excerpt,
             categories = excluded.categories,
+            tags = excluded.tags,
             rest = 1`,
-    args: [r.url, r.blog, r.blog_color || null, r.title, r.image || null, r.date || null, r.excerpt || '', JSON.stringify(r.categories || [])],
+    args: [r.url, r.blog, r.blog_color || null, r.title, r.image || null, r.date || null, r.excerpt || '', JSON.stringify(r.categories || []), JSON.stringify(r.tags || [])],
   })), 'write');
 }
 
