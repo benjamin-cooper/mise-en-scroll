@@ -840,7 +840,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 13;
+const CACHE_VERSION = 14;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -903,6 +903,35 @@ function extractCookTimeMinutes(item) {
   return null;
 }
 
+// RSS <category> elements mix a blog's curated categories with its free-form tags,
+// and tags are mostly ingredients ("cream of mushroom soup", "chicken broth"), which
+// made chips match dishes that merely contain an ingredient. To keep only the curated
+// ones, fetch the blog's category names from its WordPress REST API (one small
+// request, cached a day). If the blog doesn't expose it, return null and the caller
+// keeps everything, so nothing is lost for those blogs.
+const curatedCategoryCache = new Map(); // blog name -> { names: Set|null, at }
+async function getCuratedCategories(blog) {
+  const hit = curatedCategoryCache.get(blog.name);
+  if (hit && Date.now() - hit.at < (hit.names ? 24 * 3600e3 : 3600e3)) return hit.names;
+  let names = null;
+  try {
+    const origin = new URL(blog.feed).origin;
+    const found = new Set();
+    for (let page = 1; page <= 10; page++) {
+      const res = await fetch(`${origin}/wp-json/wp/v2/categories?per_page=100&page=${page}&_fields=name`, {
+        headers: { 'User-Agent': PAGE_FETCH_UA, 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) { if (page === 1) throw new Error('HTTP ' + res.status); break; }
+      for (const r of await res.json()) found.add(decodeHtml(String(r.name || '')).trim().toLowerCase());
+      if (page >= (parseInt(res.headers.get('x-wp-totalpages')) || 1)) break;
+    }
+    if (found.size) names = found;
+  } catch { /* leave null: keep all categories */ }
+  curatedCategoryCache.set(blog.name, { names, at: Date.now() });
+  return names;
+}
+
 const FEED_FAIL_TTL = 5 * 60 * 1000; // 5-minute back-off after a failed fetch
 
 async function fetchBlogFeed(blog) {
@@ -946,6 +975,7 @@ async function fetchBlogFeed(blog) {
   // newest-first, so keep the first occurrence of a title within this
   // blog's own feed and drop later duplicates.
   const seenTitles = new Set();
+  const curated = await getCuratedCategories(blog);
   const recipes = feed.items
     .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
     .filter(item => {
@@ -954,7 +984,8 @@ async function fetchBlogFeed(blog) {
       return false;
     })
     .slice(0, 20).map((item) => {
-    const categories = normalizeCategories(item);
+    const allCategories = normalizeCategories(item);
+    const categories = curated ? allCategories.filter(c => curated.has(c.toLowerCase())) : allCategories;
     const cleanSnippet = stripFeedBoilerplate(item.contentSnippet);
     const cookTimeMinutes = extractCookTimeMinutes(item);
     const cleanLink = cleanRecipeUrl(item.link);

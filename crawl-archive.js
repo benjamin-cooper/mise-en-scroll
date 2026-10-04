@@ -199,14 +199,16 @@ async function enrichFromRest(blog) {
         if (!url || !itemBelongsToFeed(blog.feed, url) || isAlternateFormatUrl(url)) continue;
         const title = wellFormed(decodeHtml(stripTags(p.title && p.title.rendered)).replace(/\s+/g, ' ').trim());
         if (!title) continue;
-        const names = [...(p.categories || []).map(id => catMap.get(id)), ...(p.tags || []).map(id => tagMap.get(id))]
-          .filter(n => n && !/^uncategorized$/i.test(n));
-        const categories = [...new Set(names)].slice(0, 14).map(wellFormed);
+        // Categories are the blog's curated groupings ("Soups & Stews", "Mexican"); tags are
+        // free-form and mostly ingredients. Kept apart so filter chips use only categories.
+        const clean = names => [...new Set(names.filter(n => n && !/^uncategorized$/i.test(n)))].map(wellFormed);
+        const categories = clean((p.categories || []).map(id => catMap.get(id))).slice(0, 14);
+        const tags = clean((p.tags || []).map(id => tagMap.get(id))).slice(0, 24);
         if (isRoundup(title, url, categories)) continue;
         rows.push({
           url, blog: blog.name, blog_color: blog.color, title,
           date: p.date_gmt ? `${p.date_gmt}+00:00` : null,
-          excerpt: cleanExcerpt(p.excerpt && p.excerpt.rendered), categories,
+          excerpt: cleanExcerpt(p.excerpt && p.excerpt.rendered), categories, tags,
         });
       }
       for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) await batchUpsertRestRecipes(rows.slice(i, i + BATCH_CHUNK_SIZE));
