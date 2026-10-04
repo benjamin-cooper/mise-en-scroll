@@ -155,8 +155,81 @@ function cleanExcerpt(html) {
   return wellFormed(Array.from(text).slice(0, 220).join(''));
 }
 
+// Substack newsletters have no WordPress API, but a public archive endpoint returns each
+// post's real title, subtitle, cover image, date, type and whether it's free or paid.
+// Podcasts, threads and videos are skipped (never recipes). Pages: the first returns
+// ~23 (pinned posts are separate), then 50 at a time; stop on an empty page.
+// Recurring series and lifestyle posts that are never a single recipe even when they happen
+// to include one. Applied before the ingredients check.
+const NEWSLETTER_NON_RECIPE = [
+  /^so\s+into\s+that\b/i, /\bmeal\s+plan\b/i, /\b(gift|holiday)\s+guides?\b/i, /\bstocking\s+stuffers?\b/i,
+  /\b(favorites|faves)\b/i, /\bsubstack\s+live\b/i, /^ask\s+me\b/i, /\bq\s*&\s*a\b/i, /\bsexy\s+things\b/i,
+  /\bways\s+to\s+spoil\b/i, /\bin\s+review\b/i,
+];
+
+async function fetchSubstackBody(origin, slug) {
+  try {
+    await sleep(REST_DELAY);
+    const res = await restGet(`${origin}/api/v1/posts/${encodeURIComponent(slug)}`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return typeof j.body_html === 'string' ? j.body_html : null;
+  } catch { return null; }
+}
+
+async function enrichFromSubstack(blog) {
+  const origin = new URL(blog.feed).origin;
+  const since = process.argv.includes('--full') ? null : await getRestSyncedAt(blog.name);
+  const sinceMs = since ? Date.parse(since) - 3 * 864e5 : 0;
+  let offset = 0, count = 0;
+  for (let page = 0; page < 60; page++) {
+    await sleep(REST_DELAY);
+    const res = await restGet(`${origin}/api/v1/archive?sort=new&search=&offset=${offset}&limit=50`);
+    if (!res.ok) {
+      if (page === 0) return { status: 'unavailable', http: res.status, count: 0 };
+      throw new Error(`Substack archive offset ${offset} failed with HTTP ${res.status}`);
+    }
+    const posts = await res.json();
+    if (!Array.isArray(posts)) throw new Error('Substack archive returned non-array');
+    if (!posts.length) break;
+    offset += posts.length;
+    const rows = [];
+    let allOld = sinceMs > 0;
+    for (const p of posts) {
+      if (!sinceMs || Date.parse(p.post_date) >= sinceMs) allOld = false; else continue;
+      if (p.type !== 'newsletter') continue;
+      const url = cleanRecipeUrl(p.canonical_url || `${origin}/p/${p.slug}`);
+      if (!url || !itemBelongsToFeed(blog.feed, url)) continue;
+      const title = wellFormed(decodeHtml(stripTags(p.title)).replace(/\s+/g, ' ').trim());
+      if (!title || NEWSLETTER_NON_RECIPE.some(r => r.test(title))) continue;
+      // Newsletter titles are editorial ("Never Settle for Boring Ground Beef Again"), so the
+      // generic title rules wrongly drop real recipes. Ask the post itself: a free post's whole
+      // body is public, so it is a recipe only if it has an Ingredients list. For paid posts the
+      // public part is cut off, so fall back to the title rules there (or if the fetch fails).
+      const detail = await fetchSubstackBody(origin, p.slug);
+      const hasIngredients = !!detail && /ingredients/i.test(stripTags(detail)) && /<li/i.test(detail);
+      const bodyIsComplete = !!detail && p.audience === 'everyone';
+      if (!hasIngredients && (bodyIsComplete || isRoundup(title, url, []))) continue;
+      const tags = [...new Set((p.postTags || []).map(t => (typeof t === 'string' ? t : t && t.name)).filter(Boolean))].slice(0, 24).map(wellFormed);
+      rows.push({
+        url, blog: blog.name, blog_color: blog.color, title,
+        image: p.cover_image || null,
+        date: p.post_date ? new Date(p.post_date).toISOString().replace('Z', '+00:00') : null,
+        excerpt: cleanExcerpt(p.subtitle || p.description || ''),
+        categories: p.section_name ? [wellFormed(p.section_name)] : [], tags,
+      });
+    }
+    for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) await batchUpsertRestRecipes(rows.slice(i, i + BATCH_CHUNK_SIZE));
+    count += rows.length;
+    if (allOld) break;
+  }
+  await setRestSynced(blog.name, count);
+  return { status: 'ok', count };
+}
+
 async function enrichFromRest(blog) {
   const origin = new URL(blog.feed).origin;
+  if (/\.substack\.com$/i.test(new URL(origin).hostname)) return enrichFromSubstack(blog);
   const since = process.argv.includes('--full') ? null : await getRestSyncedAt(blog.name);
   const after = since ? new Date(Date.parse(since) - 3 * 864e5).toISOString().replace(/\.\d+Z$/, '') : null;
   const listUrl = (base, page) => `${origin}/wp-json/wp/v2/${base}?per_page=100&page=${page}&orderby=date&order=desc&_fields=link,title,excerpt,date_gmt,categories,tags${after ? `&after=${after}` : ''}`;

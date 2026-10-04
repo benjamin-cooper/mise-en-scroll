@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 96 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history.
+A recipe discovery app that aggregates the latest posts from 98 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history.
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 96 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 98 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses title, excerpt and categories)
 - **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
@@ -21,7 +21,7 @@ A recipe discovery app that aggregates the latest posts from 96 food blogs into 
 
 ## Blogs
 
-*(96 blogs total, generated from `blogs.js` — the source of truth. A number of
+*(98 blogs total, generated from `blogs.js` — the source of truth. A number of
 blogs originally on this list were dropped for being inactive for 6+ months,
 having a permanently broken feed, or sitting behind bot-protection that blocks
 even image fetches: Ambitious Kitchen, Roti n Rice, The First Mess, Memorie di
@@ -56,6 +56,7 @@ Pinch of Yum (its feed now blocks us), Oh She Glows, and several long-dormant bl
 | I Am A Food Blog | Culinary Hill |
 | Salt & Lavender | Chili Pepper Madness |
 | Foolproof Living | Ian Fujimoto |
+| What To Cook |  |
 
 ### Asian
 | Blog | Cuisine Focus |
@@ -122,6 +123,7 @@ Pinch of Yum (its feed now blocks us), Oh She Glows, and several long-dormant bl
 | Beyond Frosting |
 | The Vanilla Bean Blog |
 | Joy the Baker |
+| Terrence Bakes |
 
 ### Comfort Food
 | Blog |

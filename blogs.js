@@ -93,12 +93,14 @@ const BLOGS = [
   // --- Modern / Creative ---
   { name: 'Justine Snacks',        feed: 'https://justinesnacks.com/feed/',                 color: '#e84393' },
   { name: 'Ian Fujimoto',          feed: 'https://ianfujimoto.substack.com/feed',           color: '#d9622b' },
+  { name: 'What To Cook',          feed: 'https://whattocook.substack.com/feed',            color: '#b5532f' },
   // --- Baking ---
   { name: "Sally's Baking Addiction", feed: 'https://sallysbakingaddiction.com/feed/',      color: '#c0607a' },
   { name: 'Handle the Heat',       feed: 'https://handletheheat.com/feed/',                 color: '#e05a2b' },
   { name: 'Beyond Frosting',       feed: 'https://beyondfrosting.com/feed/',                color: '#d4608a' },
   { name: 'The Vanilla Bean Blog', feed: 'https://www.thevanillabeanblog.com/feed/',        color: '#c8a050' },
   { name: 'Joy the Baker',         feed: 'https://joythebaker.com/feed/',                   color: '#e8702a' },
+  { name: 'Terrence Bakes',       feed: 'https://terrencebakes.substack.com/feed',        color: '#8a5ca8' },
   // --- Plant-forward / Seasonal ---
   // --- Comfort Food / Sourdough ---
   { name: 'Everyday Homemade',     feed: 'https://enwnutrition.com/feed/',                  color: '#b87333' },

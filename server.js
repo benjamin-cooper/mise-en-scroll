@@ -394,7 +394,7 @@ const ROUNDUP_PATTERNS = [
   /\bthis\s+week('s)?\s+recipe/i,
   /\bfavorite\s+recipes\b/i,
   /\brecipes?\s+to\s+(try|make)\b/i,
-  /\b(gift\s+guide|holiday\s+guide)\b/i,
+  /\b(gift\s+guides?|holiday\s+guides?)\b/i,
   /\bhow\s+to\s+(stock|build)\s+a\b/i,                  // "How to Stock a Pantry" ("How to Make a Bloody Mary" is a recipe)
   /\beveryone\s+will\s+love\b/i,
   /\bthis\s+week'?s?\s+recipes?\b/i,
@@ -534,6 +534,17 @@ const ROUNDUP_PATTERNS = [
   /\bwe\s+asked\b.{5,60}\band\s+they\b/i,                             // "We Asked 3 Grandmas...and They All Said"
   /\bthey\s+all\s+said\b/i,                                           // "...and They All Said the Same Thing"
   /\brecipe\s+(index|archive|collection)\b/i,                     // "Recipe Index" pages
+  // Newsletter lifestyle posts
+  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(favorites?|faves)\b/i,   // "June Favorites"
+  /\b20\d\d\s+in\s+review\b/i,                                                          // "2024 in Review"
+  /^ask\s+me\s+anything\b/i,
+  /\btravel\s+notes?\b/i,
+  /\bhotline\b/i,                                                                         // "Thanksgiving Hotline"
+  /\bis\s+officially\s+out\b/i,
+  /\bsubstack\s+live\b/i,                                                                // newsletter live-chat promos
+  /^so\s+into\s+that\b/i,                                                                 // recurring "so into that" link roundup
+  /\bmeal\s+planning\b/i,
+  /\b(my|our)\s+(\w+\s+){0,3}menu\b/i,                                                    // "my labor day menu"                                                           // book/launch announcements
   /^this\s+and\s+that\b/i,                                            // "This and That" lifestyle catch-all
   // Recurring numbered link/diary series (hundreds of near-identical titles, none a recipe)
   /^(let\s+it\s+be\s+sunday|photographs?\s*\+\s*links|highlights\s+of\s+the\s+week|weekend\s+things|latest\s+recipe\s+testing|blog\s+notes|links\s+i\s+love\s+this\s+week|things\s+i\s+am\s+going\s+crazy\s+for\s+this\s+week)\b/i,                                            // "This and That" lifestyle catch-all
@@ -731,6 +742,8 @@ function scrapeHeadingRecipe($) {
     if (el.tagName === 'p') {
       const strong = $(el).children('strong, b');
       const t = clean($(el).text());
+      // A bare "Ingredients:" / "Method" line, even with no bold or heading tag.
+      if (/^(ingredients|instructions|directions|method|preparation)\s*:?$/i.test(t)) return { text: t, lvl: 6 };
       if (strong.length && clean(strong.text()) === t && t.length < 40) return { text: t, lvl: 6 };
     }
     return null;
@@ -771,14 +784,21 @@ function scrapeHeadingRecipe($) {
     if (el.tagName === 'ul' || el.tagName === 'ol') {
       const items = $(el).children('li').map((_, li) => clean($(li).text())).get().filter(Boolean);
       if (section === 'ing') ingredients.push(...items); else steps.push(...items);
-    } else if (section === 'ins' && text.length > 25) {
+    } else if (section === 'ing' && ingredients.length >= 3 && text.length > 25) {
+      // No "Instructions" heading: some writers just continue with the method as plain
+      // paragraphs right after the ingredient list (What To Cook does this).
+      section = 'ins';
       steps.push(text);
+    } else if (section === 'ins' && text.length > 14) {
+      // A sign-off or notes block ends the method rather than becoming a step.
+      if (/^(notes?|tips?|storage|storing|leftovers?|enjoy|happy (cooking|baking)|thanks for|xo|until next|p\.?s\.?)\b/i.test(text)) section = null;
+      else steps.push(text);
     }
   }
   // Newsletters often publish the ingredients free and put the whole method behind a
   // paywall (zero public steps, or one teaser). Accept that: the ingredient list is public
   // (it's in the free RSS feed too), and flag it so the UI can say the method is paid.
-  const paywalled = /this post is for (paid|paying) subscribers/i.test(scope.text());
+  const paywalled = /this post is for (paid|paying) subscribers|continue reading this post for free/i.test(scope.text());
   if (ingredients.length < 3 || (!paywalled && steps.length < 2)) return null;
 
   // "Flanken Cut Beef Short Ribs (2.5 lbs)" -> "2.5 lbs Flanken Cut Beef Short Ribs", so the
@@ -939,7 +959,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 16;
+const CACHE_VERSION = 19;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }

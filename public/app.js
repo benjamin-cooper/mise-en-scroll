@@ -1769,7 +1769,7 @@ function renderDrawer() {
          
         </section>
       ` : ''}
-      ${d.partial ? `<p class="recipe-partial">${d.instructions?.length ? 'The rest of the method' : 'The method'} is for ${escHtml(preview.blog)}'s paid subscribers. The button at the top takes you to the full post.</p>` : ''}
+      ${d.partial ? `<p class="recipe-partial">${d.instructions?.length ? 'The rest of the method isn’t shown here' : 'The method isn’t shown here'}: ${escHtml(preview.blog)} puts it behind a subscription or sign-up. The button at the top takes you to the full post.</p>` : ''}
       ${fav ? `
         <section class="recipe-section notes-section">
           <h3>My Notes</h3>
