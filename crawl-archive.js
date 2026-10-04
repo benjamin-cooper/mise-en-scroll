@@ -5,7 +5,7 @@
 // Safe to re-run: upserts by URL, so it's fine to stop and resume, or to
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
-const { isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
+const { isRoundup, lacksRequiredCategory, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
 const { batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
@@ -282,7 +282,7 @@ async function enrichFromRest(blog) {
         const clean = names => [...new Set(names.filter(n => n && !/^uncategorized$/i.test(n)))].map(wellFormed);
         const categories = clean((p.categories || []).map(id => catMap.get(id))).filter(n => !isMixedBucketCategory(n)).slice(0, 14);
         const tags = clean((p.tags || []).map(id => tagMap.get(id))).slice(0, 24);
-        if (isRoundup(title, url, categories)) continue;
+        if (isRoundup(title, url, categories) || lacksRequiredCategory(blog, categories)) continue;
         rows.push({
           url, blog: blog.name, blog_color: blog.color, title,
           date: p.date_gmt ? `${p.date_gmt}+00:00` : null,
@@ -357,6 +357,8 @@ async function crawlBlog(blog) {
       const cleanUrl = cleanRecipeUrl(entry.loc);
       if (!itemBelongsToFeed(blog.feed, cleanUrl)) continue;
       if (isAlternateFormatUrl(cleanUrl)) continue;
+      // Search-only blogs name the path that holds their recipes (their sitemap lists everything).
+      if (blog.include && !blog.include.test(new URL(cleanUrl).pathname)) continue;
       const title = titleFromSlug(cleanUrl);
       if (!title || isRoundup(title, cleanUrl, [])) continue;
       toUpsert.push({ url: cleanUrl, blog: blog.name, blog_color: blog.color, title, image: entry.image, date: entry.lastmod });
@@ -395,7 +397,7 @@ async function crawlPool(targets, { restOnly = false } = {}) {
       // crawlBlog), so the order decides whether sitemap-only junk gets inserted.
       let rest;
       try {
-        rest = await enrichFromRest(blog);
+        rest = blog.searchOnly ? { status: 'skipped', count: 0 } : await enrichFromRest(blog);
       } catch (err) {
         rest = { status: 'error', count: 0, error: err.message };
       }
@@ -466,12 +468,13 @@ async function main() {
   const errors = results.filter(r => r.status === 'error').length;
   console.log(`\nDone. ${ok} crawled, ${noSitemap} had no discoverable sitemap, ${errors} errored.`);
   const restOk = results.filter(r => r.rest?.status === 'ok').length;
+  const restEligible = results.filter(r => r.rest?.status !== 'skipped').length;
   console.log(`REST enrichment: ${restOk} blog(s) ok, ${results.length - restOk} unavailable/errored; ${results.reduce((a, r) => a + (r.rest?.count || 0), 0)} posts upserted.`);
   // Runs from CI come from datacenter IPs that Cloudflare may challenge, which
   // would make most blogs "unavailable" while the job still looked green. If a
   // full run couldn't reach most of the blogs, fail the job so it gets noticed.
-  if (!filter && restOk < results.length * 0.6) {
-    console.error(`\nERROR: REST enrichment reached only ${restOk}/${results.length} blogs (normally ~90 of 96). Likely bot-blocking of this runner's IP.`);
+  if (!filter && restOk < restEligible * 0.6) {
+    console.error(`\nERROR: REST enrichment reached only ${restOk}/${restEligible} blogs (normally ~90 of 96). Likely bot-blocking of this runner's IP.`);
     process.exitCode = 1;
   }
   console.log(`Archive now has ${totalRecipes} total recipes.`);

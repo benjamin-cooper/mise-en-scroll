@@ -1,12 +1,12 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 104 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history.
+A recipe discovery app that aggregates the latest posts from 123 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history (4 more sites without an RSS feed are searchable but don't appear in the live feed).
 
 ![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 104 blogs simultaneously, rendering cards as each feed loads
+- **Live feed** — streams the latest recipes from 119 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses title, excerpt and categories)
 - **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
 - **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
@@ -21,7 +21,7 @@ A recipe discovery app that aggregates the latest posts from 104 food blogs into
 
 ## Blogs
 
-*(104 blogs total, generated from `blogs.js` — the source of truth. A number of
+*(123 blogs total, generated from `blogs.js` — the source of truth. A number of
 blogs originally on this list were dropped for being inactive for 6+ months,
 having a permanently broken feed, or sitting behind bot-protection that blocks
 even image fetches: Ambitious Kitchen, Roti n Rice, The First Mess, Memorie di
@@ -173,6 +173,29 @@ Pinch of Yum (its feed now blocks us), Oh She Glows, and several long-dormant bl
 | Sip and Feast |
 | Preppy Kitchen |
 | Alison Roman |
+| Tiffy Cooks |
+| Marion's Kitchen |
+| Bigger Bolder Baking |
+| The Modern Nonna |
+| Emmymade |
+| Kitchen Nostalgia |
+| Sweet Potato Soul |
+| Lazy Cat Kitchen |
+| Sugar Spun Run |
+| Cafe Hailee |
+| Mind Over Munch |
+| Erren's Kitchen |
+| Fit Foodie Finds |
+| Eating Bird Food |
+| Dessert for Two |
+
+### Search-only (no RSS feed; archive search and filters only)
+| Blog |
+|------|
+| Jamie Oliver |
+| Sam the Cooking Guy |
+| Hungry Girl |
+| Made With Lau |
 
 ### Bread / Sourdough
 | Blog |
@@ -186,7 +209,7 @@ Filters narrow the live feed instantly, and also search the full archive (matche
 | Category | Options |
 |----------|---------|
 | **Meal** | Breakfast, Lunch, Dinner, Dessert, Snack/Side, Drinks |
-| **Cuisine** | African, American, Caribbean, Chinese, Eastern European, Filipino, Indian, Italian, Japanese, Korean, Mediterranean, Mexican, Middle Eastern, Thai, Vietnamese |
+| **Cuisine** | African, American, British & Irish, Caribbean, Chinese, Eastern European, Filipino, French, Indian, Italian, Japanese, Korean, Latin American, Mediterranean, Mexican, Middle Eastern, SE Asian, Spanish, Thai, Vietnamese |
 | **Protein** | Beef, Chicken, Lamb, Other, Pork, Seafood, Vegetarian |
 | **Time** | Quick (≤30m), ~1 Hour, 2+ Hours |
 | **Method** | Air Fryer, Baked, Grilled, Instant Pot, No-Cook, Slow Cooker |

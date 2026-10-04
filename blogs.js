@@ -132,6 +132,27 @@ const BLOGS = [
   { name: 'Sip and Feast',       feed: 'https://www.sipandfeast.com/feed/',            color: '#9c5a1e' },
   { name: 'Preppy Kitchen',      feed: 'https://preppykitchen.com/feed/',              color: '#d4708f' },
   { name: 'Alison Roman',        feed: 'https://www.alisoneroman.com/feed/',           color: '#6b7a2e' },
+  { name: 'Tiffy Cooks',         feed: 'https://tiffycooks.com/feed/',                 color: '#c2452d', requireCategory: 'Recipes' },
+  { name: 'Marion\'s Kitchen',   feed: 'https://www.marionskitchen.com/feed/',         color: '#d98a1f' },
+  { name: 'Bigger Bolder Baking',feed: 'https://biggerbolderbaking.com/feed/',         color: '#7b4bb0' },
+  { name: 'The Modern Nonna',    feed: 'https://www.themodernnonna.com/feed/',         color: '#a83a3a' },
+  { name: 'Emmymade',            feed: 'https://emmymade.com/feed/',                   color: '#3a8f9c', requireCategory: 'Recipes' },
+  { name: 'Kitchen Nostalgia',   feed: 'https://www.kitchennostalgia.com/feed/',       color: '#8c6a3a' },
+  { name: 'Sweet Potato Soul',   feed: 'https://sweetpotatosoul.com/feed/',            color: '#b9531f', requireCategory: 'Recipes' },
+  { name: 'Lazy Cat Kitchen',    feed: 'https://www.lazycatkitchen.com/feed/',         color: '#4f8a52' },
+  { name: 'Sugar Spun Run',      feed: 'https://www.sugarspunrun.com/feed/',           color: '#d4577c' },
+  { name: 'Cafe Hailee',         feed: 'https://cafehailee.com/recipes/feed/',         color: '#c97b4a' },
+  { name: 'Mind Over Munch',     feed: 'https://mindovermunch.com/feed/',              color: '#5f8f3a' },
+  { name: 'Erren\'s Kitchen',    feed: 'https://www.errenskitchen.com/feed/',          color: '#a0522d' },
+  { name: 'Fit Foodie Finds',    feed: 'https://www.fitfoodiefinds.com/feed/',         color: '#2f9e8f' },
+  { name: 'Eating Bird Food',    feed: 'https://www.eatingbirdfood.com/feed/',         color: '#5b7fb5' },
+  { name: 'Dessert for Two',     feed: 'https://www.dessertfortwo.com/feed/',          color: '#c76a9a' },
+  // --- Search-only: no RSS feed, so recipes come from the sitemap crawl and appear in archive
+  // search/filters but not the live feed. `feed` is the sitemap; `include` limits which pages count. ---
+  { name: 'Jamie Oliver',        feed: 'https://www.jamieoliver.com/sitemap.xml',      color: '#1f7a5a', searchOnly: true, include: /^\/recipes\/[^/]+\/[^/]+\/?$/ },
+  { name: 'Sam the Cooking Guy', feed: 'https://www.thecookingguy.com/sitemap.xml',    color: '#c0551f', searchOnly: true, include: /^\/recipes\/[^/]+\/?$/ },
+  { name: 'Hungry Girl',         feed: 'https://www.hungry-girl.com/sitemap.xml',      color: '#e0457b', searchOnly: true, include: /^\/recipes\/(?!categories\/)[^/]+\/?$/ },
+  { name: 'Made With Lau',       feed: 'https://madewithlau.com/sitemap.xml',          color: '#b83b2e', searchOnly: true, include: /^\/recipes\/[^/]+\/?$/ },
   // --- Creative / Personal ---
   // --- Asian fusion ---
   // --- World cuisines ---

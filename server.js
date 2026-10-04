@@ -254,6 +254,14 @@ function stripFeedBoilerplate(str) {
 const MIXED_BUCKET_CATEGORY = /\b(soups?|stews?)\b.*\b(salads?|pasta)\b|\b(salads?|pasta)\b.*\b(soups?|stews?)\b/i;
 function isMixedBucketCategory(c) { return MIXED_BUCKET_CATEGORY.test(String(c)); }
 
+// Some blogs mix recipes with vlogs, travel and essays but tag every real recipe with one category
+// (blogs.js `requireCategory`); a post without it isn't a recipe.
+function lacksRequiredCategory(blog, categories) {
+  if (!blog || !blog.requireCategory) return false;
+  const want = blog.requireCategory.toLowerCase();
+  return !categories.some(c => String(c).toLowerCase().trim() === want);
+}
+
 function cleanRecipeUrl(link) {
   if (!link) return link;
   try {
@@ -672,7 +680,9 @@ function isRoundup(title = '', url = '', categories = []) {
   // Filter posts tagged only with generic non-recipe categories (news,
   // opinion pieces, site announcements — e.g. a post about AI recipe
   // content that's itself categorized only "Blog", not a real recipe)
-  if (categories.length && categories.every(c => NON_RECIPE_CATEGORIES.has(c.toLowerCase().trim()))) return true;
+  // "Uncategorized" carries no information (Bigger Bolder Baking tags every post that way).
+  const informative = categories.filter(c => !/^uncategorized$/i.test(String(c).trim()));
+  if (informative.length && informative.every(c => NON_RECIPE_CATEGORIES.has(c.toLowerCase().trim()))) return true;
   // Preppy Kitchen files its technique guides ("How To Frost Cupcakes") under "Academy"; real recipes never are.
   if (categories.some(c => String(c).toLowerCase().trim() === 'academy')) return true;
   return false;
@@ -685,6 +695,14 @@ function flattenInstructions(v) {
   if (typeof v === 'string') return [v];
   if (!Array.isArray(v)) return flattenInstructions(v.itemListElement || v.text || []);
   return v.flatMap(s => typeof s === 'string' ? [s] : (s && s.itemListElement) ? flattenInstructions(s.itemListElement) : [s && s.text || '']);
+}
+
+// recipeIngredient is normally an array of strings, but some sites emit one string or an object.
+function ingredientList(v) {
+  if (!v) return [];
+  if (typeof v === 'string') return v.split(/\n+/);
+  if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? x : (x && (x.name || x.text)) || '');
+  return Object.values(v).map(String);
 }
 
 // Fallback HTML scraper for common WordPress recipe plugins
@@ -970,7 +988,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 20;
+const CACHE_VERSION = 21;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -1090,7 +1108,7 @@ async function fetchBlogFeedViaRest(blog) {
     if (!url || !title || !itemBelongsToFeed(blog.feed, url)) continue;
     const categories = (p.categories || []).map(id => byId && byId.get(id))
       .filter(n => n && !/^uncategorized$/i.test(n) && !isMixedBucketCategory(n));
-    if (isRoundup(title, url, categories)) continue;
+    if (isRoundup(title, url, categories) || lacksRequiredCategory(blog, categories)) continue;
     const key = title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -1161,7 +1179,7 @@ async function fetchBlogFeed(blog) {
   const seenTitles = new Set();
   const curated = await getCuratedCategories(blog);
   const recipes = feed.items
-    .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)))
+    .filter(item => itemBelongsToFeed(blog.feed, item.link) && !isRoundup(item.title, item.link, normalizeCategories(item)) && !lacksRequiredCategory(blog, normalizeCategories(item)))
     .filter(item => {
       const key = decodeHtml(item.title || '').trim().toLowerCase();
       if (!key || !seenTitles.has(key)) { if (key) seenTitles.add(key); return true; }
@@ -1208,9 +1226,11 @@ app.get('/api/recipes/stream', async (req, res) => {
   const send = (data) => { if (!closed && !res.writableEnded) { res.write(`data: ${JSON.stringify(data)}\n\n`); res.flush?.(); } };
   const CONCURRENCY = 10;
 
-  for (let i = 0; i < BLOGS.length; i += CONCURRENCY) {
+  // Search-only blogs (no RSS feed) live in the archive only.
+  const feedBlogs = BLOGS.filter(b => !b.searchOnly);
+  for (let i = 0; i < feedBlogs.length; i += CONCURRENCY) {
     if (closed) break;
-    const batch = BLOGS.slice(i, i + CONCURRENCY);
+    const batch = feedBlogs.slice(i, i + CONCURRENCY);
     await Promise.allSettled(batch.map(async (blog) => {
       try {
         const recipes = await fetchBlogFeed(blog);
@@ -1247,6 +1267,7 @@ async function fetchFeedItemHtml(pageUrl) {
   const target = new URL(pageUrl);
   const root = target.hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
   const blog = BLOGS.find(b => {
+    if (b.searchOnly) return false; // its "feed" is a sitemap
     try { return new URL(b.feed).hostname.replace(/^www\./, '').split('.').slice(-2).join('.') === root; } catch { return false; }
   });
   if (!blog) return null;
@@ -1314,6 +1335,13 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
     const ogImage = $('meta[property="og:image"]').attr('content') ||
                     $('meta[name="og:image"]').attr('content') || null;
 
+    // A Recipe schema block with no ingredients (Sam the Cooking Guy's pages carry an empty
+    // one) is as good as none; the visible card is read instead and fills the gaps.
+    if (recipeData && !(recipeData.recipeIngredient && recipeData.recipeIngredient.length)) {
+      const scraped = scrapeRecipeHtml($);
+      if (scraped && scraped.recipeIngredient?.length) recipeData = { ...recipeData, ...Object.fromEntries(Object.entries(scraped).filter(([, v]) => v && (!Array.isArray(v) || v.length))) };
+    }
+
     if (!recipeData) {
       // Fallback: try common WordPress recipe plugin HTML structures
       recipeData = scrapeRecipeHtml($);
@@ -1350,7 +1378,7 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
       servings: Array.isArray(recipeData.recipeYield)
         ? recipeData.recipeYield[0]
         : recipeData.recipeYield,
-      ingredients: (recipeData.recipeIngredient || []).map(decodeHtml),
+      ingredients: ingredientList(recipeData.recipeIngredient).map(decodeHtml).filter(Boolean),
       instructions: flattenInstructions(recipeData.recipeInstructions).map(decodeHtml).filter(Boolean),
       nutrition: Object.keys(nutrition).length ? nutrition : null,
       partial: !!recipeData.paywalled,
@@ -2153,5 +2181,5 @@ if (require.main === module) {
 // Exported for reuse by the standalone archive crawler (crawl-archive.js) —
 // same post-vs-roundup and same-blog-domain filtering logic, no duplication.
 module.exports = {
-  isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,
+  isRoundup, lacksRequiredCategory, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,
 };
