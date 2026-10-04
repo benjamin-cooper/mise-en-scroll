@@ -247,6 +247,13 @@ function stripFeedBoilerplate(str) {
 // some blogs' RSS feeds leak from their email-campaign link tracking — the
 // template placeholder never gets filled in for RSS subscribers, so it ends
 // up baked into the permalink verbatim.
+// Categories that bundle soup with salad or pasta ("Pasta & Soup", "Soup & Salad") are
+// catch-all buckets: filing a recipe there says nothing about it being a soup (Sally's
+// Baking Addiction puts pasta salads and mac and cheese under "Pasta & Soup").
+// Dropped wherever categories are collected, so chips never see them.
+const MIXED_BUCKET_CATEGORY = /\b(soups?|stews?)\b.*\b(salads?|pasta)\b|\b(salads?|pasta)\b.*\b(soups?|stews?)\b/i;
+function isMixedBucketCategory(c) { return MIXED_BUCKET_CATEGORY.test(String(c)); }
+
 function cleanRecipeUrl(link) {
   if (!link) return link;
   try {
@@ -776,14 +783,16 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
   try {
     const parsed = req.query.groups ? JSON.parse(req.query.groups) : [];
     if (Array.isArray(parsed)) {
+      const words = a => (Array.isArray(a) ? a : []).slice(0, 80).map(String).map(k => k.trim()).filter(k => k && k.length <= 40);
       groups = parsed.slice(0, 8)
         .map(g => {
-          // { k: [keywords], c: 'tc' } restricts matching to title + categories; a bare
-          // array (older cached clients) matches title + excerpt + categories as before.
-          const kw = (Array.isArray(g) ? g : (g && Array.isArray(g.k) ? g.k : [])).slice(0, 80).map(String).map(k => k.trim()).filter(k => k && k.length <= 40);
-          return { kw, cols: g && g.c === 'tc' ? 'title categories' : 'title excerpt categories' };
+          // Current: { c, chips: [{ k, x }] }. Older cached clients send { k, c } or a bare
+          // array of keywords. 'tc' = title + categories only; otherwise excerpt too.
+          const cols = g && g.c === 'tc' ? 'title categories' : 'title excerpt categories';
+          const raw = Array.isArray(g) ? [{ k: g }] : (g && Array.isArray(g.chips) ? g.chips : [{ k: g && g.k }]);
+          return { cols, chips: raw.slice(0, 12).map(ch => ({ kw: words(ch.k), ex: words(ch.x) })).filter(ch => ch.kw.length) };
         })
-        .filter(g => g.kw.length);
+        .filter(g => g.chips.length);
     }
   } catch { return res.status(400).json({ results: [], total: 0, nextPage: null, error: 'Invalid groups.' }); }
   if (!q && !groups.length && !blog) return res.json({ results: [], total: 0, nextPage: null });
@@ -795,7 +804,12 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
   // plain "chicken tikka" search doesn't 500.
   const parts = [];
   if (q) parts.push(q.split(/\s+/).filter(Boolean).map(quoteFts).join(' AND '));
-  for (const g of groups) parts.push(`{${g.cols}} : (${g.kw.map(quoteFts).join(' OR ')})`);
+  for (const g of groups) {
+    // One clause per chip: its keywords, minus titles containing any of its exclude words.
+    const clauses = g.chips.map(ch => '(' + `{${g.cols}} : (${ch.kw.map(quoteFts).join(' OR ')})`
+      + (ch.ex.length ? ` NOT title : (${ch.ex.map(quoteFts).join(' OR ')})` : '') + ')');
+    parts.push('(' + clauses.join(' OR ') + ')');
+  }
 
   const where = [];
   const params = [];
@@ -840,7 +854,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 14;
+const CACHE_VERSION = 15;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
@@ -985,7 +999,7 @@ async function fetchBlogFeed(blog) {
     })
     .slice(0, 20).map((item) => {
     const allCategories = normalizeCategories(item);
-    const categories = curated ? allCategories.filter(c => curated.has(c.toLowerCase())) : allCategories;
+    const categories = (curated ? allCategories.filter(c => curated.has(c.toLowerCase())) : allCategories).filter(c => !isMixedBucketCategory(c));
     const cleanSnippet = stripFeedBoilerplate(item.contentSnippet);
     const cookTimeMinutes = extractCookTimeMinutes(item);
     const cleanLink = cleanRecipeUrl(item.link);
@@ -1966,5 +1980,5 @@ if (require.main === module) {
 // Exported for reuse by the standalone archive crawler (crawl-archive.js) —
 // same post-vs-roundup and same-blog-domain filtering logic, no duplication.
 module.exports = {
-  isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories,
+  isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory,
 };
