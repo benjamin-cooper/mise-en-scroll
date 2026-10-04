@@ -125,6 +125,13 @@ const BLOGS = [
   // --- Vegan ---
   { name: 'Vegan Richa',         feed: 'https://www.veganricha.com/feed/',             color: '#c0392b' },
   { name: 'Rainbow Plant Life',  feed: 'https://rainbowplantlife.com/feed/',           color: '#3f9b5f' },
+  // --- Chef / personality sites ---
+  { name: 'Chef Jean-Pierre',    feed: 'https://chefjeanpierre.com/feed/',             color: '#b03a2e' },
+  { name: 'Chef Billy Parisi',   feed: 'https://www.billyparisi.com/feed/',            color: '#2e6da4' },
+  { name: 'Jessica Gavin',       feed: 'https://www.jessicagavin.com/feed/',           color: '#2a8a7a' },
+  { name: 'Sip and Feast',       feed: 'https://www.sipandfeast.com/feed/',            color: '#9c5a1e' },
+  { name: 'Preppy Kitchen',      feed: 'https://preppykitchen.com/feed/',              color: '#d4708f' },
+  { name: 'Alison Roman',        feed: 'https://www.alisoneroman.com/feed/',           color: '#6b7a2e' },
   // --- Creative / Personal ---
   // --- Asian fusion ---
   // --- World cuisines ---
