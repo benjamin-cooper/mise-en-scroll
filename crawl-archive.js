@@ -92,7 +92,10 @@ const TAXONOMY_SEGMENTS = new Set([
 
 function isAlternateFormatUrl(url) {
   try {
-    const path = new URL(url).pathname;
+    const u = new URL(url);
+    // A Substack sitemap also lists /archive, /about, section pages: only /p/<slug> are posts.
+    if (/\.substack\.com$/i.test(u.hostname) && !u.pathname.startsWith('/p/')) return true;
+    const path = u.pathname;
     if (/\/(web-stories|videos)\//i.test(path)) return true;
     const segs = path.split('/').filter(Boolean);
     if (/^[a-z]{2}$/i.test(segs[0] || '')) return true; // language-code path prefix
