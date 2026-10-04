@@ -108,7 +108,7 @@ app.get('/recipe', (req, res) => {
   let recipe = null;
   if (url) {
     for (const { recipes } of feedCache.values()) {
-      recipe = recipes.find(r => r.url === url);
+      recipe = recipes.find(r => r.url === url || r.url === cleanRecipeUrl(url));
       if (recipe) break;
     }
   }
@@ -252,7 +252,10 @@ function cleanRecipeUrl(link) {
   try {
     const u = new URL(link);
     for (const [k, v] of [...u.searchParams]) {
-      if (/\*\|.*\|\*/.test(v)) u.searchParams.delete(k);
+      // Mail-merge placeholders, plus the tracking parameters feeds append
+      // (utm_* on 44 of 850 posts, adt_ei on 58). Left in, the same recipe has two
+      // different URLs: the feed's and the archive's clean one, and shows up twice.
+      if (/\*\|.*\|\*|\{\{.*\}\}/.test(v) || /^(utm_.+|adt_ei|adt_eih|sh_kit|fbclid|gclid|mc_cid|mc_eid)$/i.test(k)) u.searchParams.delete(k);
     }
     return u.toString();
   } catch { return link; }
@@ -746,7 +749,7 @@ app.get('/api/archive', archiveLimit, async (req, res) => {
     const rowsRes = await archiveClient.execute({
       sql: `SELECT url, blog, blog_color AS blogColor, title, image, date
             FROM recipes ${where}
-            ORDER BY date IS NULL, date DESC
+            ORDER BY date IS NULL, date DESC, id
             LIMIT ? OFFSET ?`,
       args: [...params, ARCHIVE_PAGE_SIZE, offset],
     });
@@ -799,7 +802,10 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
   // With typed keywords, best match first (title hits outweigh excerpt and
   // category hits); with chips/blog only there is no meaningful relevance, so
   // newest first.
-  const orderBy = q ? 'ORDER BY bm25(recipes_fts, 10.0, 2.0, 2.0, 1.0)' : 'ORDER BY r.date IS NULL, r.date DESC';
+  // r.id is the tiebreaker: many posts share a date (or have none), and without a
+  // total order SQLite may return ties in a different order on each OFFSET page,
+  // repeating some rows and skipping others across infinite-scroll pages.
+  const orderBy = q ? 'ORDER BY bm25(recipes_fts, 10.0, 2.0, 2.0, 1.0), r.id' : 'ORDER BY r.date IS NULL, r.date DESC, r.id';
 
   try {
     const totalRes = await archiveClient.execute({ sql: `SELECT COUNT(*) AS c FROM ${from} WHERE ${where.join(' AND ')}`, args: params });
@@ -827,7 +833,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 12;
+const CACHE_VERSION = 13;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }

@@ -207,35 +207,35 @@ function loadFavs() {
 }
 function saveFav(data) {
   const favs = loadFavs();
-  if (!favs.find(f => f.url === data.url)) favs.unshift(data);
+  if (!favs.find(f => sameUrl(f.url, data.url))) favs.unshift(data);
   localStorage.setItem(FAV_KEY, JSON.stringify(favs));
 }
 function removeFav(url) {
-  localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => f.url !== url)));
+  localStorage.setItem(FAV_KEY, JSON.stringify(loadFavs().filter(f => !sameUrl(f.url, url))));
 }
 function updateFavField(url, fields) {
-  const favs = loadFavs().map(f => f.url === url ? { ...f, ...fields } : f);
+  const favs = loadFavs().map(f => sameUrl(f.url, url) ? { ...f, ...fields } : f);
   localStorage.setItem(FAV_KEY, JSON.stringify(favs));
   state.favorites = favs;
-  _favSet = new Set(favs.map(f => f.url));
+  _favSet = new Set(favs.map(f => normalizeUrl(f.url)));
 }
 function markCooked(url) {
   const date = new Date().toISOString().slice(0, 10);
-  const f = loadFavs().find(f => f.url === url);
+  const f = loadFavs().find(f => sameUrl(f.url, url));
   if (!f) return;
   updateFavField(url, { cookedDates: [...(f.cookedDates || []), date] });
 }
 function getCookedCount(url) {
-  return state.favorites.find(f => f.url === url)?.cookedDates?.length || 0;
+  return state.favorites.find(f => sameUrl(f.url, url))?.cookedDates?.length || 0;
 }
 function getFavData(url) {
-  return state.favorites.find(f => f.url === url);
+  return state.favorites.find(f => sameUrl(f.url, url));
 }
 let _favSet = new Set();
-function isFav(url) { return _favSet.has(url); }
+function isFav(url) { return _favSet.has(normalizeUrl(url)); }
 function refreshFavorites() {
   state.favorites = loadFavs();
-  _favSet = new Set(state.favorites.map(f => f.url));
+  _favSet = new Set(state.favorites.map(f => normalizeUrl(f.url)));
 }
 
 // --- Filter persistence (localStorage) ---
@@ -366,6 +366,8 @@ const HIDDEN_KEY = 'mise-en-scroll-hidden';
 // changing its query string later (e.g. dropping tracking params) — otherwise
 // an exact-string match would silently un-hide a post the next time its URL
 // shifted even slightly.
+// Same recipe regardless of tracking params, trailing slash, www or case.
+function sameUrl(a, b) { return a === b || normalizeUrl(a) === normalizeUrl(b); }
 function normalizeUrl(u) {
   try {
     const parsed = new URL(u);
@@ -411,19 +413,19 @@ function getVisibleRecipes() {
 }
 function addToBoard(name, recipe) {
   if (!state.boards[name]) state.boards[name] = [];
-  if (!state.boards[name].find(r => r.url === recipe.url)) {
+  if (!state.boards[name].find(r => sameUrl(r.url, recipe.url))) {
     state.boards[name].unshift({ url: recipe.url, title: recipe.title, blog: recipe.blog, blogColor: recipe.blogColor, image: recipe.image });
   }
   saveBoards();
 }
 function removeFromBoard(name, url) {
   if (state.boards[name]) {
-    state.boards[name] = state.boards[name].filter(r => r.url !== url);
+    state.boards[name] = state.boards[name].filter(r => !sameUrl(r.url, url));
     if (!state.boards[name].length) delete state.boards[name];
   }
   saveBoards();
 }
-function isInBoard(name, url) { return !!(state.boards[name]?.find(r => r.url === url)); }
+function isInBoard(name, url) { return !!(state.boards[name]?.find(r => sameUrl(r.url, url))); }
 function getBoardsForUrl(url) { return Object.keys(state.boards).filter(n => isInBoard(n, url)); }
 
 // --- Ingredient scaling helpers ---
@@ -467,7 +469,8 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// Blog badge text must reach WCAG AA (4.5:1) on the card background in BOTH themes,
+// Blog badge text must reach WCAG AA (4.5:1; aimed at 4.75 so a card fading in
+// mid-measurement, or rounding, can't drop it below) on the card background in BOTH themes,
 // but the blog colors were chosen as brand accents, several are too light for
 // light mode (e.g. #b8620a is 3.9:1) and many too dark for dark mode. Mix each
 // toward black (light theme) or white (dark theme) by the smallest amount that
@@ -492,7 +495,7 @@ function _badgeShade(color, theme) {
   const bg = _BADGE_BG[theme], target = theme === 'light' ? [0, 0, 0] : [255, 255, 255];
   const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
   let out = hex;
-  for (let t = 0; t <= 1.0001 && _contrastRatio(out, bg) < 4.5; t += 0.02) {
+  for (let t = 0; t <= 1.0001 && _contrastRatio(out, bg) < 4.75; t += 0.02) {
     out = '#' + rgb.map((v, i) => Math.round(v + (target[i] - v) * t).toString(16).padStart(2, '0')).join('');
   }
   _badgeShadeCache.set(key, out);
@@ -686,8 +689,8 @@ function activeFilterGroups() {
 // and posts newer than the last archive crawl only exist in the feed).
 function mergeFeedIntoSearchResults() {
   if (!state.searchMode || state.ingredientMode || state.view !== 'discover') return;
-  const have = new Set(state.searchResults.map(r => r.url));
-  const extra = applyFilters(getVisibleRecipes()).filter(r => !have.has(r.url));
+  const have = new Set(state.searchResults.map(r => normalizeUrl(r.url)));
+  const extra = applyFilters(getVisibleRecipes()).filter(r => !have.has(normalizeUrl(r.url)));
   if (extra.length) state.searchResults = [...extra, ...state.searchResults];
 }
 
@@ -754,7 +757,9 @@ async function triggerSearch(start = 1) {
   // Turso. This replaced a paid Serper web-search call.
   const localMatches = start === 1 ? applyFilters(getVisibleRecipes()) : [];
 
-  const seenUrls = new Set(localMatches.map(r => r.url));
+  // Later pages must also be checked against everything already on screen, not just
+  // the first-page seed, or any overlap between pages shows up as a duplicate card.
+  const seenUrls = new Set((start === 1 ? localMatches : state.searchResults).map(r => normalizeUrl(r.url)));
 
   state.searchMode = true;
   state.searchError = null;
@@ -767,7 +772,7 @@ async function triggerSearch(start = 1) {
   const cacheKey = JSON.stringify([rawQuery, groups, blogFilter]);
   const cached = getSearchCache(cacheKey, start);
   if (cached) {
-    const fresh = cached.results.filter(r => !seenUrls.has(r.url));
+    const fresh = cached.results.filter(r => !seenUrls.has(normalizeUrl(r.url)));
     state.searchResults = [...state.searchResults, ...fresh];
     state.searchTotal = cached.totalResults;
     state.searchNextStart = cached.nextStart;
@@ -784,8 +789,8 @@ async function triggerSearch(start = 1) {
     if (groups.length) qs.set('groups', JSON.stringify(groups));
     if (blogFilter) qs.set('blog', blogFilter);
     const data = await fetch(`/api/archive/search?${qs}`, { signal: ac.signal }).then(r => r.json());
-    const fresh = (data.results || []).filter(r => !seenUrls.has(r.url));
-    fresh.forEach(r => seenUrls.add(r.url));
+    const fresh = (data.results || []).filter(r => !seenUrls.has(normalizeUrl(r.url)));
+    fresh.forEach(r => seenUrls.add(normalizeUrl(r.url)));
     state.searchResults = [...state.searchResults, ...fresh];
     state.searchTotal = data.total || state.searchResults.length;
     state.searchNextStart = data.nextPage || null;
