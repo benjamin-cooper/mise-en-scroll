@@ -1028,27 +1028,74 @@ function extractCookTimeMinutes(item) {
 // ones, fetch the blog's category names from its WordPress REST API (one small
 // request, cached a day). If the blog doesn't expose it, return null and the caller
 // keeps everything, so nothing is lost for those blogs.
-const curatedCategoryCache = new Map(); // blog name -> { names: Set|null, at }
-async function getCuratedCategories(blog) {
+const curatedCategoryCache = new Map(); // blog name -> { names: Set|null, byId: Map|null, at }
+async function loadCategories(blog) {
   const hit = curatedCategoryCache.get(blog.name);
-  if (hit && Date.now() - hit.at < (hit.names ? 24 * 3600e3 : 3600e3)) return hit.names;
-  let names = null;
+  if (hit && Date.now() - hit.at < (hit.names ? 24 * 3600e3 : 3600e3)) return hit;
+  let names = null, byId = null;
   try {
     const origin = new URL(blog.feed).origin;
-    const found = new Set();
+    const found = new Set(), ids = new Map();
     for (let page = 1; page <= 10; page++) {
-      const res = await fetch(`${origin}/wp-json/wp/v2/categories?per_page=100&page=${page}&_fields=name`, {
+      const res = await fetch(`${origin}/wp-json/wp/v2/categories?per_page=100&page=${page}&_fields=id,name`, {
         headers: { 'User-Agent': PAGE_FETCH_UA, 'Accept': 'application/json' },
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) { if (page === 1) throw new Error('HTTP ' + res.status); break; }
-      for (const r of await res.json()) found.add(decodeHtml(String(r.name || '')).trim().toLowerCase());
+      for (const r of await res.json()) {
+        const name = decodeHtml(String(r.name || '')).trim();
+        found.add(name.toLowerCase());
+        ids.set(r.id, name);
+      }
       if (page >= (parseInt(res.headers.get('x-wp-totalpages')) || 1)) break;
     }
-    if (found.size) names = found;
+    if (found.size) { names = found; byId = ids; }
   } catch { /* leave null: keep all categories */ }
-  curatedCategoryCache.set(blog.name, { names, at: Date.now() });
-  return names;
+  const entry = { names, byId, at: Date.now() };
+  curatedCategoryCache.set(blog.name, entry);
+  return entry;
+}
+async function getCuratedCategories(blog) { return (await loadCategories(blog)).names; }
+
+// Safety net for a blog whose RSS feed can't be fetched (blocked from our server, a broken
+// redirect such as Smitten Kitchen's FeedBurner hop, a feed outage): read its latest posts
+// from the WordPress REST API instead and return the same shape, so the blog doesn't just
+// vanish from the live feed. Throws if the blog has no usable API either.
+async function fetchBlogFeedViaRest(blog) {
+  const origin = new URL(blog.feed).origin;
+  const res = await fetch(`${origin}/wp-json/wp/v2/posts?per_page=30&_embed=wp:featuredmedia&_fields=link,title,excerpt,date_gmt,categories,_links,_embedded`, {
+    headers: { 'User-Agent': PAGE_FETCH_UA, 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`REST fallback HTTP ${res.status}`);
+  const posts = await res.json();
+  if (!Array.isArray(posts) || !posts.length) throw new Error('REST fallback returned no posts');
+  const { byId } = await loadCategories(blog);
+  const plain = h => decodeHtml(String(h || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const seen = new Set(), out = [];
+  for (const p of posts) {
+    const url = cleanRecipeUrl(p.link);
+    const title = plain(p.title && p.title.rendered);
+    if (!url || !title || !itemBelongsToFeed(blog.feed, url)) continue;
+    const categories = (p.categories || []).map(id => byId && byId.get(id))
+      .filter(n => n && !/^uncategorized$/i.test(n) && !isMixedBucketCategory(n));
+    if (isRoundup(title, url, categories)) continue;
+    const key = title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const media = p._embedded && p._embedded['wp:featuredmedia'] && p._embedded['wp:featuredmedia'][0];
+    const image = sanitizeImageUrl(media && (media.media_details?.sizes?.large?.source_url || media.source_url)) || null;
+    const excerpt = plain(p.excerpt && p.excerpt.rendered);
+    out.push({
+      id: Buffer.from(url).toString('base64'), title, url,
+      date: p.date_gmt ? p.date_gmt + 'Z' : null, image,
+      blog: blog.name, blogColor: blog.color,
+      excerpt: excerpt ? excerpt.slice(0, 140).trim() + '…' : '', categories,
+    });
+    if (out.length >= 20) break;
+  }
+  if (!out.length) throw new Error('REST fallback produced no recipes');
+  return out;
 }
 
 const FEED_FAIL_TTL = 5 * 60 * 1000; // 5-minute back-off after a failed fetch
@@ -1076,6 +1123,13 @@ async function fetchBlogFeed(blog) {
     const xml = await res.text();
     feed = await parser.parseString(xml);
   } catch (err) {
+    try {
+      const recipes = await fetchBlogFeedViaRest(blog);
+      console.log(`Feed fetch failed for ${blog.name} (${err.message || err}); using its WordPress API instead (${recipes.length} posts)`);
+      feedCache.set(blog.name, { recipes, fetchedAt: Date.now(), v: CACHE_VERSION });
+      persistFeedCache();
+      return recipes;
+    } catch { /* no usable API either: fall through to the normal failure path */ }
     feedCache.set(blog.name, { recipes: [], fetchedAt: Date.now(), v: CACHE_VERSION, failed: true });
     throw err; // re-throw so SSE handler logs it
   }
@@ -2090,5 +2144,5 @@ if (require.main === module) {
 // Exported for reuse by the standalone archive crawler (crawl-archive.js) —
 // same post-vs-roundup and same-blog-domain filtering logic, no duplication.
 module.exports = {
-  isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory,
+  isRoundup, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,
 };
