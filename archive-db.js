@@ -162,6 +162,7 @@ async function batchUpsertRestRecipes(rows) {
           ON CONFLICT(url) DO UPDATE SET
             title = excluded.title,
             date = COALESCE(excluded.date, recipes.date),
+            image = COALESCE(recipes.image, excluded.image),
             excerpt = excluded.excerpt,
             categories = excluded.categories,
             tags = excluded.tags,
