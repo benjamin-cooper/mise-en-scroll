@@ -613,6 +613,13 @@ const ROUNDUP_PATTERNS = [
   // Where to eat/drink guides
   /\bwhere\s+to\s+(drink|eat)\b/i,
   /\bthe\s+best\s+(bars?|cocktail\s+bars?|restaurants?)\b(?!\s+to\s+try\s+at)/i,
+  // Shopping / affiliate posts: sales, deals, wish lists, "my favorites" (not "Real-Deal Thai Curry")
+  /\b(prime\s+(day|big\s+deal)|black\s+friday|cyber\s+(monday|week))\b/i,
+  /\bdeals\b/i,
+  /\bwish\s?list\b/i,
+  /\b(my|our)\s+picks\b/i,
+  /^(my|our)\b.*\bfavou?rites\b/i,
+  /^(\d+\b.*|(\S+\s+){0,2}\S+)\s+favou?rites!?$/i,
 ];
 
 function normalizeCategories(item) {
@@ -988,7 +995,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
 const feedCache = new Map(); // blogName -> { recipes, fetchedAt, v }
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
-const CACHE_VERSION = 21;
+const CACHE_VERSION = 22;
 
 // OG image scrape cache — avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
