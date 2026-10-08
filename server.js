@@ -18,6 +18,8 @@ const PAGE_FETCH_UA = 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 // Lazy — don't instantiate at startup so a missing key doesn't crash the server
+// Model for the two small AI features (ingredient search, shopping-list extraction).
+const AI_MODEL = 'claude-sonnet-5-5';
 let _anthropic = null;
 function getAnthropic() {
   if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1599,7 +1601,7 @@ app.get('/api/search', searchLimit, async (req, res) => {
   }
 });
 
-// Ingredient-based search — uses Haiku to convert ingredients into search terms
+// Ingredient-based search — uses Claude to convert ingredients into search terms
 app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   const { ingredients, page = 1 } = req.query;
   if (!ingredients) return res.status(400).json({ error: 'ingredients is required' });
@@ -1607,8 +1609,8 @@ app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI search not configured. Add ANTHROPIC_API_KEY.' });
   try {
     const msg = await getAnthropic().messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 30,
+      model: AI_MODEL,
+      max_tokens: 60,
       messages: [{
         role: 'user',
         content: `Convert this ingredient list into a short recipe search query of 3-5 words. Return ONLY the search terms, nothing else.\nIngredients: ${ingredients}`,
@@ -1622,7 +1624,7 @@ app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   }
 });
 
-// Freeform "here's my recipe, build a shopping list" — uses Haiku to pull a
+// Freeform "here's my recipe, build a shopping list" — uses Claude to pull a
 // clean ingredient list out of arbitrary pasted recipe text (which may
 // include prose, instructions, ads, etc. mixed in with the ingredients).
 app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
@@ -1632,7 +1634,7 @@ app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI parsing not configured. Add ANTHROPIC_API_KEY.' });
   try {
     const msg = await getAnthropic().messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: AI_MODEL,
       max_tokens: 1024,
       messages: [{
         role: 'user',
