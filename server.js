@@ -19,7 +19,9 @@ const PAGE_FETCH_UA = 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 // Lazy — don't instantiate at startup so a missing key doesn't crash the server
 // Model for the two small AI features (ingredient search, shopping-list extraction).
-const AI_MODEL = 'claude-sonnet-5-5';
+const AI_MODEL = 'claude-haiku-5-5';
+// Haiku 5.5 thinks by default; these two tasks don't need it.
+const AI_EFFORT = { output_config: { effort: 'low' } };
 let _anthropic = null;
 function getAnthropic() {
   if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1610,6 +1612,7 @@ app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   try {
     const msg = await getAnthropic().messages.create({
       model: AI_MODEL,
+      ...AI_EFFORT,
       max_tokens: 60,
       messages: [{
         role: 'user',
@@ -1635,6 +1638,7 @@ app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
   try {
     const msg = await getAnthropic().messages.create({
       model: AI_MODEL,
+      ...AI_EFFORT,
       max_tokens: 1024,
       messages: [{
         role: 'user',
