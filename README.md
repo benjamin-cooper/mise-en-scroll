@@ -223,7 +223,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **RSS parsing** — `rss-parser` with `media:content`, `media:thumbnail`, `content:encoded` support
 - **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
 - **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted archive of every blog's full post history — free, no per-query cost. URLs come from each blog's sitemap, then the WordPress REST API adds the real title, excerpt, categories and publish date (about 1,200 requests for the whole archive, incremental after that)
-- **Ingredient search** — Claude Haiku converts fridge-contents descriptions into a search query, run through Serper.dev (Google results); this is the one search path that still needs Serper, since it's a semantic web search rather than a title lookup
+- **Ingredient search** — Claude (Sonnet 5.5) converts fridge-contents descriptions into a search query, run through Serper.dev (Google results); this is the one search path that still needs Serper, since it's a semantic web search rather than a title lookup
 - **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
 - **Streaming** — Server-Sent Events so recipes appear as each feed loads
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant
