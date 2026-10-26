@@ -360,19 +360,21 @@ async function fillIngredientsRest(blog) {
 // Everything else (and posts whose card isn't in the REST body): fetch the page itself.
 async function fillIngredientsPages(blog, limit) {
   const urls = await urlsMissingIngredients(blog.name, limit);
-  let filled = 0;
-  for (let i = 0; i < urls.length; i += 20) {
+  let filled = 0, failStreak = 0;
+  for (let i = 0; i < urls.length && failStreak < 25; i += 20) {
     const rows = [];
     for (const url of urls.slice(i, i + 20)) {
+      if (failStreak >= 25) break; // host is blocking us; don't hammer it
       await sleep(DELAY_BETWEEN_REQUESTS);
       try {
         const res = await fetch(url, { headers: PAGE_UA, signal: AbortSignal.timeout(20000) });
         if (res.status === 404 || res.status === 410) { rows.push({ url, ingredients: '' }); continue; }
-        if (!res.ok) continue; // blocked/transient: leave unknown, retry next run
+        if (!res.ok) { failStreak++; continue; } // blocked/transient: leave unknown, retry next run
+        failStreak = 0;
         const ingredients = ingredientsFromHtml(await res.text());
         rows.push({ url, ingredients });
         if (ingredients) filled++;
-      } catch { /* leave unknown */ }
+      } catch { failStreak++; /* leave unknown */ }
     }
     await batchSetIngredients(rows);
   }
@@ -382,6 +384,7 @@ async function fillIngredientsPages(blog, limit) {
 async function runIngredientPass(targets, args) {
   const pageLimit = parseInt((args.find(a => a.startsWith('--page-limit=')) || '').split('=')[1]) || 400;
   const everyPage = args.includes('--ingredient-pages'); // also page-fetch REST blogs' leftovers
+  const pagesOnly = args.includes('--pages-only');       // skip the REST pass (already done)
   let idx = 0;
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, async () => {
     while (idx < targets.length) {
@@ -389,8 +392,8 @@ async function runIngredientPass(targets, args) {
       let line = blog.name + ':';
       try {
         const rest = await isRestCovered(blog.name);
-        if (rest) { const r = await fillIngredientsRest(blog); line += ` REST ${r.filled} lists (${r.pages} pages)`; }
-        if (!rest || everyPage) { const p = await fillIngredientsPages(blog, pageLimit); line += ` pages ${p.filled}/${p.tried}`; }
+        if (rest && !pagesOnly) { const r = await fillIngredientsRest(blog); line += ` REST ${r.filled} lists (${r.pages} pages)`; }
+        if (!rest || everyPage || pagesOnly) { const p = await fillIngredientsPages(blog, pageLimit); line += ` pages ${p.filled}/${p.tried}`; }
       } catch (err) { line += ' ERROR ' + err.message; }
       console.log(line);
     }
