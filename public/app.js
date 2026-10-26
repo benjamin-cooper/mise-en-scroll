@@ -868,6 +868,7 @@ function applyFilters(recipes) {
     state.cuisineFilters.join(), state.proteinFilters.join(),
     state.timeFilters.join(), state.mealFilters.join(),
     state.dietaryFilters.join(), state.methodFilters.join(),
+    state.ingredientMode ? 'ing' : '',
   ].join('|');
   if (_filterMemo && _filterMemo.recipes === recipes && _filterMemo.fp === fp) return _filterMemo.result;
   const result = recipes.filter(r => {
@@ -879,7 +880,9 @@ function applyFilters(recipes) {
 
     if (state.filter && r.blog !== state.filter) return false;
 
-    if (state.searchQuery.trim()) {
+    // In ingredient mode the text is a fridge list the AI search already turned into a query,
+    // not words every title must contain ("pork shoulder" would drop "Slow Cooker Pulled Pork").
+    if (state.searchQuery.trim() && !state.ingredientMode) {
       const tokens = state.searchQuery.trim().toLowerCase().split(/\s+/);
       if (!matchesAllTokens(full, tokens)) return false;
     }
