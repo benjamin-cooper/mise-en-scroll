@@ -9,7 +9,7 @@ A recipe discovery app that aggregates the latest posts from 123 food blogs into
 - **Live feed** — streams the latest recipes from 119 blogs simultaneously, rendering cards as each feed loads
 - **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses title, excerpt and categories)
 - **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
-- **Ingredient search** — toggle ingredient mode to describe what's in your fridge; Claude AI converts your list into a smart search query
+- **Ingredient search** — toggle ingredient mode and list what's in your fridge; Claude Haiku 5.5 tidies the list into ingredient names, then the archive's stored ingredient lists (read from each recipe card by `crawl-archive.js --ingredients`) are searched for recipes that contain them all, with Serper web search as a top-up when few match
 - **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
 - **Saved** — bookmark recipes to a dedicated Saved tab (stored in your browser, private to you)
 - **Search history** — recent searches appear as chips below the search bar for one-tap re-use
@@ -223,7 +223,7 @@ Multiple filters can be selected at once (OR logic within each category).
 - **RSS parsing** — `rss-parser` with `media:content`, `media:thumbnail`, `content:encoded` support
 - **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
 - **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted archive of every blog's full post history — free, no per-query cost. URLs come from each blog's sitemap, then the WordPress REST API adds the real title, excerpt, categories and publish date (about 1,200 requests for the whole archive, incremental after that)
-- **Ingredient search** — Claude Haiku 5.5 converts fridge-contents descriptions into a search query, run through Serper.dev (Google results); this is the one search path that still needs Serper, since it's a semantic web search rather than a title lookup
+- **Ingredient search** — the archive stores each recipe's ingredient list (`crawl-archive.js --ingredients`, WordPress REST body or the page itself) in a separate FTS index; Claude Haiku 5.5 tidies the user's text into ingredient names; Serper web search only tops up thin results
 - **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
 - **Streaming** — Server-Sent Events so recipes appear as each feed loads
 - **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant

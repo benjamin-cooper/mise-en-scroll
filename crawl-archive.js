@@ -5,8 +5,9 @@
 // Safe to re-run: upserts by URL, so it's fine to stop and resume, or to
 // re-run periodically to pick up newly-published posts.
 const { BLOGS } = require('./blogs.js');
-const { isRoundup, lacksRequiredCategory, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
-const { batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
+const cheerio = require('cheerio');
+const { isRoundup, lacksRequiredCategory, scrapeRecipeHtml, ingredientList, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
+const { batchSetIngredients, ingredientBacklog, urlsMissingIngredients, batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs, client } = require('./archive-db.js');
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
@@ -297,6 +298,105 @@ async function enrichFromRest(blog) {
   return { status: 'ok', count };
 }
 
+// --- Ingredient lists ----------------------------------------------------
+// "Search by ingredients" matches against each recipe's actual ingredient list, which lives in
+// the recipe card. WordPress's REST API returns the post body (card included), so the same
+// request that lists posts also yields ingredients; other sites are read page by page.
+function ingredientsFromHtml(html) {
+  if (!html) return '';
+  const $ = cheerio.load(html);
+  let list = [];
+  const visit = n => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(visit);
+    const t = n['@type'];
+    if ((t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) && !list.length) list = ingredientList(n.recipeIngredient);
+    if (n['@graph']) visit(n['@graph']);
+  };
+  $('script[type="application/ld+json"]').each((_, el) => { try { visit(JSON.parse($(el).html())); } catch { /* skip bad JSON */ } });
+  if (!list.length) { try { const s = scrapeRecipeHtml($); if (s) list = ingredientList(s.recipeIngredient); } catch { /* no card */ } }
+  const seen = new Set();
+  const clean = list.map(x => wellFormed(decodeHtml(stripTags(String(x))).replace(/^[\s▢☐□•*–—-]+/, '').replace(/\s+/g, ' ').trim()))
+    .filter(x => x && x.length < 300 && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase()));
+  return clean.length >= 2 ? clean.join('\n').slice(0, 6000) : '';
+}
+
+const PAGE_UA = { 'User-Agent': 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com)', 'Accept': 'text/html,*/*' };
+
+// WordPress: page through posts oldest-first starting at the oldest row still missing
+// ingredients, so an interrupted run resumes where it stopped and weekly runs only touch new posts.
+async function fillIngredientsRest(blog) {
+  const origin = new URL(blog.feed).origin;
+  const backlog = await ingredientBacklog(blog.name);
+  if (!backlog.count) return { filled: 0, pages: 0 };
+  const after = new Date(Date.parse(backlog.oldest) - 2 * 864e5).toISOString().replace(/\.\d+Z$/, '');
+  const bases = ['posts'];
+  try {
+    const typesRes = await restGet(`${origin}/wp-json/wp/v2/types`);
+    if (typesRes.ok) for (const t of Object.values(await typesRes.json())) if (/^recipes?$/.test(t.slug) && t.rest_base) bases.push(t.rest_base);
+  } catch { /* posts alone is fine */ }
+  let filled = 0, pages = 0;
+  for (const base of bases) {
+    for (let page = 1; ; page++) {
+      await sleep(REST_DELAY);
+      const res = await restGet(`${origin}/wp-json/wp/v2/${base}?per_page=25&page=${page}&orderby=date&order=asc&after=${after}&_fields=link,content`);
+      if (!res.ok) { if (page === 1) break; throw new Error(`REST ${base} page ${page} HTTP ${res.status}`); }
+      const posts = await res.json();
+      if (!Array.isArray(posts) || !posts.length) break;
+      const rows = [];
+      for (const p of posts) {
+        const url = cleanRecipeUrl(p.link);
+        const ingredients = url && ingredientsFromHtml(p.content && p.content.rendered);
+        if (ingredients) rows.push({ url, ingredients });
+      }
+      await batchSetIngredients(rows);
+      filled += rows.length; pages++;
+      if (page >= (parseInt(res.headers.get('x-wp-totalpages')) || 1)) break;
+    }
+  }
+  return { filled, pages };
+}
+
+// Everything else (and posts whose card isn't in the REST body): fetch the page itself.
+async function fillIngredientsPages(blog, limit) {
+  const urls = await urlsMissingIngredients(blog.name, limit);
+  let filled = 0;
+  for (let i = 0; i < urls.length; i += 20) {
+    const rows = [];
+    for (const url of urls.slice(i, i + 20)) {
+      await sleep(DELAY_BETWEEN_REQUESTS);
+      try {
+        const res = await fetch(url, { headers: PAGE_UA, signal: AbortSignal.timeout(20000) });
+        if (res.status === 404 || res.status === 410) { rows.push({ url, ingredients: '' }); continue; }
+        if (!res.ok) continue; // blocked/transient: leave unknown, retry next run
+        const ingredients = ingredientsFromHtml(await res.text());
+        rows.push({ url, ingredients });
+        if (ingredients) filled++;
+      } catch { /* leave unknown */ }
+    }
+    await batchSetIngredients(rows);
+  }
+  return { filled, tried: urls.length };
+}
+
+async function runIngredientPass(targets, args) {
+  const pageLimit = parseInt((args.find(a => a.startsWith('--page-limit=')) || '').split('=')[1]) || 400;
+  const everyPage = args.includes('--ingredient-pages'); // also page-fetch REST blogs' leftovers
+  let idx = 0;
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, async () => {
+    while (idx < targets.length) {
+      const blog = targets[idx++];
+      let line = blog.name + ':';
+      try {
+        const rest = await isRestCovered(blog.name);
+        if (rest) { const r = await fillIngredientsRest(blog); line += ` REST ${r.filled} lists (${r.pages} pages)`; }
+        if (!rest || everyPage) { const p = await fillIngredientsPages(blog, pageLimit); line += ` pages ${p.filled}/${p.tried}`; }
+      } catch (err) { line += ' ERROR ' + err.message; }
+      console.log(line);
+    }
+  }));
+}
+
 function isSitemapIndex(xml) {
   return /<sitemapindex/i.test(xml);
 }
@@ -442,6 +542,8 @@ async function main() {
   const filter = args.find(a => !a.startsWith('--'));
   const targets = filter ? BLOGS.filter(b => b.name.toLowerCase().includes(filter.toLowerCase())) : BLOGS;
   console.log(`Crawling ${targets.length} blog(s)${restOnly ? ' (REST only)' : ''}...\n`);
+
+  if (args.includes('--ingredients')) { await runIngredientPass(targets, args); return; }
 
   const results = await crawlPool(targets, { restOnly });
 

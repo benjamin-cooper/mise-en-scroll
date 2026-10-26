@@ -24,7 +24,7 @@ const FTS_STATEMENTS = [
   `CREATE TRIGGER IF NOT EXISTS recipes_ad AFTER DELETE ON recipes BEGIN
     INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories, tags) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories, old.tags);
   END`,
-  `CREATE TRIGGER IF NOT EXISTS recipes_au AFTER UPDATE ON recipes BEGIN
+  `CREATE TRIGGER IF NOT EXISTS recipes_au AFTER UPDATE OF title, blog, excerpt, categories, tags ON recipes BEGIN
     INSERT INTO recipes_fts(recipes_fts, rowid, title, blog, excerpt, categories, tags) VALUES('delete', old.id, old.title, old.blog, old.excerpt, old.categories, old.tags);
     INSERT INTO recipes_fts(rowid, title, blog, excerpt, categories, tags) VALUES (new.id, new.title, new.blog, new.excerpt, new.categories, new.tags);
   END`,
@@ -66,6 +66,28 @@ async function migrateEnrichmentColumns() {
       `INSERT INTO recipes_fts(recipes_fts) VALUES('rebuild')`,
     ], 'write');
   }
+  // Ingredient lists (from each recipe card) power "search by ingredients". Kept in their own
+  // FTS table so the main title/excerpt index and its ranking are untouched. NULL = not looked
+  // at yet, '' = looked at and the page has no ingredient list.
+  const cols3 = (await client.execute('PRAGMA table_info(recipes)')).rows.map(r => r.name);
+  if (!cols3.includes('ingredients')) await client.execute('ALTER TABLE recipes ADD COLUMN ingredients TEXT');
+  const au = (await client.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='recipes_au'")).rows[0];
+  const stmts = [];
+  if (au && !/UPDATE OF/i.test(au.sql)) stmts.push('DROP TRIGGER recipes_au', FTS_STATEMENTS[3]);
+  stmts.push(
+    `CREATE VIRTUAL TABLE IF NOT EXISTS recipes_ing USING fts5(ingredients, content='recipes', content_rowid='id')`,
+    `CREATE TRIGGER IF NOT EXISTS recipes_ing_ai AFTER INSERT ON recipes WHEN new.ingredients IS NOT NULL BEGIN
+      INSERT INTO recipes_ing(rowid, ingredients) VALUES (new.id, new.ingredients);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS recipes_ing_ad AFTER DELETE ON recipes WHEN old.ingredients IS NOT NULL BEGIN
+      INSERT INTO recipes_ing(recipes_ing, rowid, ingredients) VALUES('delete', old.id, old.ingredients);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS recipes_ing_au AFTER UPDATE OF ingredients ON recipes BEGIN
+      INSERT INTO recipes_ing(recipes_ing, rowid, ingredients) SELECT 'delete', old.id, old.ingredients WHERE old.ingredients IS NOT NULL;
+      INSERT INTO recipes_ing(rowid, ingredients) SELECT new.id, new.ingredients WHERE new.ingredients IS NOT NULL;
+    END`,
+  );
+  await client.batch(stmts, 'write');
   const stateCols = (await client.execute('PRAGMA table_info(crawl_state)')).rows.map(r => r.name);
   if (!stateCols.includes('rest_synced_at')) {
     await client.batch([
@@ -184,6 +206,29 @@ async function batchUpdateImages(rows) {
   })), 'write');
 }
 
+// Ingredient lists: NULL = unknown, '' = page checked and has none (never retried).
+async function batchSetIngredients(rows) {
+  await ready;
+  if (!rows.length) return;
+  return client.batch(rows.map(r => ({
+    sql: 'UPDATE recipes SET ingredients = ? WHERE url = ?',
+    args: [r.ingredients, r.url],
+  })), 'write');
+}
+
+// Oldest still-unknown REST row and how many are unknown — lets the ingredient pass resume.
+async function ingredientBacklog(blog) {
+  await ready;
+  const r = await client.execute({ sql: 'SELECT MIN(date) AS d, COUNT(*) AS n FROM recipes WHERE blog = ? AND ingredients IS NULL AND rest = 1 AND date IS NOT NULL', args: [blog] });
+  return { oldest: r.rows[0].d || null, count: r.rows[0].n || 0 };
+}
+
+async function urlsMissingIngredients(blog, limit) {
+  await ready;
+  const r = await client.execute({ sql: 'SELECT url FROM recipes WHERE blog = ? AND ingredients IS NULL ORDER BY date DESC LIMIT ?', args: [blog, limit] });
+  return r.rows.map(x => x.url);
+}
+
 async function isRestCovered(blog) {
   await ready;
   const r = await client.execute({ sql: 'SELECT rest_count FROM crawl_state WHERE blog = ?', args: [blog] });
@@ -224,4 +269,4 @@ async function pruneRemovedBlogs(activeBlogNames) {
   return stale;
 }
 
-module.exports = { client, ready, upsertRecipe, batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs };
+module.exports = { client, ready, batchSetIngredients, ingredientBacklog, urlsMissingIngredients, upsertRecipe, batchUpsertRecipes, batchUpsertRestRecipes, batchUpdateImages, isRestCovered, getRestSyncedAt, setRestSynced, setCrawlState, pruneRemovedBlogs };
