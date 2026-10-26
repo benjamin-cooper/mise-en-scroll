@@ -1604,24 +1604,97 @@ app.get('/api/search', searchLimit, async (req, res) => {
 });
 
 // Ingredient-based search — uses Claude to convert ingredients into search terms
+// --- Search by ingredients -------------------------------------------------
+// Matches the ingredient lists stored in the archive (recipes_ing, filled by crawl-archive.js
+// --ingredients) rather than titles. Claude only tidies the user's text into ingredient names.
+const INGREDIENT_PAGE_SIZE = 20;
+const INGREDIENT_MAX_CANDIDATES = 400;
+
+async function parseIngredientQuery(text) {
+  const fallback = () => String(text).split(/[,;\n]+|\band\b/i).map(t => t.trim().toLowerCase()).filter(Boolean);
+  let terms = null;
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const msg = await getAnthropic().messages.create({
+        model: AI_MODEL,
+        ...AI_EFFORT,
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: `List the food ingredients in this text as a JSON array of short lowercase names, the way a recipe would list them (e.g. "pork shoulder", "apple cider", "garlic"). Skip salt, pepper, cooking oil, water and anything that isn't an ingredient. Return ONLY the JSON array.\n\nText: ${String(text).slice(0, 400)}`,
+        }],
+      });
+      const raw = (msg.content.find(b => b.type === 'text') || {}).text || '';
+      const parsed = JSON.parse(raw.trim().replace(/^```json?\s*|```$/g, ''));
+      if (Array.isArray(parsed)) terms = parsed.filter(t => typeof t === 'string');
+    } catch { /* fall back to splitting the text */ }
+  }
+  return [...new Set((terms && terms.length ? terms : fallback()).map(t => t.trim().toLowerCase().replace(/[^a-z0-9'\s-]/g, ' ').replace(/\s+/g, ' ').trim()).filter(t => t.length > 1))].slice(0, 8);
+}
+
+// "tomatoes" must still find "tomato"; the last word becomes a prefix match.
+function ingredientStem(term) {
+  const words = term.split(' ');
+  let w = words[words.length - 1];
+  if (w.length > 4 && /oes$/.test(w)) w = w.slice(0, -2);
+  else if (w.length > 4 && /[^su]s$/.test(w)) w = w.slice(0, -1);
+  words[words.length - 1] = w;
+  return words.join(' ');
+}
+const ftsPrefix = stem => quoteFts(stem) + ' *';
+
+async function searchArchiveByIngredients(terms) {
+  const stems = terms.map(ingredientStem);
+  const cols = 'r.url, r.blog, r.blog_color AS blogColor, r.title, r.image, r.date, r.excerpt, r.categories, r.ingredients';
+  const run = async (expr) => (await archiveClient.execute({
+    sql: `SELECT ${cols} FROM recipes_ing JOIN recipes r ON r.id = recipes_ing.rowid
+          WHERE recipes_ing MATCH ? ORDER BY bm25(recipes_ing), r.id LIMIT ${INGREDIENT_MAX_CANDIDATES}`,
+    args: [expr],
+  })).rows;
+  // Word-start match; "apple cider" must not be satisfied by "apple cider vinegar".
+  const has = (text, stem) => new RegExp('(^|[^a-z])' + stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '[^a-z]+') + (/vinegar/.test(stem) ? '' : '(?![a-z]*\\s+vinegar\\b)'), 'i').test(text);
+  const scored = (await run(stems.map(ftsPrefix).join(' AND '))).filter(r => stems.every(st => has(r.ingredients, st))).map(r => ({ r, matched: stems.length }));
+  // Few full matches and several ingredients: also offer recipes missing one of them.
+  if (scored.length < 12 && stems.length > 1) {
+    const seen = new Set(scored.map(x => x.r.url));
+    for (const r of await run(stems.map(ftsPrefix).join(' OR '))) {
+      if (seen.has(r.url)) continue;
+      const matched = stems.filter(st => has(r.ingredients, st)).length;
+      if (matched >= Math.max(1, stems.length - 1)) scored.push({ r, matched });
+    }
+  }
+  // Recipes built around the ingredient (named in the title) beat ones that merely include it.
+  const titleHits = r => stems.filter(st => has(r.title, st)).length;
+  scored.forEach(x => { x.t = titleHits(x.r); });
+  scored.sort((a, b) => b.matched - a.matched || b.t - a.t);
+  return scored.map(({ r, matched }) => {
+    let categories = [];
+    try { categories = r.categories ? JSON.parse(r.categories) : []; } catch {}
+    const { ingredients, ...rest } = r;
+    return { ...rest, excerpt: r.excerpt || '', categories, matchedAll: matched === stems.length };
+  });
+}
+
 app.get('/api/ingredient-search', searchLimit, async (req, res) => {
-  const { ingredients, page = 1 } = req.query;
+  const { ingredients } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
   if (!ingredients) return res.status(400).json({ error: 'ingredients is required' });
-  if (!SERPER_API_KEY) return res.status(503).json({ error: 'Search API not configured.' });
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'AI search not configured. Add ANTHROPIC_API_KEY.' });
   try {
-    const msg = await getAnthropic().messages.create({
-      model: AI_MODEL,
-      ...AI_EFFORT,
-      max_tokens: 60,
-      messages: [{
-        role: 'user',
-        content: `Convert this ingredient list into a short recipe search query of 3-5 words. Return ONLY the search terms, nothing else.\nIngredients: ${ingredients}`,
-      }],
-    });
-    const terms = msg.content[0].text.trim();
-    const q = /recipe/i.test(terms) ? terms : `${terms} recipe`;
-    res.json(await runSerperSearch(q, page));
+    const terms = await parseIngredientQuery(ingredients);
+    if (!terms.length) return res.json({ results: [], totalResults: 0, nextStart: null, terms });
+    let found = archiveClient ? await searchArchiveByIngredients(terms) : [];
+    // Archive too thin (ingredient lists are still being collected, or an unusual combo):
+    // top up with the web search the feature used before.
+    if (found.length < 8 && page === 1 && SERPER_API_KEY) {
+      try {
+        const web = await runSerperSearch(`${terms.join(' ')} recipe`, 1);
+        const have = new Set(found.map(r => r.url));
+        found = found.concat(web.results.filter(r => !have.has(r.url)));
+      } catch { /* archive results alone are fine */ }
+    }
+    const offset = (page - 1) * INGREDIENT_PAGE_SIZE;
+    const slice = found.slice(offset, offset + INGREDIENT_PAGE_SIZE);
+    res.json({ results: slice, totalResults: found.length, nextStart: offset + slice.length < found.length ? page + 1 : null, terms });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2194,5 +2267,5 @@ if (require.main === module) {
 // Exported for reuse by the standalone archive crawler (crawl-archive.js) —
 // same post-vs-roundup and same-blog-domain filtering logic, no duplication.
 module.exports = {
-  isRoundup, lacksRequiredCategory, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,
+  isRoundup, lacksRequiredCategory, scrapeRecipeHtml, ingredientList, flattenInstructions, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,
 };
