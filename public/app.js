@@ -108,7 +108,7 @@ const state = {
   detailLoading: false,
   detailError: null,
   nutritionLoading: false, // true while CalorieNinjas analysis is in-flight
-  nutritionView: 'blog',  // 'blog' | 'calc' — which source to show in the toggle
+  nutritionView: 'blog',  // 'blog' | 'calc': which source to show in the toggle
   loading: true,
   serverWakingUp: false,    // true if first SSE batch hasn't arrived after ~8s (Render cold start)
   openFilterDropdown: null, // mobile filter panel: 'cuisine' | 'protein' | 'time' | 'meal' | null
@@ -137,7 +137,7 @@ const state = {
   boardPickerOpen: false,
   activeBoardFilter: null,
   filtersOpen: false,        // desktop filter rows collapsed by default
-  // Archive (full sitemap-crawled blog history — no filters, just browse/search)
+  // Archive (full sitemap-crawled blog history, no filters, just browse/search)
   archiveResults: [],
   archiveNextPage: null,
   archiveLoading: false,
@@ -287,7 +287,7 @@ function saveBoards() { try { localStorage.setItem(BOARDS_KEY, JSON.stringify(st
 
 // --- Shopping List (localStorage) ---
 // No real per-store aisle data available, so items are grouped by a generic
-// typical-grocery-store aisle order — close enough to be useful without
+// typical-grocery-store aisle order: close enough to be useful without
 // needing a store-layout data source. Keyword-matched against the raw
 // ingredient string, same "good enough, not exact" approach as the Archive
 // tab's title-only filters.
@@ -304,7 +304,8 @@ const AISLES = [
   { name: 'Frozen', keywords: ['frozen'] },
   { name: 'Beverages', keywords: ['juice','soda','coffee','tea','wine','beer'] },
 ];
-// Picks the aisle whose matched keyword is the longest (most specific) — not just the first aisle in list order — so a.
+// Picks the aisle whose matched keyword is longest (most specific), not just the first aisle in list order. That way a
+// phrase like "beef stock" or "canned tomatoes" beats a shorter, more generic match like "beef" or "tomato" from an earlier aisle.
 function guessAisle(ingredientText) {
   const t = (ingredientText || '').toLowerCase();
   let best = null;
@@ -322,7 +323,9 @@ function saveShoppingList() {
   try { localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(state.shoppingList)); } catch {}
 }
 
-// Store-specific aisle order — there's no real per-store layout data source, so a "store" here is just a named.
+// Store-specific aisle order. There's no real per-store layout data, so a "store" here is just a named, user-defined ordering
+// of the same aisle categories. Picking a store regroups the list in that saved order instead of the default, and the
+// ordering is remembered per store name.
 const DEFAULT_AISLE_ORDER = AISLES.map(a => a.name).concat('Other');
 const SHOPPING_STORES_KEY = 'mise-en-scroll-shopping-stores';
 function loadStoreData() {
@@ -339,7 +342,7 @@ function getAisleOrder() {
   const custom = state.activeStoreName && state.shoppingStores[state.activeStoreName];
   if (!custom) return DEFAULT_AISLE_ORDER;
   // Any aisle not present in an older saved order (e.g. a new category added
-  // after the store was created) still needs a slot — append it at the end.
+  // after the store was created) still needs a slot, append it at the end.
   return [...custom, ...DEFAULT_AISLE_ORDER.filter(a => !custom.includes(a))];
 }
 // Adds ingredient strings to the list, tagged with their source recipe.
@@ -354,7 +357,10 @@ function addIngredientsToShoppingList(ingredients, sourceTitle) {
 }
 
 const HIDDEN_KEY = 'mise-en-scroll-hidden';
-// Normalises a recipe URL to (host + path, no query/hash/trailing-slash/www) so hiding a post survives the source blog or.
+// Normalises a recipe URL to host and path (no query, hash, trailing slash or www) so a hidden post stays hidden even if
+// the source blog or our own cleanup later changes its query string (dropping tracking params, say). An exact-string match
+// would quietly un-hide a post the next time its URL shifted. The same recipe matches regardless of tracking params,
+// trailing slash, www or case.
 function sameUrl(a, b) { return a === b || normalizeUrl(a) === normalizeUrl(b); }
 function normalizeUrl(u) {
   try {
@@ -363,7 +369,7 @@ function normalizeUrl(u) {
   } catch { return (u || '').toLowerCase(); }
 }
 
-// Hidden posts — stored as { url, title, blog, blogColor } objects for unhide UI
+// Hidden posts: stored as { url, title, blog, blogColor } objects for unhide UI
 let _hiddenRaw = (() => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; } })();
 // Normalise old format (plain URL strings) to objects
 _hiddenRaw = _hiddenRaw.map(e => typeof e === 'string' ? { url: e } : e);
@@ -457,7 +463,10 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// Blog badge text must reach WCAG AA (4.5:1; aimed at 4.75 so a card fading in mid-measurement, or rounding, can't drop.
+// Blog badge text must reach WCAG AA (4.5:1, aimed at 4.75 so a card fading in mid-measurement, or rounding, can't dip
+// below it) on the card background in both themes. The blog colors were picked as brand accents, so several are too light
+// for light mode (#b8620a is 3.9:1) and many too dark for dark mode. Each one is mixed toward black (light theme) or
+// white (dark theme) by the smallest amount that clears the bar, so a blog keeps its recognizable hue.
 const _BADGE_BG = { light: '#fffdf8', dark: '#241a16' };
 const _badgeShadeCache = new Map();
 function _relLuminance(hex) {
@@ -512,7 +521,7 @@ function nutritionChips(d) {
   if (n.sodium)   chips.push(`<span><strong>${Math.round(n.sodium)}mg</strong> sodium</span>`);
   if (!chips.length) return '';
 
-  // Toggle — only shown when both sources available
+  // Toggle: only shown when both sources available
   const toggle = (hasBlog && hasCalc) ? `
     <div class="nutrition-toggle">
       <button class="nutrition-tab${!showCalc ? ' active' : ''}" data-action="toggle-nutrition-source" data-source="blog">Blog</button>
@@ -546,7 +555,7 @@ let searchDebounceTimer = null;
 let activeSearchSource = null; // AbortController for the in-flight archive-search fetch
 let archiveSearchDebounceTimer = null;
 
-// Loads a page of the sitemap-crawled archive — either a plain browse (newest
+// Loads a page of the sitemap-crawled archive, either a plain browse (newest
 // first) or, if state.archiveQuery is set, a full-text title search.
 async function triggerArchiveLoad(page = 1) {
   state.archiveLoading = true;
@@ -599,7 +608,9 @@ const _prefetchCache = new Map();
 let _drawerTriggerUrl = null;
 let _prefetchTimer = null;
 
-// Sorted insertion streaming — each incoming batch is inserted into the grid at its correct date-sorted position rather.
+// Sorted insertion streaming. Each incoming batch goes into the grid at its date-sorted position instead of being added at
+// the bottom or replacing the whole grid. Newest recipes always sort to the top, and cards already on screen only shift if
+// something newer arrives above them. New cards fade in so the insertion feels smooth.
 let _streamAppendedSet = new Set(); // URLs already in the DOM during streaming
 
 function insertSortedStreamCards(batch) {
@@ -617,13 +628,13 @@ function insertSortedStreamCards(batch) {
     .slice(0, state.discoverRenderLimit - _streamAppendedSet.size);
   if (!toAdd.length) return;
 
-  // Snapshot card list once — avoids O(n²) querySelectorAll inside the loop.
+  // Snapshot card list once: avoids O(n²) querySelectorAll inside the loop.
   let cardList = [...grid.querySelectorAll('.card')];
   toAdd.forEach(recipe => {
     _streamAppendedSet.add(recipe.url);
     const recipeDate = new Date(recipe.date || 0);
 
-    // Find the first existing card whose date is older — insert before it.
+    // Find the first existing card whose date is older, insert before it.
     let insertBefore = null;
     for (const card of cardList) {
       if (new Date(card.dataset.date || 0) < recipeDate) {
@@ -647,7 +658,11 @@ function insertSortedStreamCards(batch) {
     }
   });
 }
-// One keyword list per active filter category (OR within a category, AND across categories) — sent to the archive search.
+// One keyword list per active filter category (OR within a category, AND across categories), sent to the archive search
+// so chips reach beyond the recent posts loaded in the page. Each category says which text it matches. Meal, protein and
+// cuisine words show up in excerpts by accident ("serve alongside a bowl of soup", "great for lunch"), so those match
+// title and categories only ('tc'). Method, time and dietary phrases in an excerpt usually describe the dish itself
+// ("ready in 30 minutes", "vegan"), so they use it too ('all'). Keep this in sync with applyFilters.
 const CHIP_TEXT_POLICY = { cuisine: 'tc', protein: 'tc', meal: 'tc', time: 'all', dietary: 'all', method: 'all' };
 function activeFilterGroups() {
   return [
@@ -663,7 +678,8 @@ function activeFilterGroups() {
    .filter(g => g.chips.length);
 }
 
-// When the live feed finishes streaming while a filtered/keyword view is open, fold its matches into the results (the.
+// When the live feed finishes streaming while a filtered or keyword view is open, fold its matches into the results.
+// The view was seeded from a partial pool, and posts newer than the last archive crawl only exist in the feed.
 function mergeFeedIntoSearchResults() {
   if (!state.searchMode || state.ingredientMode || state.view !== 'discover') return;
   const have = new Set(state.searchResults.map(r => normalizeUrl(r.url)));
@@ -672,11 +688,11 @@ function mergeFeedIntoSearchResults() {
 }
 
 async function triggerSearch(start = 1) {
-  // In saved/archive views, never hit the RSS search API — just re-render
+  // In saved/archive views, never hit the RSS search API, just re-render
   // with local filtering (applyFilters runs against whatever's already loaded).
   if (state.view === 'favorites' || state.view === 'archive') { renderApp(); return; }
 
-  // Ingredient mode — sends raw ingredient text to AI-powered endpoint
+  // Ingredient mode: sends raw ingredient text to AI-powered endpoint
   if (state.ingredientMode) {
     const ingredients = state.searchQuery.trim();
     if (!ingredients) {
@@ -707,7 +723,9 @@ async function triggerSearch(start = 1) {
     return;
   }
 
-  // Keyword / filter mode — fires when there's a typed query, an active filter chip, or a blog picked.
+  // Keyword and filter mode. It runs when there's a typed query, an active filter chip, or a blog picked. Chips and the blog
+  // picker used to be local only, so they could only narrow the ~800 most recent posts already in the page ("Slow Cooker"
+  // showed about 25 results). They now query the full archive too.
   const rawQuery = state.searchQuery.trim();
   const groups = activeFilterGroups();
   const blogFilter = state.filter || '';
@@ -723,7 +741,9 @@ async function triggerSearch(start = 1) {
   // Cancel any in-flight archive-search fetch before starting a new one
   if (activeSearchSource) { activeSearchSource.abort(); activeSearchSource = null; }
 
-  // Hybrid.
+  // Hybrid: show local matches first (the last ~20 posts per blog from the RSS pool already in the page, run through the same
+  // keyword, chip and blog filters), then add results from the sitemap-crawled archive DB (archive-db.js), which holds each
+  // blog's whole history and is hosted free on Turso. This replaced a paid Serper web-search call.
   const localMatches = start === 1 ? applyFilters(getVisibleRecipes()) : [];
 
   // Later pages must also be checked against everything already on screen, not just
@@ -789,11 +809,16 @@ function _wordBoundaryRe(t) {
 function matchesAllTokens(text, tokens) {
   return tokens.every(t => _wordBoundaryRe(t).test(text));
 }
-// Same word-boundary logic as matchesAllTokens, but "any keyword matches" instead of "every token matches" — used by the.
+// Same word-boundary logic as matchesAllTokens, but any keyword can match instead of every token. Used by the cuisine,
+// protein, meal and similar filter chips, which were plain-substring matching keywords like "cake" against "pancakes"
+// and "crisp" against "crispy".
 function matchesAnyKeyword(text, keywords) {
   return keywords.some(kw => _wordBoundaryRe(kw).test(text));
 }
-// A chip matches when one of its keywords hits the text AND none of its optional `exclude` words appear in the TITLE.
+// A chip matches when one of its keywords hits the text and none of its optional `exclude` words appear in the title:
+// "Ramen Noodle Salad" and "Chili Tacos" contain a soup word but aren't soups. This is evaluated per chip, so
+// "Soup or Dessert" keeps each chip's own rules. Excludes look at the title only, so a real soup filed under a
+// "Soup & Salad" category isn't dropped for it.
 function chipMatches(chip, text, title) {
   if (!chip || !matchesAnyKeyword(text, chip.keywords || [])) return false;
   return !(chip.exclude && matchesAnyKeyword(title || '', chip.exclude));
@@ -802,7 +827,9 @@ function anyChipMatches(group, labels, text, title) {
   return labels.some(l => chipMatches(FILTERS[group].find(f => f.label === l), text, title));
 }
 
-// The server used to send a precomputed `searchText` per recipe; it was dropped to cut initial page-load size (~1MB →.
+// The server used to send a precomputed `searchText` per recipe. It was dropped to cut the first page load (about 1MB down
+// to 400KB), since it mostly repeated the title, categories and excerpt already sent. Archive entries have no excerpt
+// (sitemaps don't carry one), so for those this falls back to title and categories only.
 function recipeSearchText(r) {
   if (r.searchText) return r.searchText; // any legacy/cached shape that still has it
   return [r.title, ...(r.categories || []), r.excerpt || ''].join(' ').toLowerCase();
@@ -819,7 +846,7 @@ function applyFilters(recipes) {
   ].join('|');
   if (_filterMemo && _filterMemo.recipes === recipes && _filterMemo.fp === fp) return _filterMemo.result;
   const result = recipes.filter(r => {
-    // Archive entries have no excerpt (sitemaps don't carry one) — fall back
+    // Archive entries have no excerpt (sitemaps don't carry one), fall back
     // to title-only matching for them.
     const full = recipeSearchText(r);
     // title + categories only (see CHIP_TEXT_POLICY)
@@ -886,7 +913,7 @@ function renderApp() {
     </main>
     ${renderDrawer()}
     <footer class="site-footer">
-      <p>All recipes &copy; their original authors. This site just reads their RSS feeds.</p>
+      <p>All recipes &copy; their original authors. This site only reads their public feeds and sitemaps.</p>
       <p><a href="/terms.html" target="_blank" rel="noopener">About &amp; Attribution</a> &middot; <a href="/terms.html#removal" target="_blank" rel="noopener">Request removal</a></p>
     </footer>
     <button class="back-to-top" id="back-to-top" data-action="back-to-top" aria-label="Back to top">
@@ -1023,7 +1050,8 @@ function renderBlogPicker() {
   `;
 }
 
-// Shared cuisine/meal/dietary/protein/time/method chip UI — used by both the Discover search section and the Archive tab.
+// Shared cuisine, meal, dietary, protein, time and method chip UI, used by both the Discover search section and the
+// Archive tab. Archive filters match against the title only, since sitemaps carry no excerpt, but the chips look the same.
 function renderFilterChips() {
   const anyActive = state.cuisineFilters.length || state.proteinFilters.length || state.timeFilters.length || state.mealFilters.length || state.dietaryFilters.length || state.methodFilters.length;
   const chevron = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5l3 3 3-3"/></svg>`;
@@ -1329,7 +1357,7 @@ function renderShoppingList() {
             <div class="meal-plan-slot shopping-item">
               <label class="shopping-item-label ${item.checked ? 'is-checked' : ''}">
                 <input class="shopping-checkbox" type="checkbox" data-action="shopping-toggle-item" data-id="${item.id}" ${item.checked ? 'checked' : ''}>
-                <span>${escHtml(item.text)}${item.source ? ` <span class="shopping-item-source">— ${escHtml(item.source)}</span>` : ''}</span>
+                <span>${escHtml(item.text)}${item.source ? ` <span class="shopping-item-source">from ${escHtml(item.source)}</span>` : ''}</span>
               </label>
               <button class="meal-plan-remove" data-action="shopping-remove-item" data-id="${item.id}" aria-label="Remove">✕</button>
             </div>
@@ -1345,7 +1373,7 @@ function renderArchive() {
   const header = `
     <div class="container" style="padding-top:20px">
       <p class="tab-intro">
-        Full post history for every blog, pulled from each site's sitemap rather than its RSS feed — thousands of recipes per blog instead of the last handful. Filters here match against the title only (sitemaps don't carry excerpts), so they're less precise than on Discover.
+        Every blog's full post history, taken from each site's sitemap instead of its RSS feed. That's thousands of recipes per blog, not just the last handful. Filters here match on the title only (sitemaps don't carry excerpts), so they're less precise than on Discover.
       </p>
       <div class="search-wrap" style="max-width:480px">
         <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
@@ -1369,7 +1397,7 @@ function renderArchive() {
       <div class="container">
         <div class="empty">
           <div class="empty-icon">${emptyIcon}</div>
-          <p>${state.archiveQuery ? 'Nothing turned up. Try different keywords.' : 'The archive is still being built — check back soon.'}</p>
+          <p>${state.archiveQuery ? 'Nothing turned up. Try different keywords.' : 'The archive is still being built. Check back soon.'}</p>
         </div>
       </div>
     `;
@@ -1380,7 +1408,7 @@ function renderArchive() {
   return `
     ${header}
     <div class="container">
-      <p class="result-count">${state.archiveTotal.toLocaleString()} recipe${state.archiveTotal === 1 ? '' : 's'} in the archive${filtered.length !== state.archiveResults.length ? ` — ${filtered.length} match your filters on this page` : ''}</p>
+      <p class="result-count">${state.archiveTotal.toLocaleString()} recipe${state.archiveTotal === 1 ? '' : 's'} in the archive${filtered.length !== state.archiveResults.length ? ` (${filtered.length} match your filters on this page)` : ''}</p>
       ${filtered.length ? `<div class="grid">${filtered.map(renderCard).join('')}</div>` : `
         <div class="empty">
           <div class="empty-icon">${emptyIcon}</div>
@@ -1419,7 +1447,10 @@ function renderContent() {
         </div>
       `;
     }
-    // Active filter chips (cuisine/protein/etc.) used to be folded directly into the Serper query text, so they narrowed.
+    // Active filter chips used to be folded into the Serper query text, so results were already narrowed and needed no
+    // re-filtering here. Now that keyword search runs against the archive's title-only FTS index, chip terms wouldn't match
+    // reliably inside that query. So apply them the way the regular RSS and favorites views do, through applyFilters
+    // (which also re-applies the keyword match, redundant but harmless here).
     const visibleSearchResults = applyFilters(state.searchResults.filter(r => !isHidden(r.url)));
     return `
       <div class="container">
@@ -1542,7 +1573,11 @@ function renderContent() {
   `;
 }
 
-// Same fork-and-knife mark as the header logo, reused as the no-image fallback so a missing photo reads as an intentional.
+// Same fork-and-knife mark as the header logo, reused as the no-image fallback so a missing photo looks intentional
+// instead of showing a generic colored-initial avatar. Below is a 1x1 transparent GIF. Cards render with it and only get
+// their real photo (data-src) once they're near the screen (see _imgObserver). The browser's own loading="lazy" fetches
+// about 2,500px ahead on slow connections, which on a phone is about 20 full-size blog photos (4.5MB) competing with the
+// one you can see.
 const LAZY_IMG_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 const NO_IMAGE_MARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`;
@@ -1550,7 +1585,9 @@ const NO_IMAGE_MARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 function renderCard(r) {
   const noImg = !r.image;
   const c = r.blogColor || '#5c1a1a';
-  // Cards with no image get a data attribute so the lazy OG fetcher can fill them in once scrolled into view.
+  // Cards with no image get a data attribute so the lazy OG fetcher can fill them in once scrolled into view. This used to
+  // be limited to search and Archive, but a missing image is just as fixable wherever the card appears (Saved, Meal Plan,
+  // Discover). The fetch is now rate-limit safe (see the og-image concurrency queue below), so there's no reason to restrict it.
   const needsOg = noImg ? `data-needs-og="${escHtml(r.url)}"` : '';
   return `
     <article class="card" data-action="card" data-url="${r.url}" data-date="${r.date || ''}" role="button" tabindex="0" aria-label="Open ${escHtml(r.title)}">
@@ -1600,7 +1637,8 @@ function renderDrawer() {
   }
   const { url, preview: rawPreview } = state.selected;
   const d = state.detail;
-  // Deep links (/recipe?url=…) open with an empty preview.
+  // Deep links (/recipe?url=...) open with an empty preview. Fill in what we can: the matching feed entry if it has streamed
+  // in, else the recipe's own name, else the site's hostname, so labels and the "read on..." button never go blank.
   const pooled = rawPreview.blog ? null : state.recipes.find(r => r.url === url);
   const knownBlog = (() => {
     try {
@@ -1842,7 +1880,7 @@ async function fetchNutritionIfNeeded() {
       if (!state.detail.nutrition) state.nutritionView = 'calc';
     }
   } catch {
-    // Non-critical — leave nutrition as-is
+    // Non-critical: leave nutrition as-is
   } finally {
     state.nutritionLoading = false;
     renderApp();
@@ -2494,9 +2532,9 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Search input — update state and debounce the API call.
+// Search input: update state and debounce the API call.
 document.addEventListener('input', (e) => {
-  // Recipe notes — debounced save
+  // Recipe notes: debounced save
   if (e.target.dataset.action === 'recipe-note') {
     const url = state.selected?.url;
     if (!url) return;
@@ -2523,7 +2561,7 @@ document.addEventListener('input', (e) => {
   state.searchQuery = e.target.value;
   updateAutocomplete(e.target.value);
 
-  // Toggle clear button visibility in-place — no re-render needed.
+  // Toggle clear button visibility in-place, no re-render needed.
   const clearBtn = document.querySelector('[data-action="search-clear"]');
   if (clearBtn) clearBtn.style.display = state.searchQuery ? '' : 'none';
 
@@ -2560,7 +2598,7 @@ document.addEventListener('touchend', (e) => {
   if (e.changedTouches[0].clientY - _touchStartY > 100) closeDrawer();
 }, { passive: true });
 
-// Hover-prefetch on desktop — fetch recipe detail 150ms after hovering a card
+// Hover-prefetch on desktop: fetch recipe detail 150ms after hovering a card
 // so the drawer opens instantly on click.
 document.addEventListener('mouseover', (e) => {
   const card = e.target.closest('[data-action="card"]');
@@ -2583,7 +2621,9 @@ document.addEventListener('focusin', (e) => {
   _prefetchCache.set(url, api.recipe(url).catch(() => null));
 });
 
-// Recipe cards are role="button" elements (not real <button>s, since they contain nested interactive children like.
+// Recipe cards are role="button" elements, not real <button>s, because they contain nested interactive children (Save,
+// Hide). Enter and Space therefore don't activate them natively, so wire them to fire the same click the delegated
+// handler already listens for.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   const el = e.target.closest('[role="button"][data-action]');
@@ -2592,7 +2632,7 @@ document.addEventListener('keydown', (e) => {
   el.click();
 });
 
-// Back-to-top button visibility — pure DOM toggle, no state re-render
+// Back-to-top button visibility: pure DOM toggle, no state re-render
 window.addEventListener('scroll', () => {
   const btn = document.getElementById('back-to-top');
   if (btn) btn.classList.toggle('is-visible', window.scrollY > 400);
@@ -2663,13 +2703,14 @@ function closeDrawer() {
   state.boardPickerOpen = false;
   history.replaceState(null, '', '/');
   renderApp();
-  // Return focus to the card that opened the drawer, rather than dropping it to <body> — the card may no longer be in the.
+  // Return focus to the card that opened the drawer instead of dropping it to <body>. The card may no longer be in the DOM
+  // (filters changed, scrolled out of view), so this is a best-effort restore, not a requirement.
   if (triggerUrl) {
     document.querySelector(`[data-action="card"][data-url="${CSS.escape(triggerUrl)}"]`)?.focus();
   }
 }
 
-// Lightweight update — only re-renders the card grid, leaving the rest of the
+// Lightweight update: only re-renders the card grid, leaving the rest of the
 // page (header, search bar, filters, blog picker) completely untouched.
 function refreshDiscoverContent() {
   const el = document.getElementById('discover-content');
@@ -2693,7 +2734,8 @@ async function init() {
   state.recentSearches = loadSearchHistory();
   state.mealPlan = loadMealPlan();
   state.boards = loadBoards();
-  // Re-run aisle categorization on every load, not just at add-time — so fixes/tweaks to guessAisle() apply retroactively.
+  // Re-run aisle categorization on every load, not just when an item is added, so fixes to guessAisle() also apply to items
+  // already saved in someone's list instead of leaving them with whatever aisle they got the day they were added.
   state.shoppingList = loadShoppingList().map(item => ({ ...item, aisle: guessAisle(item.text) }));
   saveShoppingList();
   { const sd = loadStoreData(); state.shoppingStores = sd.stores; state.activeStoreName = sd.active; }
@@ -2710,7 +2752,8 @@ async function init() {
   }
   BLOGS = await api.blogs();
 
-  // Restore recipe drawer from URL — supports /recipe?url=...
+  // Restore the recipe drawer from the URL. This supports /recipe?url=... (shared links, server-rendered with per-recipe OG
+  // tags) and the old #<url> hash format (legacy links shared before this scheme existed).
   const hashUrl = (() => {
     try {
       if (window.location.pathname === '/recipe') {
@@ -2781,11 +2824,17 @@ async function init() {
 
 init();
 
-// Keep Render's free-tier server awake — ping every 9 minutes to stay
+// Keep Render's free-tier server awake, ping every 9 minutes to stay
 // under the 15-minute inactivity sleep threshold.
 setInterval(() => fetch('/api/ping').catch(() => {}), 9 * 60 * 1000);
 
-// Lazy OG image loading — cards without an image (search results, and Archive entries whose blog's sitemap has no.
+// Lazy OG image loading. Cards without an image (search results, and Archive entries whose blog's sitemap has no <image:>
+// tag at all) get a data-needs-og attribute. When they scroll into view we fetch the OG image and swap in the photo
+// without a full re-render. Concurrency is capped instead of firing one fetch per card as soon as it's visible. Several
+// Archive blogs lack images on every post, so scrolling through them can reveal a dozen or more at once, which used to burst
+// past the server's per-minute rate limit. A rate-limited response comes back as plain text, not JSON, so r.json() threw,
+// the catch() below swallowed it, and the card was marked done and never retried. Capping in-flight requests now avoids
+// hitting the limit, and a 429 specifically is requeued instead of being treated as "no image exists".
 const _ogFetching = new Set();
 const _ogQueue = [];
 let _ogActive = 0;
@@ -2805,7 +2854,7 @@ function _ogFillImage(url, img) {
     ...Object.values(state.mealPlan).flatMap(d => d ? Object.values(d).filter(Boolean) : [])];
   const r = pool.find(r => r.url === url);
   if (r) r.image = img;
-  // Favorites persist to localStorage separately from in-memory state — without
+  // Favorites persist to localStorage separately from in-memory state, without
   // this, a backfilled image would revert to blank next time Saved is opened.
   if (isFav(url)) updateFavField(url, { image: img });
 }
@@ -2856,7 +2905,10 @@ const _ogObserver = new IntersectionObserver((entries) => {
   });
 }, { rootMargin: '200px' });
 
-// Fires when a card's <img> fails to actually load — e.g.
+// Fires when a card's <img> fails to load, for example when the src looked like an image URL server-side but is a video
+// embed link, a broken or repeated path from a malformed feed, or a dead link. It swaps in the placeholder right away,
+// as before, but unlike the old inline handler it also queues an OG-image backfill instead of leaving the card blank
+// just because the RSS URL didn't work out.
 function handleCardImageError(imgEl, color) {
   const cardImage = imgEl.closest('.card-image');
   const url = imgEl.closest('.card')?.dataset.url;

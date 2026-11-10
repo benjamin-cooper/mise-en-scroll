@@ -1,4 +1,6 @@
-// Standalone archive crawler — walks each blog's sitemap.xml to find its full post history (RSS only exposes the last.
+// Standalone archive crawler. It walks each blog's sitemap.xml to find the full post history (RSS only lists the newest
+// 5 to 20 posts, while sitemaps cover everything). Run it with: node crawl-archive.js [blogName substring]
+// It's safe to re-run, since it upserts by URL. You can stop and resume, or run it again later to pick up new posts.
 const { BLOGS } = require('./blogs.js');
 const cheerio = require('cheerio');
 const { isRoundup, lacksRequiredCategory, scrapeRecipeHtml, ingredientList, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
@@ -6,7 +8,7 @@ const { batchSetIngredients, ingredientBacklog, urlsMissingIngredients, batchUps
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; MiseEnScrollBot/1.0)', 'Accept': 'application/xml,text/xml,*/*' };
 const FETCH_TIMEOUT = 15000;
-const DELAY_BETWEEN_REQUESTS = 400; // ms — be polite, this is a lot of requests over time
+const DELAY_BETWEEN_REQUESTS = 400; // ms. Be polite: this is a lot of requests over time
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -16,12 +18,14 @@ async function fetchText(url) {
   return res.text();
 }
 
-// Turns a URL slug into a readable title as a fallback — sitemaps don't carry post titles, only URL/lastmod/image.
+// Turns a URL slug into a readable title as a fallback, since sitemaps have no titles, only URL, lastmod and image.
+// WordPress slugs are nearly always a slugified title, so this is usually right.
 function titleFromSlug(url) {
   try {
     const path = new URL(url).pathname.replace(/\/+$/, '');
     const rawSlug = decodeURIComponent(path.split('/').filter(Boolean).pop() || '');
-    // Some sites' sitemaps include literal static pages (foo.html, foo.php) rather than clean WordPress-style directory slugs.
+    // Some sitemaps list static pages (foo.html, foo.php) instead of clean WordPress-style slugs.
+    // Strip the extension so it doesn't end up in the title.
     const slug = rawSlug.replace(/\.(html?|php|aspx?)$/i, '');
     return slug
       .replace(/[-_]+/g, ' ')
@@ -33,7 +37,8 @@ function titleFromSlug(url) {
   } catch { return url; }
 }
 
-// Extracts <url>...</url> blocks from a sitemap urlset, pulling loc/lastmod/ first image.
+// Pulls the <url> blocks out of a sitemap urlset: loc, lastmod and the first image. A regex is enough for this simple,
+// regular format and avoids adding an XML dependency just for this.
 function parseUrlset(xml) {
   const entries = [];
   const blocks = xml.match(/<url>[\s\S]*?<\/url>/g) || [];
@@ -47,7 +52,10 @@ function parseUrlset(xml) {
   return entries;
 }
 
-// Some blogs' sitemaps carry non-recipe alternate versions of the same post as their own indexable URLs.
+// Some sitemaps list alternate versions of a post as their own URLs: AMP Web Stories (/web-stories/), video pages
+// (/videos/), and on multilingual blogs like Hebbars Kitchen the same recipe under a language path (/hi/, /kn/).
+// These aren't separate recipes, and URL-based dedup can't catch them because the URLs really are different.
+// Found by auditing the archive.
 const TAXONOMY_SEGMENTS = new Set([
   'cook-method', 'course', 'courses', 'cuisine', 'cuisines', 'diet', 'dietary', 'special-diet', 'ingredient',
   'season', 'occasion', 'category', 'tag', 'method', 'recipe-method', 'recipe-type', 'recipe-length',
@@ -68,7 +76,8 @@ function isAlternateFormatUrl(url) {
     if (/\/(web-stories|videos|newsletters)\//i.test(path)) return true;
     const segs = path.split('/').filter(Boolean);
     if (/^[a-z]{2}$/i.test(segs[0] || '')) return true; // language-code path prefix
-    // Exactly /taxonomy/term/ is the archive page itself (e.g.
+    // A path with exactly two segments, /taxonomy/term/, is an archive page (e.g. /diet/keto/). Some blogs (Jo Cooks) also use a
+    // taxonomy word inside real recipe permalinks (/course/desserts-2/some-actual-recipe/). Those have a third segment, so they pass.
     if (segs.length === 2 && TAXONOMY_SEGMENTS.has(segs[0].toLowerCase())) return true;
     return false;
   } catch { return false; }
@@ -121,7 +130,9 @@ function cleanExcerpt(html) {
   return wellFormed(Array.from(text).slice(0, 220).join(''));
 }
 
-// Substack newsletters have no WordPress API, but a public archive endpoint returns each post's real title, subtitle.
+// Substack newsletters have no WordPress API, but a public archive endpoint gives each post's title, subtitle, cover image,
+// date, type and whether it's free or paid. Podcasts, threads and videos are skipped, since they're never recipes.
+// The first page returns about 23 posts (pinned ones are separate), then 50 at a time. Stop at an empty page.
 const NEWSLETTER_NON_RECIPE = [
   /^so\s+into\s+that\b/i, /\bmeal\s+plan\b/i, /\b(gift|holiday)\s+guides?\b/i, /\bstocking\s+stuffers?\b/i,
   /\b(favorites|faves)\b/i, /\bsubstack\s+live\b/i, /^ask\s+me\b/i, /\bq\s*&\s*a\b/i, /\bsexy\s+things\b/i,
@@ -163,7 +174,9 @@ async function enrichFromSubstack(blog) {
       if (!url || !itemBelongsToFeed(blog.feed, url)) continue;
       const title = wellFormed(decodeHtml(stripTags(p.title)).replace(/\s+/g, ' ').trim());
       if (!title || NEWSLETTER_NON_RECIPE.some(r => r.test(title))) continue;
-      // Newsletter titles are editorial ("Never Settle for Boring Ground Beef Again"), so the generic title rules wrongly drop.
+      // Newsletter titles are editorial ("Never Settle for Boring Ground Beef Again"), so the usual title rules wrongly drop real
+      // recipes. Ask the post itself instead. A free post's whole body is public, so it's a recipe only if it has an
+      // Ingredients list. For paid posts the public part is cut off, so use the title rules there (or if the fetch fails).
       const detail = await fetchSubstackBody(origin, p.slug);
       const hasIngredients = !!detail && /ingredients/i.test(stripTags(detail)) && /<li/i.test(detail);
       const bodyIsComplete = !!detail && p.audience === 'everyone';
@@ -359,7 +372,8 @@ function isSitemapIndex(xml) {
   return /<sitemapindex/i.test(xml);
 }
 
-// Child sitemap filenames worth walking — post/recipe content only.
+// Child sitemap filenames worth walking: post and recipe content only. Skips page, category, author and tag sitemaps,
+// which never contain individual posts.
 function isPostSitemap(loc) {
   return /post-sitemap|recipe-sitemap|sitemap-posts?-post|blog-sitemap/i.test(loc)
     || !/page-sitemap|category-sitemap|author-sitemap|tag-sitemap|product-sitemap|attachment-sitemap/i.test(loc);
@@ -378,7 +392,8 @@ async function discoverSitemapUrls(blog) {
   return null;
 }
 
-// Turso batches are sent as one round-trip, but very large batches (a busy blog's sitemap file can hold 700+ URLs) are.
+// A Turso batch goes out as one round trip, but very large ones (a busy blog's sitemap file can hold 700+ URLs) are
+// split into chunks to stay well under any single-batch size limit.
 const BATCH_CHUNK_SIZE = 200;
 
 async function crawlBlog(blog) {
@@ -429,7 +444,10 @@ async function crawlBlog(blog) {
   return { blog: blog.name, count: total, status: 'ok' };
 }
 
-// Blogs used to be crawled one at a time.
+// Blogs used to be crawled one at a time. At 121 blogs, a few slow or hanging hosts (each retrying up to 3 sitemap URLs at
+// a 15s timeout, then more child sitemaps at 15s each) were enough to blow the GitHub Action's 90-minute budget. The run
+// always started again from blog #0, so it never reached blogs past about #50. Blogs are on different hosts, so crawling
+// several at once doesn't hammer any one site, and the per-blog DELAY_BETWEEN_REQUESTS pause still applies within a blog.
 const CONCURRENCY = 8;
 
 async function crawlPool(targets, { restOnly = false } = {}) {
@@ -439,7 +457,8 @@ async function crawlPool(targets, { restOnly = false } = {}) {
     while (idx < targets.length) {
       const i = idx++;
       const blog = targets[i];
-      // REST first.
+      // REST first. It supplies the real titles, excerpts and categories, and once a blog has REST data the sitemap pass only
+      // fills in images (see crawlBlog), so the order decides whether sitemap-only junk gets inserted.
       let rest;
       try {
         rest = blog.searchOnly ? { status: 'skipped', count: 0 } : await enrichFromRest(blog);
@@ -461,7 +480,8 @@ async function crawlPool(targets, { restOnly = false } = {}) {
   return results;
 }
 
-// Quiet blogs are kept on purpose; a blog is only treated as gone when its feed 404s/410s or its domain stops resolving.
+// Quiet blogs are kept on purpose. A blog only counts as gone when its feed returns 404 or 410, or its domain stops
+// resolving. Bot blocks (403), timeouts and 5xx errors don't count, since those are temporary or someone else's policy.
 async function checkBlogsAlive(blogs) {
   const dead = [];
   let i = 0;
@@ -490,7 +510,8 @@ async function main() {
 
   const results = await crawlPool(targets, { restOnly });
 
-  // Only prune on a full, unfiltered run — a `node crawl-archive.js someBlog` partial run only looked at one blog and has.
+  // Only prune on a full, unfiltered run. A partial run like `node crawl-archive.js someBlog` only looked at one blog and
+  // has no business judging every other blog in the archive as removed.
   if (!filter) {
     const pruned = await pruneRemovedBlogs(BLOGS.map(b => b.name));
     if (pruned.length) console.log(`\nPruned ${pruned.length} blog(s) no longer in blogs.js: ${pruned.join(', ')}`);
@@ -513,7 +534,8 @@ async function main() {
   const restOk = results.filter(r => r.rest?.status === 'ok').length;
   const restEligible = results.filter(r => r.rest?.status !== 'skipped').length;
   console.log(`REST enrichment: ${restOk} blog(s) ok, ${results.length - restOk} unavailable/errored; ${results.reduce((a, r) => a + (r.rest?.count || 0), 0)} posts upserted.`);
-  // Runs from CI come from datacenter IPs that Cloudflare may challenge, which would make most blogs "unavailable" while.
+  // CI runs come from datacenter IPs that Cloudflare may challenge, which would make most blogs look unavailable while the
+  // job still showed green. If a full run couldn't reach most blogs, fail the job so someone notices.
   if (!filter && restOk < restEligible * 0.6) {
     console.error(`\nERROR: REST enrichment reached only ${restOk}/${restEligible} blogs (normally ~90 of 96). Likely bot-blocking of this runner's IP.`);
     process.exitCode = 1;

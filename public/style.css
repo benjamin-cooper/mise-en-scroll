@@ -198,7 +198,7 @@ ul, ol { padding-left: 1.25rem; }
 
 /* === Grid === */
 .grid-section { padding: 28px 0 60px; }
-/* Visually hidden but still announced by screen readers — used for headings
+/* Visually hidden but still announced by screen readers, used for headings
    that establish document structure (h1 > h2 > h3) without a visible
    duplicate of text already conveyed by the page's nav/layout. */
 .sr-only {
@@ -977,7 +977,7 @@ ul, ol { padding-left: 1.25rem; }
 }
 
 /* === Stream loading indicator === */
-/* Shown while the RSS stream is still fetching blogs — three bouncing dots     */
+/* Shown while the RSS stream is still fetching blogs, three bouncing dots     */
 /* that appear below the card grid so the user knows more recipes are coming.   */
 /* Disappears automatically once the stream finishes.                           */
 .stream-loading {
@@ -1078,7 +1078,7 @@ ul, ol { padding-left: 1.25rem; }
   .desktop-filters { display: none !important; }
 
   /* The search row (blog picker + search box + ingredient toggle) doesn't
-     fit on one line at phone widths — the two non-shrinking buttons were
+     fit on one line at phone widths, the two non-shrinking buttons were
      squeezing the search input down to ~80px, showing just the icon and
      the first letter of its placeholder. Put the search box on its own
      full-width row, with the two buttons sharing the row below it. */
@@ -1088,7 +1088,7 @@ ul, ol { padding-left: 1.25rem; }
   .blog-picker-btn { width: 100%; justify-content: center; }
   .ingredient-toggle { flex: 1; justify-content: center; }
 
-  /* Same overflow problem in the feed meta bar — "Updated…" text, the
+  /* Same overflow problem in the feed meta bar, "Updated…" text, the
      sort pills, and the refresh button all fought for one row, pushing
      Refresh feed off-screen entirely rather than wrapping. */
   .feed-meta-bar { flex-wrap: wrap; row-gap: 8px; }
@@ -1165,7 +1165,7 @@ ul, ol { padding-left: 1.25rem; }
   .header-logo span { font-size: 1rem; }
 
   /* Two-row header: logo + right-side controls on row 1, nav tabs on a
-     horizontally-scrollable strip below — the single-row layout was
+     horizontally-scrollable strip below: the single-row layout was
      squeezing the logo text down to nothing and wrapping it to 3 lines */
   .header { height: auto; padding: 10px 0; }
   .header .container { flex-wrap: wrap; row-gap: 8px; }
@@ -1260,7 +1260,7 @@ ul, ol { padding-left: 1.25rem; }
   margin-top: 2px;
 }
 
-/* "per serving" label — muted, no dot */
+/* "per serving" label: muted, no dot */
 .nutrition-chips .nutrition-per-serving {
   font-size: 0.75rem;
   color: var(--muted);

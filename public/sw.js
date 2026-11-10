@@ -35,7 +35,7 @@ self.addEventListener('fetch', (e) => {
 
   // API routes: network-first, fall back to cache for offline
   if (url.pathname.startsWith('/api/')) {
-    // SSE streams can't be cached — let them pass through
+    // SSE streams can't be cached, let them pass through
     if (url.pathname === '/api/recipes/stream' || url.pathname === '/api/search/stream') return;
     e.respondWith(
       fetch(request)

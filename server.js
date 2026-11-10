@@ -9,11 +9,13 @@ const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 const { BLOGS } = require('./blogs.js');
 
-// Identify ourselves truthfully when fetching recipe pages.
+// Identify ourselves honestly when fetching recipe pages. Posing as Chrome got about 40 blogs challenged by Cloudflare,
+// because a browser UA without a browser's TLS and JS fingerprint looks like a bot. An honest bot UA passes on sites
+// that don't block bots outright. Sites that block every bot stay blocked, and we don't try to get around that.
 const PAGE_FETCH_UA = 'MiseEnScrollBot/1.0 (+https://mise-en-scroll.onrender.com)';
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
-// Lazy — don't instantiate at startup so a missing key doesn't crash the server
+// Lazy: don't instantiate at startup so a missing key doesn't crash the server
 // Model for the two small AI features (ingredient search, shopping-list extraction).
 const AI_MODEL = 'claude-haiku-5-5';
 // Haiku 5.5 thinks by default; these two tasks don't need it.
@@ -28,7 +30,8 @@ const app = express();
 // Render terminates TLS in front of us: without this every visitor looks like
 // the proxy's address, so the per-IP rate limits were one shared bucket.
 app.set('trust proxy', 1);
-// Text (app.js 144KB, style.css 47KB, the 556KB recipe stream) was going out uncompressed.
+// Text (app.js 144KB, style.css 47KB, the 556KB recipe stream) used to go out uncompressed. Brotli/gzip shrinks it
+// about 5x, which is most of the first-load cost on a phone connection.
 app.use(compression());
 const parser = new RSSParser({
   customFields: {
@@ -43,13 +46,16 @@ const parser = new RSSParser({
 
 app.use(express.json());
 
-// Rate limiting — protect paid API endpoints from abuse
+// Rate limiting: protect paid API endpoints from abuse
 const recipeLimit    = rateLimit({ windowMs: 60_000, max: 60,  standardHeaders: true, legacyHeaders: false });
-// Higher ceiling than recipeLimit.
+// Higher ceiling than recipeLimit. This is a cheap, cached lookup (see ogImageCache) that fires in bursts while you scroll
+// Archive results. Some blogs have no image on any post, so one page of results can trigger a dozen or more lookups
+// within a couple of seconds.
 const ogImageLimit   = rateLimit({ windowMs: 60_000, max: 240, standardHeaders: true, legacyHeaders: false });
 const searchLimit    = rateLimit({ windowMs: 60_000, max: 30,  standardHeaders: true, legacyHeaders: false });
 const nutritionLimit = rateLimit({ windowMs: 60_000, max: 15,  standardHeaders: true, legacyHeaders: false });
-// Archive endpoints run 2 Turso queries per request (results + COUNT) and were the only public endpoints with no limit.
+// Archive endpoints run 2 Turso queries per request (results and COUNT) and were the only public endpoints with no limit.
+// Normal use (chips, typing, infinite scroll) stays far below this.
 const archiveLimit   = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 const shoppingListLimit = rateLimit({ windowMs: 60_000, max: 15, standardHeaders: true, legacyHeaders: false });
 
@@ -89,7 +95,9 @@ function escapeHtml(str = '') {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Server-rendered per-recipe page.
+// Server-rendered page for one recipe. It injects title, OG and Twitter tags so shared links get a proper preview
+// (image, title, blog name), and the page works as its own shareable URL instead of a client-only hash route.
+// If the recipe isn't cached it serves the plain app shell. There is no live scrape here, so it stays fast under crawler load.
 app.get('/recipe', (req, res) => {
   const { url } = req.query;
   let recipe = null;
@@ -105,7 +113,8 @@ app.get('/recipe', (req, res) => {
     const title = `${escapeHtml(recipe.title)} · Mise en Scroll`;
     const desc = escapeHtml((recipe.excerpt || `A recipe from ${recipe.blog}, via Mise en Scroll.`).slice(0, 200));
     const pageUrl = `https://mise-en-scroll.onrender.com/recipe?url=${encodeURIComponent(recipe.url)}`;
-    // Canonical points at the ORIGINAL blog post, not this page — tells Google the source of truth lives there, so this.
+    // Canonical points at the original blog post, not this page. That tells Google the blog is the source, so this page
+    // never competes with (or outranks) the blog it credits.
     const meta = `<!--meta-start-->
   <link rel="canonical" href="${escapeHtml(recipe.url)}" />
   <meta name="description" content="${desc}" />
@@ -148,7 +157,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 
 // Domains that should never appear as recipe cards regardless of which feed
-// they come from — social media, brand sites, aggregators, kids' edu sites, etc.
+// they come from: social media, brand sites, aggregators, kids' edu sites, etc.
 const BLOCKED_LINK_DOMAINS = new Set([
   'lemon8-app.com', 'tiktok.com', 'instagram.com', 'facebook.com',
   'youtube.com', 'youtu.be', 'twitter.com', 'x.com', 'pinterest.com',
@@ -158,7 +167,7 @@ const BLOCKED_LINK_DOMAINS = new Set([
   'enchantedlearning.com', 'thedailymeal.com', 'thekitchn.com',
 ]);
 
-// Shared blogging platforms where subdomains are different sites — require
+// Shared blogging platforms where subdomains are different sites, require
 // an exact subdomain match, not just the root domain.
 const SHARED_PLATFORMS = new Set([
   'typepad.com', 'blogspot.com', 'wordpress.com',
@@ -216,13 +225,17 @@ function decodeHtml(str) {
     .trim();
 }
 
-// Strips WordPress's auto-appended "The post X appeared first on Y." from RSS excerpts.
+// Strips WordPress's "The post X appeared first on Y." line from RSS excerpts. Left in, the blog's own name
+// (say "Cookie and Kate") ends up in the search text and falsely matches unrelated category keywords
+// (Dessert's "cookie") on every post from that blog.
 function stripFeedBoilerplate(str) {
   if (!str) return str;
   return str.replace(/\s*the post .*? appeared first on .*?\.?\s*$/i, '').trim();
 }
 
-// Strips unresolved email-merge-tag query params (e.g.
+// Categories that bundle soup with salad or pasta ("Pasta & Soup", "Soup & Salad") are catch-all buckets. Filing a recipe
+// there says nothing about it being a soup (Sally's Baking Addiction puts pasta salads and mac and cheese under
+// "Pasta & Soup"). They're dropped wherever categories are collected, so chips never see them.
 const MIXED_BUCKET_CATEGORY = /\b(soups?|stews?)\b.*\b(salads?|pasta)\b|\b(salads?|pasta)\b.*\b(soups?|stews?)\b/i;
 function isMixedBucketCategory(c) { return MIXED_BUCKET_CATEGORY.test(String(c)); }
 
@@ -234,19 +247,28 @@ function lacksRequiredCategory(blog, categories) {
   return !categories.some(c => String(c).toLowerCase().trim() === want);
 }
 
+// Strips unresolved email-merge-tag query params (e.g. ?adt_ei=*|EMAIL|*) that some blogs' RSS feeds leak from their
+// email-campaign link tracking. The placeholder never gets filled in for RSS subscribers, so it ends up in the
+// permalink as written.
 function cleanRecipeUrl(link) {
   if (!link) return link;
   try {
     const u = new URL(link);
     for (const [k, v] of [...u.searchParams]) {
-      // Mail-merge placeholders, plus the tracking parameters feeds append (utm_* on 44 of 850 posts, adt_ei on 58).
+      // Removes mail-merge placeholders and the tracking parameters feeds append (utm_* on 44 of 850 posts, adt_ei on 58).
+      // Left in, the same recipe has two URLs, the feed's and the archive's clean one, and shows up twice.
       if (/\*\|.*\|\*|\{\{.*\}\}/.test(v) || /^(utm_.+|adt_ei|adt_eih|sh_kit|fbclid|gclid|mc_cid|mc_eid)$/i.test(k)) u.searchParams.delete(k);
     }
     return u.toString();
   } catch { return link; }
 }
 
-// Some feeds put junk in their image fields that looks valid enough to accept but fails to actually load as an <img> — a.
+// Some feeds put image URLs in their image fields that look valid but never load as an <img>: a YouTube or Vimeo embed
+// on a video post (seen on Easy and Delish), or a WordPress feed plugin bug that repeats the domain in the path
+// (Kevin Is Cooking: "keviniscooking.com/keviniscooking.com/wp-content/...", while the item's own <img> tag had the
+// right URL). The browser's onerror fallback then swaps in a placeholder without ever trying the OG-image backfill,
+// so the card stays blank. This repairs the repeated-domain case and rejects known non-image hosts. It returns null
+// instead of the bad URL so callers move on to the next source.
 function sanitizeImageUrl(url) {
   if (!url || typeof url !== 'string') return null;
   try {
@@ -261,7 +283,7 @@ function sanitizeImageUrl(url) {
 }
 
 function extractImage(item) {
-  // media:content — prefer largest
+  // media:content: prefer largest
   if (item.mediaContent) {
     const mcs = Array.isArray(item.mediaContent) ? item.mediaContent : [item.mediaContent];
     const candidates = mcs.filter(mc => mc?.$?.url).sort((a, b) => parseInt(b.$?.width || 0) - parseInt(a.$?.width || 0));
@@ -276,7 +298,8 @@ function extractImage(item) {
     if (clean) return clean;
   }
   const html = item.contentEncoded || item.content || '';
-  // JSON-LD Recipe schema — image field (string | object | array) Use matchAll to scan ALL <script> LD+JSON blocks — some.
+  // JSON-LD Recipe schema, image field (string, object or array). Scan every ld+json block, because some pages put
+  // breadcrumbs in the first block and the Recipe in a later one.
   for (const ldMatch of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
       const json = JSON.parse(ldMatch[1]);
@@ -306,7 +329,10 @@ function extractImage(item) {
     const clean = sanitizeImageUrl(item.enclosure.url);
     if (clean) return clean;
   }
-  // first <img> — a WordPress-embedded post thumbnail's own src is often a small 150-300px crop, but its srcset attribute.
+  // First <img>. A WordPress-embedded thumbnail's own src is often a small 150-300px crop, but its srcset usually lists a
+  // much larger version at the same path. Check that before falling back to width-gating the plain src. Without this we were
+  // discarding usable thumbnails for any feed that only embeds a small one (Wholesome Yum, Downshiftology,
+  // Immaculate Bites and about 30 other blogs).
   const imgTagMatches = [...html.matchAll(/<img[^>]+>/gi)];
   for (const tag of imgTagMatches) {
     const srcMatch = tag[0].match(/\ssrc=["']([^"']+)["']/);
@@ -345,7 +371,7 @@ function parseISO8601Duration(str) {
 }
 
 const ROUNDUP_PATTERNS = [
-  /^\d{2,}\s+(best|top|easy|quick|simple|delicious|healthy|amazing|must-?try|perfect|great|tasty|favorite|cozy|festive|holiday|budget|copycat|leftover|make-ahead|weeknight|seasonal)\b/i, // "14 Best...", "25 Easy..." — not "1 Pan", "2 Pound"
+  /^\d{2,}\s+(best|top|easy|quick|simple|delicious|healthy|amazing|must-?try|perfect|great|tasty|favorite|cozy|festive|holiday|budget|copycat|leftover|make-ahead|weeknight|seasonal)\b/i, // "14 Best...", "25 Easy...": not "1 Pan", "2 Pound"
   /\b(best|top)\s+\d+\b/i,               // "Best 10 Recipes"
   /\bround.?up\b/i,
   /\bmeal\s+plan\b/i,
@@ -375,11 +401,12 @@ const ROUNDUP_PATTERNS = [
   /\b(travel|trip|visit)\s+to\b/i,
   /\brecap\b/i,
   /\bnewsletter\b/i,
-  /\(plus\s+(the|my|our|some|more|other|all|\d+)\b/i,   // "(Plus the Sides I Always Bring With Them)" — not "(Plus VIDEO)"
-  // "The Best Potato Salads", "The Best Weeknight Dinners" — only when the plural is a generic category word.
+  /\(plus\s+(the|my|our|some|more|other|all|\d+)\b/i,   // "(Plus the Sides I Always Bring With Them)": not "(Plus VIDEO)"
+  // "The Best Potato Salads", "The Best Weeknight Dinners": only when the plural is a generic category word. A specific food
+  // ("The Best Chocolate Chip Cookies", "The Best Birria Tacos") is a real recipe.
   /\bthe\s+best\s+(?:\w+\s+){0,3}(recipes|desserts|dinners|meals|dishes|ideas|sides|appetizers|snacks|breakfasts|lunches|salads|soups|cocktails|drinks|gifts|books|treats|casseroles|foods)\b/i,
   /\btested\s+by\s+experts?\b/i,                      // "Tested By Experts"
-  /\(20\d\d\)/,                                       // "(2026)" — gear/product roundups with year
+  /\(20\d\d\)/,                                       // "(2026)": gear/product roundups with year
   /\bfor\s+\w+,\s*\w+.*?,\s*and\b/i,                 // "for Picnics, Potlucks, and Meal Prep"
   // ("best" deliberately not in these: "The Best One Pot Pasta" and "Best Crockpot
   // Beef Bourguignon" are recipes, not gear roundups)
@@ -395,7 +422,7 @@ const ROUNDUP_PATTERNS = [
   /\b(every|all)\s+\w+\s+(need|should|must)\b/i,          // "Every Cook Needs This"
   /\bwhy\s+(i|we|you)\s+(love|make|always)\b/i,           // "Why I Always Have This"
   /\b(obsessed|addicted)\s+with\b/i,                      // lifestyle post style
-  /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\s+(?:\w+\s+){0,3}(dishes|recipes|meals|dinners|desserts|appetizers|snacks|ideas|sides|cocktails|drinks)\b/i, // "My Go-To Dinner Party Dishes" — not "My Go-To Cheese Ball"
+  /\bmy\s+(go.to|tried\s+and\s+true|all.time\s+favorite)\s+(?:\w+\s+){0,3}(dishes|recipes|meals|dinners|desserts|appetizers|snacks|ideas|sides|cocktails|drinks)\b/i, // "My Go-To Dinner Party Dishes": not "My Go-To Cheese Ball"
   /\bitinerary\b/i,                                    // travel posts ("My Dolomites Hiking Guide and Itinerary")
   /\bweeknight\s+(dinner\s+)?ideas?\b/i,                  // "Weeknight Dinner Ideas"
   /\b(spring|summer|fall|winter|autumn)\s+(recipes?|dinners?|meals?|produce|eats?)\b(?!.*:)/i, // "Spring Recipes" roundup (not "Spring Pasta: recipe")
@@ -422,7 +449,7 @@ const ROUNDUP_PATTERNS = [
   /\bbehind.the.scenes\b/i,                                             // "A Behind-the-Scenes Look at..."
   /\bbar\s+program\b/i,                                                 // "Chicago's Most Exciting New Bar Program"
   /^i\s+finally\b/i,                                                    // "I Finally Stopped Using K-Cups..."
-  /\bvol\.?\s*\d+\b/i,                                                  // "A Week In The Life, Vol 14." — recurring series
+  /\bvol\.?\s*\d+\b/i,                                                  // "A Week In The Life, Vol 14.": recurring series
   /\bweek\s+in\s+(my\s+|the\s+)?life\b/i,                              // "A Week In The Life"
   /\bday\s+in\s+(my\s+|the\s+)?life\b/i,                               // "A Day In The Life"
   /\b(brilliant|genius|clever)\s+(find|hack|trick|solution|discovery)\b/i, // "Thanks to This Brilliant Find"
@@ -450,7 +477,7 @@ const ROUNDUP_PATTERNS = [
   /^review\b/i,                                                         // title starts with "Review:"
   /\bthe\s+history\s+of\b/i,                                           // "The History of Bourbon"
   /\bguide\s+to\b/i,                                                   // "A Guide to Natural Wine"
-  // X vs Y comparisons — editorial, not a recipe title.
+  // X vs Y comparisons: editorial, not a recipe title.
   /\bvs\.?\s+\w+(?:\s+\w+){0,1}(?=\s*[?!:,]|\s*$)/i,               // "Tamari vs Soy Sauce", "Butter vs Oil: Which Is Better?"
   // Educational / tips (The Kitchn style)
   /\bthe\s+difference\s+between\b/i,                                   // "The Difference Between X and Y"
@@ -517,7 +544,7 @@ const ROUNDUP_PATTERNS = [
   /\ba\s+brief\s+report\b/i,                         // "A Brief Report from the Trenches"
   /\bfrom\s+the\s+trenches\b/i,
   /\ba\s+year\s+later\b/i,                           // "A Year Later: SNAP Update"
-  /\bbirthday\b(?!\s+(cake|cupcakes?|cookies?|brownies?|bars?|pie|tart|muffins?|blondies?|pudding|recipes?))/i, // "The Ice Book's Third Birthday" — but NOT "Birthday Cake Cookies"
+  /\bbirthday\b(?!\s+(cake|cupcakes?|cookies?|brownies?|bars?|pie|tart|muffins?|blondies?|pudding|recipes?))/i, // "The Ice Book's Third Birthday": but NOT "Birthday Cake Cookies"
   // Roundups with spelled-out numbers (e.g. "Five Glasses Defining Cocktail Bars Right Now")
   /^(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)\s+(best|top|easy|quick|great|simple|favorite|ways?|tips?|things?|ideas?|recipes?|dishes?|cocktails?|drinks?|glasses?|bottles?|wines?|bars?|restaurants?|spots?|places?)\b/i,
   // Press mention posts ("A Review of my X in [Publication]", "Title – Imbibe Magazine")
@@ -573,18 +600,22 @@ function normalizeCategories(item) {
   ).filter(Boolean);
 }
 
-// Categories that WordPress food blogs use for non-recipe posts (news, commentary, site announcements) rather than actual.
+// Categories WordPress food blogs use for non-recipe posts (news, commentary, site announcements) instead of dish or meal
+// tags. A real recipe is almost always tagged with something specific ("Date Night Recipes", "Easy Side Dishes"), so a post
+// tagged only with these generic labels is almost never a recipe.
 const NON_RECIPE_CATEGORIES = new Set([
   'blog', 'news', 'announcements', 'announcement', 'uncategorized',
   'opinion', 'editorial', 'press', 'press release', 'updates', 'update',
   'behind the scenes', 'life', 'personal', 'site news', 'community',
   'article', 'articles', 'culture', 'food culture & travel',
   'beyond the kitchen', 'tools', 'kitchen fundamentals',
-  // Travel/lifestyle/blogging-business categories.
+  // Travel, lifestyle and blogging-business categories. A post is only dropped when every one of its categories is in this
+  // set, so a recipe that also has a recipe category is never affected.
   'travel', 'dining & travel', 'life in italy', 'lifestyle', 'news and updates',
   'whining', 'meal plans', 'meal plan', 'making money from a food blog',
   'blogging', 'podcast', 'giveaway', 'giveaways',
-  // Roundup/list posts — reliably tagged as such even when the title itself doesn't match the ROUNDUP_PATTERNS regexes.
+  // Roundup and list posts. They are reliably tagged this way even when the title doesn't match the ROUNDUP_PATTERNS
+  // regexes below ("15 Homemade Condiments" or "8 Easy No-Bake Desserts" don't match the "over X" patterns).
   'round up', 'round-ups', 'roundup', 'roundups',
 ]);
 
@@ -599,20 +630,25 @@ function isRoundup(title = '', url = '', categories = []) {
       const segments = path.split('/').filter(Boolean);
       if (segments.length === 0) return true;                                        // homepage
       if (segments.some(s => /^(category|tag|tags|cuisine|blog|posts?|archive|newsletters)$/i.test(s))) return true; // category/tag path
-      // Bare index pages like /recipes/ or /recipe/ (the whole path, not an intermediate segment — some blogs legitimately use.
+      // Bare index pages like /recipes/ or /recipe/ (the whole path, not a middle segment). Some blogs use /recipe/<slug>/ for
+      // real posts, so only the single-segment case is safe to treat as an index page.
       if (segments.length === 1 && /^(all-)?recipes?(-index|-archive|-list)?$|^index$/i.test(segments[0])) return true;
-      // Plural only (/chicken-recipes/, /easy-dinners/).
+      // Plural only (/chicken-recipes/, /easy-dinners/). The singular ends a large share of real recipe slugs
+      // (/chocolate-chip-cookies-recipe/, /sheet-pan-dinner/) and was dropping about 7% of all posts.
       if (segments.length === 1 && /-(recipes|dinners|meals|ideas)$/.test(segments[0])) return true;
     } catch {}
   }
-  // Filter site-title style titles.
+  // Site-title style titles: "Blog Name | Tagline" or "Recipes | Site Name". Only when a segment is a known blog name or a
+  // generic label. A bare "has a pipe and the word recipe" test also matched ordinary titles like Hebbars Kitchen's
+  // "Veg Pakora Recipe | Crispy Mix Veg Pakoda" and dropped about 80% of that blog's posts.
   if (title.includes('|')) {
     const parts = title.split('|').map(t => t.trim().toLowerCase()).filter(Boolean);
     if (parts.some(t => BLOG_NAMES_LOWER.has(t)) || /^(home|recipes?|all recipes|blog)$/.test(parts[0] || '')) return true;
   }
   // Filter "Over 30 / More than X" roundup titles
   if (/^(over|more\s+than)\s+\d+/i.test(title)) return true;
-  // Filter posts tagged only with generic non-recipe categories (news, opinion pieces, site announcements — e.g.
+  // Posts tagged only with generic non-recipe categories (news, opinion, site announcements). "Uncategorized" says
+  // nothing either way (Bigger Bolder Baking tags every post that way), so it is ignored here.
   const informative = categories.filter(c => !/^uncategorized$/i.test(String(c).trim()));
   if (informative.length && informative.every(c => NON_RECIPE_CATEGORIES.has(c.toLowerCase().trim()))) return true;
   // Preppy Kitchen files its technique guides ("How To Frost Cupcakes") under "Academy"; real recipes never are.
@@ -639,7 +675,7 @@ function ingredientList(v) {
 
 // Fallback HTML scraper for common WordPress recipe plugins
 function scrapeRecipeHtml($) {
-  // WP Recipe Maker (wprm) — most common
+  // WP Recipe Maker (wprm): most common
   if ($('.wprm-recipe').length) {
     return {
       name: $('.wprm-recipe-name').text(),
@@ -671,7 +707,7 @@ function scrapeRecipeHtml($) {
       recipeInstructions: $('.mv-create-instructions li').map((_, el) => $(el).text().trim()).get(),
     };
   }
-  // Generic fallback — look for ingredient/instruction lists
+  // Generic fallback: look for ingredient/instruction lists
   const ingredients = $('[class*="ingredient"] li, [class*="ingredients"] li').map((_, el) => $(el).text().trim()).get();
   const instructions = $('[class*="instruction"] li, [class*="directions"] li, [class*="steps"] li').map((_, el) => $(el).text().trim()).get();
   if (ingredients.length || instructions.length) {
@@ -685,7 +721,10 @@ function scrapeRecipeHtml($) {
   return scrapeHeadingRecipe($);
 }
 
-// Last resort for blogs with no recipe plugin or schema (e.g.
+// Last resort for blogs with no recipe plugin or schema (Substack newsletters, for example): read the post body by its
+// headings. It looks for an "Ingredients" heading followed by list items, then a "Preparation", "Instructions",
+// "Directions" or "Method" heading followed by steps. It is strict on purpose (at least 3 ingredients and 2 steps)
+// so an ordinary article that mentions ingredients is never mistaken for a recipe.
 function scrapeHeadingRecipe($) {
   const root = $('.available-content, .body.markup, article, .post-content').first();
   const scope = root.length ? root : $('body');
@@ -752,7 +791,9 @@ function scrapeHeadingRecipe($) {
       else steps.push(text);
     }
   }
-  // Newsletters often publish the ingredients free and put the whole method behind a paywall (zero public steps, or one.
+  // Newsletters often publish the ingredients for free and put the whole method behind a paywall (no public steps, or one
+  // teaser). Accept that. The ingredient list is public (it's in the free RSS feed too), and flag it so the UI can say
+  // the method is paid.
   const paywalled = /this post is for (paid|paying) subscribers|continue reading this post for free/i.test(scope.text());
   if (ingredients.length < 3 || (!paywalled && steps.length < 2)) return null;
 
@@ -792,7 +833,7 @@ app.get('/api/blogs', (req, res) => {
 });
 
 // --- Archive (sitemap-crawled, full blog history, hosted on Turso) ---
-// Populated by crawl-archive.js, not by this server — this only reads it.
+// Populated by crawl-archive.js, not by this server, which only reads it.
 // Archive entries only carry title/image/date/blog (sitemaps don't expose
 // excerpts or categories), so they support browsing and title search but
 // not the rich cuisine/dietary/method filters RSS-derived recipes support.
@@ -826,7 +867,11 @@ app.get('/api/archive', archiveLimit, async (req, res) => {
   }
 });
 
-// Accepts any mix of.
+// Accepts any mix of q (typed keywords), groups (JSON: one array of keywords per active filter category, OR within a
+// category and AND across categories) and blog. Each group says which text it matches: title and categories only for
+// meal, protein and cuisine (an excerpt saying "serve with a bowl of soup" shouldn't make a focaccia a soup), or the
+// excerpt too for method, time and dietary, where it describes the dish. Rows from blogs without a REST API only have
+// a title, so they match on that alone.
 const quoteFts = t => `"${String(t).replace(/"/g, '""')}"`;
 
 app.get('/api/archive/search', archiveLimit, async (req, res) => {
@@ -854,7 +899,7 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const offset = (page - 1) * ARCHIVE_PAGE_SIZE;
 
-  // FTS5 query syntax treats punctuation specially — quote every term so a
+  // FTS5 query syntax treats punctuation specially, quote every term so a
   // plain "chicken tikka" search doesn't 500.
   const parts = [];
   if (q) parts.push(q.split(/\s+/).filter(Boolean).map(quoteFts).join(' AND '));
@@ -874,7 +919,10 @@ app.get('/api/archive/search', archiveLimit, async (req, res) => {
     params.push(parts.join(' AND '));
   }
   if (blog) { where.push('r.blog = ?'); params.push(blog); }
-  // With typed keywords, best match first (title hits outweigh excerpt and category hits); with chips/blog only there is no.
+  // With typed keywords, best match first (title hits outweigh excerpt and category hits). With only chips or a blog there
+  // is no real relevance, so newest first. r.id breaks ties: many posts share a date (or have none), and without a total
+  // order SQLite can return ties in a different order on each OFFSET page, repeating some rows and skipping others
+  // across infinite-scroll pages.
   const orderBy = q ? 'ORDER BY bm25(recipes_fts, 10.0, 2.0, 2.0, 1.0), r.id' : 'ORDER BY r.date IS NULL, r.date DESC, r.id';
 
   try {
@@ -905,11 +953,11 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Bump this any time a change requires old cached entries to be discarded.
 const CACHE_VERSION = 22;
 
-// OG image scrape cache — avoids re-fetching recipe pages on every search
+// OG image scrape cache: avoids re-fetching recipe pages on every search
 const ogImageCache = new Map(); // url → { img: string|null, at: number }
 const OG_IMAGE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
-// Serper search result cache — makes repeated / paginated searches instant
+// Serper search result cache: makes repeated / paginated searches instant
 const serperCache = new Map(); // `${q}:${page}` → { result, at: number }
 const SERPER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const CACHE_FILE = path.join(__dirname, '.feed-cache.json');
@@ -925,7 +973,9 @@ function persistFeedCache() {
   }, 2000);
 }
 
-// Load persisted cache on startup.
+// Load the saved cache on startup. Entries for blogs no longer in BLOGS (removed as inactive or bot-blocked) are dropped
+// instead of kept forever. feedCache.values() is read directly by /sitemap.xml, /recipe and the search image lookup,
+// and none of them re-check BLOGS, so a stale entry for a removed blog would otherwise never age out.
 try {
   const raw = fs.readFileSync(CACHE_FILE, 'utf8');
   const data = JSON.parse(raw);
@@ -961,7 +1011,10 @@ function extractCookTimeMinutes(item) {
   return null;
 }
 
-// RSS <category> elements mix a blog's curated categories with its free-form tags, and tags are mostly ingredients.
+// RSS <category> elements mix a blog's curated categories with its free-form tags, and tags are mostly ingredients
+// ("cream of mushroom soup", "chicken broth"), which made chips match dishes that merely contain an ingredient.
+// To keep only the curated ones, fetch the blog's category names from its WordPress REST API (one small request,
+// cached for a day). If the blog doesn't expose it we return null and the caller keeps everything, so nothing is lost.
 const curatedCategoryCache = new Map(); // blog name -> { names: Set|null, byId: Map|null, at }
 async function loadCategories(blog) {
   const hit = curatedCategoryCache.get(blog.name);
@@ -991,7 +1044,9 @@ async function loadCategories(blog) {
 }
 async function getCuratedCategories(blog) { return (await loadCategories(blog)).names; }
 
-// Safety net for a blog whose RSS feed can't be fetched (blocked from our server, a broken redirect such as Smitten.
+// Safety net for a blog whose RSS feed can't be fetched (blocked from our server, a broken redirect like Smitten Kitchen's
+// FeedBurner hop, a feed outage). It reads the latest posts from the WordPress REST API instead and returns the same
+// shape, so the blog doesn't vanish from the live feed. Throws if the blog has no usable API either.
 async function fetchBlogFeedViaRest(blog) {
   const origin = new URL(blog.feed).origin;
   const res = await fetch(`${origin}/wp-json/wp/v2/posts?per_page=30&_embed=wp:featuredmedia&_fields=link,title,excerpt,date_gmt,categories,_links,_embedded`, {
@@ -1041,7 +1096,9 @@ async function fetchBlogFeed(blog) {
 
   let feed;
   try {
-    // Fetch manually (rather than parser.parseURL) so undici auto-decompresses gzip/br responses — some CDNs (e.g.
+    // Fetch by hand instead of parser.parseURL so undici decompresses gzip/br responses. Some CDNs (Forks Over Knives) force
+    // compression whatever Accept-Encoding says, and rss-parser's raw http.get can't handle that. Use rss-parser's own
+    // default headers: some WAFs (Joy the Baker) allow the honest 'rss-parser' UA but block generic browser UAs.
     const res = await fetch(blog.feed, {
       headers: { 'User-Agent': 'rss-parser', 'Accept': 'application/rss+xml' },
       signal: AbortSignal.timeout(10000),
@@ -1061,7 +1118,12 @@ async function fetchBlogFeed(blog) {
     throw err; // re-throw so SSE handler logs it
   }
 
-  // Each recipe used to also carry a precomputed `searchText` (title + categories + up to 500 raw chars of the feed.
+  // Recipes used to carry a precomputed `searchText` (title, categories and up to 500 raw characters of the feed snippet).
+  // It was the biggest part of the first page load (about 1MB across ~1,800 recipes from 121 blogs) and mostly repeated the
+  // title, categories and excerpt we already send. The client now builds that string itself (see recipeSearchText in app.js).
+  // Some blogs (Budget Bytes does this often) republish a "refreshed" recipe under a new URL while the old post stays live,
+  // with the same title and pubDate but different links, so URL-based dedup can't catch it. The feed is newest first, so
+  // keep the first occurrence of a title within this blog's feed and drop later ones.
   const seenTitles = new Set();
   const curated = await getCuratedCategories(blog);
   const recipes = feed.items
@@ -1131,7 +1193,9 @@ app.get('/api/recipes/stream', async (req, res) => {
   if (!closed) res.end();
 });
 
-// Build an allowed-domain set from BLOGS for SSRF protection — computed once at startup Platforms where each customer is.
+// Build the set of domains /api/recipe may fetch (SSRF protection), once at startup. On platforms where each customer is
+// a subdomain, allow only that exact host, not the whole platform. Otherwise substack.com would let /api/recipe fetch
+// any Substack site.
 const MULTI_TENANT_ROOTS = new Set(['substack.com', 'blogspot.com', 'wordpress.com', 'medium.com', 'squarespace.com', 'wixsite.com', 'ghost.io']);
 const _allowedRecipeDomains = new Set(
   BLOGS.flatMap(b => {
@@ -1143,7 +1207,8 @@ const _allowedRecipeDomains = new Set(
   })
 );
 
-// Looks up a post's full content in its blog's own RSS feed.
+// Looks up a post's full content in its blog's own RSS feed. Used when the post page itself is behind a bot challenge.
+// Some blogs (Damn Delicious) publish the whole post, recipe card included, in the feed they offer to readers like us.
 async function fetchFeedItemHtml(pageUrl) {
   const target = new URL(pageUrl);
   const root = target.hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
@@ -1272,7 +1337,8 @@ app.get('/api/recipe', recipeLimit, async (req, res) => {
   }
 });
 
-// Fetch og:image from a recipe page — streams the response body and aborts as soon as we've seen </head>, so we only.
+// Fetch og:image from a recipe page. It streams the response and stops as soon as the tag appears, so we download
+// only the start of the page (about 5-20 KB) instead of all of it (100-500 KB). Results are cached for OG_IMAGE_TTL.
 const OG_IMAGE_RE_A = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/;
 const OG_IMAGE_RE_B = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/;
 
@@ -1292,7 +1358,8 @@ async function fetchOgImage(url) {
       const { done, value } = await reader.read();
       if (done) break;
       html += dec.decode(value, { stream: true });
-      // Stop as soon as the tag shows up.
+      // Stop as soon as the tag shows up. Waiting for </head> is too slow on sites with a huge <head> (Cooking with Ria's is
+      // about 166KB, with og:image at roughly byte 41K), which blew the 5s timeout and left those cards without images.
       if (OG_IMAGE_RE_A.test(html) || OG_IMAGE_RE_B.test(html) || html.includes('</head>') || html.includes('<body')) { reader.cancel(); break; }
     }
     const m = html.match(OG_IMAGE_RE_A) || html.match(OG_IMAGE_RE_B);
@@ -1303,7 +1370,7 @@ async function fetchOgImage(url) {
   return img;
 }
 
-// Shared Serper search helper — used by /api/search, /api/search/stream, and /api/ingredient-search
+// Shared Serper search helper: used by /api/search, /api/search/stream, and /api/ingredient-search
 // onChunk: optional callback called with each chunk's results as they resolve (streaming mode)
 async function runSerperSearch(q, page, { onChunk } = {}) {
   const cacheKey = `${q}:${page}`;
@@ -1391,7 +1458,7 @@ async function runSerperSearch(q, page, { onChunk } = {}) {
         id: Buffer.from(item.link).toString('base64'),
         title: cleanTitle,
         url: item.link,
-        // Use RSS feed cache or OG image cache — no blocking fetch for search results
+        // Use RSS feed cache or OG image cache, no blocking fetch for search results
         image: cacheImageMap.get(item.link) || ogImageCache.get(item.link)?.img || null,
         blog: blog?.name || item.displayLink || item.link,
         blogColor: blog?.color || '#888',
@@ -1434,7 +1501,7 @@ async function runSerperSearch(q, page, { onChunk } = {}) {
   return result;
 }
 
-// Serper keyword search — streaming SSE (primary path)
+// Serper keyword search: streaming SSE (primary path)
 app.get('/api/search/stream', searchLimit, async (req, res) => {
   const { q, page = 1 } = req.query;
   if (!q) return res.status(400).end();
@@ -1457,7 +1524,7 @@ app.get('/api/search/stream', searchLimit, async (req, res) => {
   res.end();
 });
 
-// Serper keyword search — batch JSON (kept for ingredient search compatibility)
+// Serper keyword search: batch JSON (kept for ingredient search compatibility)
 app.get('/api/search', searchLimit, async (req, res) => {
   const { q, page = 1 } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
@@ -1469,7 +1536,7 @@ app.get('/api/search', searchLimit, async (req, res) => {
   }
 });
 
-// Ingredient-based search — uses Claude to convert ingredients into search terms
+// Ingredient-based search: uses Claude to convert ingredients into search terms
 // --- Search by ingredients -------------------------------------------------
 // Matches the ingredient lists stored in the archive (recipes_ing, filled by crawl-archive.js
 // --ingredients) rather than titles. Claude only tidies the user's text into ingredient names.
@@ -1566,7 +1633,8 @@ app.get('/api/ingredient-search', searchLimit, async (req, res) => {
   }
 });
 
-// Freeform "here's my recipe, build a shopping list" — uses Claude to pull a clean ingredient list out of arbitrary.
+// Freeform "here's my recipe, build a shopping list". Claude pulls a clean ingredient list out of pasted recipe text,
+// which may have prose, instructions or ads mixed in with the ingredients.
 app.post('/api/shopping-list/extract', shoppingListLimit, async (req, res) => {
   const text = (req.body?.text || '').trim();
   if (!text) return res.status(400).json({ error: 'text is required' });
@@ -1612,7 +1680,7 @@ async function callCalorieNinjas(query, apiKey, retries = 1) {
   return r.json();
 }
 
-// CalorieNinjas Nutrition Analysis — calculates nutrition from ingredient strings
+// CalorieNinjas Nutrition Analysis: calculates nutrition from ingredient strings
 app.post('/api/nutrition', nutritionLimit, async (req, res) => {
   const { ingredients, servings } = req.body;
   if (!Array.isArray(ingredients) || !ingredients.length) {
@@ -1651,7 +1719,9 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       );
     }
 
-    // Strip parenthetical notes — "(drained)", "(+ ½ cup extra if needed)", "(divided)" These confuse CalorieNinjas without.
+    // Strip parenthetical notes like "(drained)", "(+ ½ cup extra if needed)" and "(divided)". They confuse CalorieNinjas and
+    // add nothing nutritionally. Nested parens like "(finely shredded (optional))" are handled by repeating until nothing
+    // changes, then removing any stray ( or ) left over.
     function stripParens(ing) {
       let s = ing;
       let prev;
@@ -1665,7 +1735,10 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       return ing.replace(/[½⅓⅔¼¾⅛⅜⅝⅞]/g, m => UNICODE_FRACS[m] || m);
     }
 
-    // Convert "1 and 1/2 teaspoons" → "1 1/2 teaspoons" so decimalFractions (and everything downstream, including the salt.
+    // Convert "1 and 1/2 teaspoons" to "1 1/2 teaspoons" so decimalFractions and everything after it (including the salt
+    // STRIP_PATTERNS below) can read the mixed number. Some blogs write out the "and". Without this, "1 and 1/2 tsp kosher salt"
+    // only gets its fraction converted ("1 and 0.5 tsp kosher salt"), which no longer matches the salt regex, so it reaches
+    // CalorieNinjas as unparseable text and produces wildly wrong sodium instead of being excluded like other salt lines.
     function normaliseAndFractions(ing) {
       return ing.replace(/\b(\d+)\s+and\s+(\d+\/\d+)\b/gi, '$1 $2');
     }
@@ -1679,7 +1752,12 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
           String(Math.round(+n / +d * 1000) / 1000));
     }
 
-    // Condiment bypass.
+    // Condiment bypass: work out nutrition directly from USDA per-100g values instead of sending to CalorieNinjas, whose
+    // condiment data has large errors (oyster sauce at 2,754mg Na/100g against about 1,300mg actual). This also avoids
+    // CalorieNinjas's decimal bug: "0.25 tsp dark soy sauce" is read as "25 tsp", so serving_size_g=400 and 21,615mg sodium.
+    // Calculating here means fractional condiment amounts never reach the API. g/tsp is density x 5ml, and a tablespoon is
+    // 3 tsp. This covers anything commonly measured in tsp or tbsp where CalorieNinjas has wrong values or mishandles
+    // fractional amounts.
     const CONDIMENT_G_PER_TSP = {
       // --- Soy / umami sauces ---
       'soy sauce': 6, 'light soy sauce': 6, 'dark soy sauce': 6,
@@ -1695,7 +1773,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       'ketchup': 5.7, 'mustard': 5, 'yellow mustard': 5, 'dijon mustard': 5,
       'tomato paste': 5.4, 'tomato sauce': 5,
       'bbq sauce': 6, 'teriyaki sauce': 6,
-      // --- Oils (all ~4.5g/tsp — density ~0.9g/ml × 5ml) ---
+      // --- Oils (all ~4.5g/tsp: density ~0.9g/ml × 5ml) ---
       'olive oil': 4.5, 'extra virgin olive oil': 4.5,
       'vegetable oil': 4.5, 'canola oil': 4.5, 'avocado oil': 4.5,
       'coconut oil': 4.5, 'grapeseed oil': 4.5, 'sunflower oil': 4.5,
@@ -1719,7 +1797,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       'mayonnaise': 4.7, 'mayo': 4.7,
     };
 
-    // Nutrition per 100g — USDA FoodData Central / standard references.
+    // Nutrition per 100g: USDA FoodData Central / standard references.
     const CONDIMENT_PER_100G = {
       // --- Soy / umami sauces ---
       'soy sauce':            { cal: 53,  pro: 8.1,  fat: 0.1, carb: 4.9,  fib: 0,   na: 5500 },
@@ -1804,7 +1882,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
     };
 
     // Convert condiment tsp/tbsp quantities to grams, then pull them OUT of the
-    // CalorieNinjas query entirely — nutrition is calculated directly from CONDIMENT_PER_100G.
+    // CalorieNinjas query entirely: nutrition is calculated directly from CONDIMENT_PER_100G.
     const syntheticCondimentItems = [];
     function normaliseCondimentTsp(ing) {
       return ing.replace(
@@ -1839,14 +1917,18 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       });
     }
 
-    // Strip trailing period from unit abbreviations so CalorieNinjas parses them correctly.
+    // Strip the trailing period from unit abbreviations so CalorieNinjas parses them: "28 oz. can tomatoes" becomes
+    // "28 oz can tomatoes". Without this "oz." isn't recognised and the leading number is read as a count of cans,
+    // a 28x overcount.
     function normaliseUnits(ing) {
       return ing
         .replace(/\b(oz|tbsp|tsp|cup|lb|lbs|g|ml)\./gi, '$1') // strip trailing period
         .replace(/\b(\d[\d\.]*\s*(?:oz|g|lb|lbs|pound|ounce|tbsp|tsp|cup|cups))\s+cans?\s+/gi, '$1 '); // "15 oz can beans" → "15 oz beans"
     }
 
-    // Convert "X cups <dense ingredient>" → "<grams>g <ingredient>" CalorieNinjas uses a food's standard serving size (often.
+    // Convert "X cups <dense ingredient>" to "<grams>g <ingredient>". CalorieNinjas uses a food's standard serving size
+    // (often 1 tbsp) whatever volume unit is given, so "1 cup mayonnaise" returns about 95 cal instead of about 1,440.
+    // Converting to grams skips the serving-size lookup.
     const CUP_GRAM_MAP = {
       // Fats & oils
       'mayonnaise': 232, 'mayo': 232,
@@ -1888,7 +1970,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
         const gPerCup = CUP_GRAM_MAP[key];
         if (gPerCup) return `${Math.round(q * gPerCup)}g ${food.trim()}`;
         // Fractional cups (< 1): CalorieNinjas misreads "0.5" as "5", so convert to
-        // tablespoons instead — whole-number tbsp quantities are parsed reliably.
+        // tablespoons instead: whole-number tbsp quantities are parsed reliably.
         if (q > 0 && q < 1) {
           const tbsp = Math.round(q * 16);
           return `${tbsp} tablespoons ${food.trim()}`;
@@ -1902,7 +1984,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       return ing.replace(/(\d[\d\s\/]*\s+\w+)\s*\+\s*[\d\s\/]+\s+\w+/g, '$1');
     }
 
-    // Strip "or X" alternative ingredients — keep only the first option
+    // Strip "or X" alternative ingredients: keep only the first option
     function stripOrAlternative(ing) {
       return ing.replace(/\s*,?\s+or\s+.+$/i, '');
     }
@@ -1914,14 +1996,14 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
 
     // Strip ingredients CalorieNinjas can't reliably calculate.
     const STRIP_PATTERNS = [
-      // All plain salt — any quantity, any type (but NOT celery/garlic/onion salt)
+      // All plain salt: any quantity, any type (but NOT celery/garlic/onion salt)
       /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?|cups?)?\s*(?:kosher\s+|sea\s+|coarse\s+|table\s+|iodized\s+|pink\s+|fine\s+)?salt$/i,
       // Salt-and-pepper combos
       /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)?\s*salt\s+and\s+(black\s+)?pepper$/i,
       // All black / white / ground pepper (any quantity)
       /\b(?:black|white|freshly\s+ground)\s+pepper\b/i,
       /^[\d\.\s]*(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)?\s*(?:freshly\s+)?ground\s+pepper$/i,
-      // Baking soda & baking powder — very high sodium per 100g (~27,360mg and ~10,000mg).
+      // Baking soda & baking powder, very high sodium per 100g (~27,360mg and ~10,000mg).
       /\bbaking\s+soda\b/i,
       /\bbaking\s+powder\b/i,
       // Vague / unquantified seasonings
@@ -1929,7 +2011,10 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       /\bas\s+needed$/i,
       /\bas\s+desired$/i,
       /^(a\s+)?(pinch|dash|drizzle|splash|handful)\b/i,
-      // Fractional tsp/tbsp of non-condiment spices/flavourings — CalorieNinjas strips the leading "0." and reads "0.25 tsp.
+      // Fractional tsp or tbsp of non-condiment spices and flavourings. CalorieNinjas drops the leading "0." and reads
+      // "0.25 tsp cumin" as "25 tsp cumin", a huge overcount. Known condiments (soy sauce, fish sauce, oils) are already
+      // handled by CONDIMENT_PER_100G before this filter. What's left is trace spices (cumin, paprika, cayenne, cinnamon)
+      // with negligible nutrition.
       /^0\.\d+\s+(?:tsp\.?|teaspoons?|tbsp\.?|tablespoons?)\s+/i,
     ];
 
@@ -1979,7 +2064,11 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
     const rawItems = data.items || [];
     if (!rawItems.length) return res.json({ nutrition: null });
 
-    // Scale items where CalorieNinjas used the wrong quantity, and discard phantom duplicates that CalorieNinjas synthesises.
+    // Scale items where CalorieNinjas used the wrong quantity, and discard phantom duplicates it makes up from complex
+    // ingredient strings. Example: "12 oz fresh thick rice noodles wide dried rice noodles" returns two "rice noodles" items
+    // (a 340g match and a phantom 100g one). We have one gramIntentList entry for rice noodles, so once the first item uses
+    // it the second has no match, and since rice noodles is in gramIntentList we know the second is spurious and drop it.
+    // This applies to any food in gramIntentList that CalorieNinjas returns more times than we have entries for.
     const SCALE_THRESHOLD = 1.5;
     const usedIntentIndices = new Set();
     const matchedRawItemIndices = new Set();
@@ -2010,8 +2099,8 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
       }
       return item;
     }).filter((item, rawIdx) => {
-      // Drop unmatched items whose food name we had an explicit intent for — they are
-      // phantom entries CalorieNinjas generated by misreading the ingredient string.
+      // Drop unmatched items whose food name we had an explicit intent for. They are
+      // phantom entries CalorieNinjas made up by misreading the ingredient string.
       const key = item.name.toLowerCase().trim();
       if (intentFoods.has(key) && !matchedRawItemIndices.has(rawIdx)) return false;
       return true;
@@ -2023,7 +2112,7 @@ app.post('/api/nutrition', nutritionLimit, async (req, res) => {
     // Sum totals across all ingredient items
     const sum = (key) => allItems.reduce((acc, item) => acc + (item[key] || 0), 0);
 
-    // Parse servings robustly — "Serves 6", "6 servings", "8", etc.
+    // Parse servings robustly: "Serves 6", "6 servings", "8", etc.
     const yld = (() => {
       if (!servings) return null;
       const n = parseInt(String(servings).match(/\d+/)?.[0]);
@@ -2065,7 +2154,7 @@ if (require.main === module) {
   });
 }
 
-// Exported for reuse by the standalone archive crawler (crawl-archive.js) —
+// Exported for reuse by the standalone archive crawler (crawl-archive.js) -
 // same post-vs-roundup and same-blog-domain filtering logic, no duplication.
 module.exports = {
   isRoundup, lacksRequiredCategory, scrapeRecipeHtml, ingredientList, flattenInstructions, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, normalizeCategories, isMixedBucketCategory, fetchBlogFeed, fetchBlogFeedViaRest,

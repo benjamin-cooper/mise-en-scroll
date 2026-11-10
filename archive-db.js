@@ -1,4 +1,6 @@
-// SQLite (via Turso/libSQL) archive of every recipe we can find via each blog's sitemap, going far beyond what each.
+// SQLite archive (hosted on Turso/libSQL) of every recipe we can find through each blog's sitemap. RSS only lists the
+// newest 5 to 20 posts, while sitemaps cover the whole history. It lives on Turso instead of a local file so it survives
+// Render's ephemeral disk, and local crawls and the deployed server read and write the same database.
 const { createClient } = require('@libsql/client');
 
 const client = createClient({
@@ -6,7 +8,8 @@ const client = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// The FTS index covers title + blog + excerpt + categories.
+// The FTS index covers title, blog, excerpt, categories and tags. Excerpt and categories come from each blog's WordPress
+// REST API (see crawl-archive.js). A sitemap only gives a URL, so the title is a guess from the slug.
 const FTS_STATEMENTS = [
   `CREATE VIRTUAL TABLE IF NOT EXISTS recipes_fts USING fts5(
     title, blog, excerpt, categories, tags, content='recipes', content_rowid='id'
@@ -23,7 +26,8 @@ const FTS_STATEMENTS = [
   END`,
 ];
 
-// Upgrades a database created before excerpt/categories existed.
+// Upgrades a database created before excerpt and categories existed. Safe to run repeatedly. An FTS table can't be altered,
+// so it and its triggers are dropped and rebuilt from the recipes table in one batch.
 async function migrateEnrichmentColumns() {
   const cols = (await client.execute('PRAGMA table_info(recipes)')).rows.map(r => r.name);
   if (!cols.includes('excerpt')) {
@@ -40,7 +44,9 @@ async function migrateEnrichmentColumns() {
       `INSERT INTO recipes_fts(recipes_fts) VALUES('rebuild')`,
     ], 'write');
   }
-  // Tags are stored apart from categories.
+  // Tags are kept apart from categories. Blogs use tags for ingredients ("cream of mushroom soup", "chicken broth"), which made
+  // filter chips match dishes that merely contain an ingredient. Categories drive the chips, and tags are only searched by
+  // typed query. The FTS table is rebuilt for this too.
   const cols2 = (await client.execute('PRAGMA table_info(recipes)')).rows.map(r => r.name);
   if (!cols2.includes('tags')) {
     await client.batch([
@@ -53,7 +59,9 @@ async function migrateEnrichmentColumns() {
       `INSERT INTO recipes_fts(recipes_fts) VALUES('rebuild')`,
     ], 'write');
   }
-  // Ingredient lists (from each recipe card) power "search by ingredients".
+  // Ingredient lists (read from each recipe card) power search by ingredients. They get their own FTS table so the main
+  // title and excerpt index and its ranking stay as they were. NULL means not looked at yet, and '' means the page was
+  // checked and has no ingredient list.
   const cols3 = (await client.execute('PRAGMA table_info(recipes)')).rows.map(r => r.name);
   if (!cols3.includes('ingredients')) await client.execute('ALTER TABLE recipes ADD COLUMN ingredients TEXT');
   const au = (await client.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='recipes_au'")).rows[0];
@@ -125,7 +133,8 @@ async function upsertRecipe({ url, blog, blog_color, title, image, date }) {
   });
 }
 
-// Batched version — the crawler processes hundreds of URLs per sitemap file; one client.execute() per row would mean one.
+// Batched version. The crawler handles hundreds of URLs per sitemap file, and one round trip per recipe would take far too
+// long at this size. client.batch() sends them all in one round trip.
 async function batchUpsertRecipes(recipes) {
   await ready;
   if (!recipes.length) return;
@@ -154,7 +163,8 @@ async function setCrawlState({ blog, last_crawled_at, url_count, status }) {
   });
 }
 
-// Upserts rows sourced from a blog's WordPress REST API.
+// Upserts rows from a blog's WordPress REST API, which has the real title, excerpt, categories and publish date.
+// Sets rest=1 so later sitemap crawls, which only know a slug title and a lastmod, don't overwrite them.
 async function batchUpsertRestRecipes(rows) {
   await ready;
   if (!rows.length) return;
@@ -173,7 +183,9 @@ async function batchUpsertRestRecipes(rows) {
   })), 'write');
 }
 
-// For blogs whose posts come from the REST API, the sitemap is only useful for the <image:loc> thumbnails REST doesn't.
+// For blogs whose posts come from the REST API, the sitemap is only useful for the <image:loc> thumbnails REST doesn't give.
+// This fills in a missing image on rows that already exist and never inserts, so pages REST skipped on purpose
+// (roundups, guides) can't creep back in.
 async function batchUpdateImages(rows) {
   await ready;
   if (!rows.length) return;
@@ -193,7 +205,7 @@ async function batchSetIngredients(rows) {
   })), 'write');
 }
 
-// Oldest still-unknown REST row and how many are unknown — lets the ingredient pass resume.
+// Oldest still-unknown REST row and how many are unknown, lets the ingredient pass resume.
 async function ingredientBacklog(blog) {
   await ready;
   const r = await client.execute({ sql: 'SELECT MIN(date) AS d, COUNT(*) AS n FROM recipes WHERE blog = ? AND ingredients IS NULL AND rest = 1 AND date IS NOT NULL', args: [blog] });
@@ -228,7 +240,8 @@ async function setRestSynced(blog, count) {
   });
 }
 
-// Deletes every archived recipe (and crawl_state row) for a blog that's no longer in blogs.js.
+// Deletes every archived recipe (and crawl_state row) for blogs no longer in blogs.js. Dropping a blog from the config only
+// stops future crawls. Its old rows would otherwise keep showing up in Archive browsing and keyword search.
 async function pruneRemovedBlogs(activeBlogNames) {
   await ready;
   const activeSet = new Set(activeBlogNames);

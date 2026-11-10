@@ -1,7 +1,7 @@
 name: Crawl recipe archive
 
 # Keeps the Turso archive DB current with newly-published posts across all
-# blogs. Safe to run repeatedly — crawl-archive.js upserts by URL.
+# blogs. Safe to run repeatedly, since crawl-archive.js upserts by URL.
 on:
   schedule:
     - cron: '0 6 * * 1' # every Monday at 06:00 UTC
