@@ -1,9 +1,4 @@
-// Standalone archive crawler — walks each blog's sitemap.xml to find its full
-// post history (RSS only exposes the last ~5-20 posts; sitemaps cover
-// everything). Run with: node crawl-archive.js [blogName substring]
-//
-// Safe to re-run: upserts by URL, so it's fine to stop and resume, or to
-// re-run periodically to pick up newly-published posts.
+// Standalone archive crawler — walks each blog's sitemap.xml to find its full post history (RSS only exposes the last.
 const { BLOGS } = require('./blogs.js');
 const cheerio = require('cheerio');
 const { isRoundup, lacksRequiredCategory, scrapeRecipeHtml, ingredientList, itemBelongsToFeed, cleanRecipeUrl, decodeHtml, isMixedBucketCategory } = require('./server.js');
@@ -21,16 +16,12 @@ async function fetchText(url) {
   return res.text();
 }
 
-// Turns a URL slug into a readable title as a fallback — sitemaps don't
-// carry post titles, only URL/lastmod/image. WordPress slugs are near-always
-// a direct slugification of the real title, so this is usually accurate.
+// Turns a URL slug into a readable title as a fallback — sitemaps don't carry post titles, only URL/lastmod/image.
 function titleFromSlug(url) {
   try {
     const path = new URL(url).pathname.replace(/\/+$/, '');
     const rawSlug = decodeURIComponent(path.split('/').filter(Boolean).pop() || '');
-    // Some sites' sitemaps include literal static pages (foo.html, foo.php)
-    // rather than clean WordPress-style directory slugs — strip the
-    // extension so it doesn't leak into the generated title.
+    // Some sites' sitemaps include literal static pages (foo.html, foo.php) rather than clean WordPress-style directory slugs.
     const slug = rawSlug.replace(/\.(html?|php|aspx?)$/i, '');
     return slug
       .replace(/[-_]+/g, ' ')
@@ -42,10 +33,7 @@ function titleFromSlug(url) {
   } catch { return url; }
 }
 
-// Extracts <url>...</url> blocks from a sitemap urlset, pulling loc/lastmod/
-// first image. Regex-based rather than a full XML parser — sitemap.xml is a
-// simple, regular format and this avoids adding an XML-namespace-aware
-// dependency just for this.
+// Extracts <url>...</url> blocks from a sitemap urlset, pulling loc/lastmod/ first image.
 function parseUrlset(xml) {
   const entries = [];
   const blocks = xml.match(/<url>[\s\S]*?<\/url>/g) || [];
@@ -59,29 +47,7 @@ function parseUrlset(xml) {
   return entries;
 }
 
-// Some blogs' sitemaps carry non-recipe alternate versions of the same post
-// as their own indexable URLs: AMP "Web Stories" summaries (/web-stories/…),
-// video-embed pages (/videos/…), and, for multilingual blogs (e.g. Hebbars
-// Kitchen), the identical recipe re-published under a language-code path
-// (/hi/…, /kn/…). None of these are a distinct recipe — they're the same
-// content under a different URL — but URL-based dedup elsewhere can't catch
-// them since the URLs are genuinely different. Confirmed by auditing the
-// archive DB: Hebbars Kitchen alone had every recipe tripled (English +
-// Hindi + Kannada paths), ~1,400 extra rows; six other blogs' /web-stories/
-// and /videos/ paths accounted for several hundred more.
-// WordPress custom-taxonomy archive pages (e.g. /diet/keto/, /occasion/
-// christmas/) sometimes end up in a "post" sitemap alongside real recipes —
-// isPostSitemap() below only filters by sitemap FILE name (category-sitemap,
-// tag-sitemap, etc.), so a taxonomy under a different name slips through as
-// an individual URL. These aren't recipes — they're listing pages with a
-// one-or-two-word derived title ("Keto", "Christmas") and no actual content.
-// Matched by an exact first-path-segment name, not a substring, so a real
-// recipe slug that happens to start with one of these words (unlikely, but
-// e.g. "diet-friendly-lasagna") is never affected.
-// Two-level /<base>/<term>/ URLs under these bases are listing/index pages, not
-// posts. Found by grouping unenriched archive rows by first path segment
-// (31 groups, ~660 rows). Deliberately NOT here: "recipes" — Wholesome Yum, Jo
-// Cooks and Once Upon a Chef keep real recipes at /recipes/<slug>/.
+// Some blogs' sitemaps carry non-recipe alternate versions of the same post as their own indexable URLs.
 const TAXONOMY_SEGMENTS = new Set([
   'cook-method', 'course', 'courses', 'cuisine', 'cuisines', 'diet', 'dietary', 'special-diet', 'ingredient',
   'season', 'occasion', 'category', 'tag', 'method', 'recipe-method', 'recipe-type', 'recipe-length',
@@ -102,10 +68,7 @@ function isAlternateFormatUrl(url) {
     if (/\/(web-stories|videos|newsletters)\//i.test(path)) return true;
     const segs = path.split('/').filter(Boolean);
     if (/^[a-z]{2}$/i.test(segs[0] || '')) return true; // language-code path prefix
-    // Exactly /taxonomy/term/ is the archive page itself (e.g. /diet/keto/).
-    // Some blogs (Jo Cooks) also use a taxonomy word as part of a REAL
-    // recipe's permalink (/course/desserts-2/some-actual-recipe/) — that has
-    // a 3rd segment, so it's excluded from this check on purpose.
+    // Exactly /taxonomy/term/ is the archive page itself (e.g.
     if (segs.length === 2 && TAXONOMY_SEGMENTS.has(segs[0].toLowerCase())) return true;
     return false;
   } catch { return false; }
@@ -158,12 +121,7 @@ function cleanExcerpt(html) {
   return wellFormed(Array.from(text).slice(0, 220).join(''));
 }
 
-// Substack newsletters have no WordPress API, but a public archive endpoint returns each
-// post's real title, subtitle, cover image, date, type and whether it's free or paid.
-// Podcasts, threads and videos are skipped (never recipes). Pages: the first returns
-// ~23 (pinned posts are separate), then 50 at a time; stop on an empty page.
-// Recurring series and lifestyle posts that are never a single recipe even when they happen
-// to include one. Applied before the ingredients check.
+// Substack newsletters have no WordPress API, but a public archive endpoint returns each post's real title, subtitle.
 const NEWSLETTER_NON_RECIPE = [
   /^so\s+into\s+that\b/i, /\bmeal\s+plan\b/i, /\b(gift|holiday)\s+guides?\b/i, /\bstocking\s+stuffers?\b/i,
   /\b(favorites|faves)\b/i, /\bsubstack\s+live\b/i, /^ask\s+me\b/i, /\bq\s*&\s*a\b/i, /\bsexy\s+things\b/i,
@@ -205,10 +163,7 @@ async function enrichFromSubstack(blog) {
       if (!url || !itemBelongsToFeed(blog.feed, url)) continue;
       const title = wellFormed(decodeHtml(stripTags(p.title)).replace(/\s+/g, ' ').trim());
       if (!title || NEWSLETTER_NON_RECIPE.some(r => r.test(title))) continue;
-      // Newsletter titles are editorial ("Never Settle for Boring Ground Beef Again"), so the
-      // generic title rules wrongly drop real recipes. Ask the post itself: a free post's whole
-      // body is public, so it is a recipe only if it has an Ingredients list. For paid posts the
-      // public part is cut off, so fall back to the title rules there (or if the fetch fails).
+      // Newsletter titles are editorial ("Never Settle for Boring Ground Beef Again"), so the generic title rules wrongly drop.
       const detail = await fetchSubstackBody(origin, p.slug);
       const hasIngredients = !!detail && /ingredients/i.test(stripTags(detail)) && /<li/i.test(detail);
       const bodyIsComplete = !!detail && p.audience === 'everyone';
@@ -404,9 +359,7 @@ function isSitemapIndex(xml) {
   return /<sitemapindex/i.test(xml);
 }
 
-// Child sitemap filenames worth walking — post/recipe content only. Skips
-// page-sitemap, category-sitemap, author-sitemap, tag-sitemap, etc., which
-// never contain individual post URLs.
+// Child sitemap filenames worth walking — post/recipe content only.
 function isPostSitemap(loc) {
   return /post-sitemap|recipe-sitemap|sitemap-posts?-post|blog-sitemap/i.test(loc)
     || !/page-sitemap|category-sitemap|author-sitemap|tag-sitemap|product-sitemap|attachment-sitemap/i.test(loc);
@@ -425,9 +378,7 @@ async function discoverSitemapUrls(blog) {
   return null;
 }
 
-// Turso batches are sent as one round-trip, but very large batches (a busy
-// blog's sitemap file can hold 700+ URLs) are chunked to stay comfortably
-// under any single-batch size limit.
+// Turso batches are sent as one round-trip, but very large batches (a busy blog's sitemap file can hold 700+ URLs) are.
 const BATCH_CHUNK_SIZE = 200;
 
 async function crawlBlog(blog) {
@@ -478,14 +429,7 @@ async function crawlBlog(blog) {
   return { blog: blog.name, count: total, status: 'ok' };
 }
 
-// Blogs used to be crawled one at a time. At 121 blogs, a handful of slow or
-// hanging hosts (each retrying up to 3 sitemap-discovery URLs at a 15s
-// timeout, then N child sitemaps at another 15s each) was enough to blow
-// past the GitHub Action's 90-minute budget — the run always started over
-// from blog #0, so it silently never reached blogs past roughly #50 every
-// single week. Different blogs are different hosts, so crawling several at
-// once doesn't hammer any one site — the per-blog DELAY_BETWEEN_REQUESTS
-// politeness pause still applies within a single blog's own sitemap fetches.
+// Blogs used to be crawled one at a time.
 const CONCURRENCY = 8;
 
 async function crawlPool(targets, { restOnly = false } = {}) {
@@ -495,9 +439,7 @@ async function crawlPool(targets, { restOnly = false } = {}) {
     while (idx < targets.length) {
       const i = idx++;
       const blog = targets[i];
-      // REST first: it supplies the real titles/excerpts/categories, and once a
-      // blog has REST data the sitemap pass only fills in images (see
-      // crawlBlog), so the order decides whether sitemap-only junk gets inserted.
+      // REST first.
       let rest;
       try {
         rest = blog.searchOnly ? { status: 'skipped', count: 0 } : await enrichFromRest(blog);
@@ -519,9 +461,7 @@ async function crawlPool(targets, { restOnly = false } = {}) {
   return results;
 }
 
-// Quiet blogs are kept on purpose; a blog is only treated as gone when its feed
-// 404s/410s or its domain stops resolving. Bot blocks (403), timeouts and 5xx
-// are NOT counted — those are transient or someone else's policy, not death.
+// Quiet blogs are kept on purpose; a blog is only treated as gone when its feed 404s/410s or its domain stops resolving.
 async function checkBlogsAlive(blogs) {
   const dead = [];
   let i = 0;
@@ -550,9 +490,7 @@ async function main() {
 
   const results = await crawlPool(targets, { restOnly });
 
-  // Only prune on a full, unfiltered run — a `node crawl-archive.js someBlog`
-  // partial run only looked at one blog and has no business judging every
-  // other blog in the archive as "removed".
+  // Only prune on a full, unfiltered run — a `node crawl-archive.js someBlog` partial run only looked at one blog and has.
   if (!filter) {
     const pruned = await pruneRemovedBlogs(BLOGS.map(b => b.name));
     if (pruned.length) console.log(`\nPruned ${pruned.length} blog(s) no longer in blogs.js: ${pruned.join(', ')}`);
@@ -575,9 +513,7 @@ async function main() {
   const restOk = results.filter(r => r.rest?.status === 'ok').length;
   const restEligible = results.filter(r => r.rest?.status !== 'skipped').length;
   console.log(`REST enrichment: ${restOk} blog(s) ok, ${results.length - restOk} unavailable/errored; ${results.reduce((a, r) => a + (r.rest?.count || 0), 0)} posts upserted.`);
-  // Runs from CI come from datacenter IPs that Cloudflare may challenge, which
-  // would make most blogs "unavailable" while the job still looked green. If a
-  // full run couldn't reach most of the blogs, fail the job so it gets noticed.
+  // Runs from CI come from datacenter IPs that Cloudflare may challenge, which would make most blogs "unavailable" while.
   if (!filter && restOk < restEligible * 0.6) {
     console.error(`\nERROR: REST enrichment reached only ${restOk}/${restEligible} blogs (normally ~90 of 96). Likely bot-blocking of this runner's IP.`);
     process.exitCode = 1;

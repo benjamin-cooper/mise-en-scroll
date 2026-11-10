@@ -1,32 +1,23 @@
 # Mise en Scroll
 
-A recipe discovery app that aggregates the latest posts from 123 food blogs into a single, filterable feed — plus full-archive search across each blog's entire post history (4 more sites without an RSS feed are searchable but don't appear in the live feed).
+A recipe reader for 123 food blogs. It pulls each blog's newest posts into one feed, and searches their full back catalogs too. Four of the sites have no RSS feed, so they only show up in search.
 
-![Mise en Scroll](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
+![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## What it does
 
-- **Live feed** — streams the latest recipes from 119 blogs simultaneously, rendering cards as each feed loads
-- **Filters** — narrow by cuisine, protein, cook time, cooking method, meal type, and dietary preference; matched against the live feed instantly and against every blog's full archive as you scroll (archive matching uses title, excerpt and categories)
-- **Archive search** — full-text search across each blog's entire history (not just recent posts) using the search bar, backed by a self-hosted, free sitemap-crawled archive
-- **Ingredient search** — toggle ingredient mode and list what's in your fridge; Claude Haiku 5.5 tidies the list into ingredient names, then the archive's stored ingredient lists (read from each recipe card by `crawl-archive.js --ingredients`) are searched for recipes that contain them all, with Serper web search as a top-up when few match
-- **Recipe drawer** — click any card to see ingredients, instructions, cook times, and servings pulled directly from the recipe page
-- **Saved** — bookmark recipes to a dedicated Saved tab (stored in your browser, private to you)
-- **Search history** — recent searches appear as chips below the search bar for one-tap re-use
-- **Filter persistence** — active filters are remembered across page reloads
-- **Refresh feed** — load newer posts without a full page reload; shows when the feed was last updated
-- **Share** — share any recipe via the native share sheet on mobile or copy-to-clipboard on desktop
-- **Roundup filtering** — automatically hides listicles, meal plans, gear reviews, and lifestyle posts so you only see actual recipes
-- **PWA** — installable on iOS and Android via "Add to Home Screen"
+- Streams the latest recipes from 119 blogs at once and draws each card as its feed arrives.
+- Filters by meal, cuisine, protein, time, method and diet. Filters apply to the live feed right away and to every blog's archive as you scroll.
+- Searches every blog's whole history from the search bar, not just recent posts.
+- Searches by ingredient. Switch to ingredient mode, list what's in your fridge, and it finds recipes whose ingredient lists contain all of it.
+- Opens any card in a drawer with the ingredients, steps, times and servings read from the recipe page.
+- Saves recipes, plans a week of meals and builds a shopping list grouped by grocery aisle. Everything is stored in your browser.
+- Hides roundups, meal plans, gear reviews and shopping posts so the feed is mostly actual recipes.
+- Installs on a phone from the browser's "Add to Home Screen".
 
 ## Blogs
 
-*(123 blogs total, generated from `blogs.js` — the source of truth. A number of
-blogs originally on this list were dropped for being inactive for 6+ months,
-having a permanently broken feed, or sitting behind bot-protection that blocks
-even image fetches: Ambitious Kitchen, Roti n Rice, The First Mess, Memorie di
-Angelina, Maangchi, Laylita's Recipes, Brian Lagerstrom, Swasthi's Recipes,
-Pinch of Yum (its feed now blocks us), Oh She Glows, and several long-dormant blogs.)*
+There are 123 blogs, listed in `blogs.js`, which is the source of truth for everything below. I dropped some that went quiet for good, had a permanently broken feed, or blocked even image fetches: Ambitious Kitchen, Roti n Rice, The First Mess, Memorie di Angelina, Maangchi, Laylita's Recipes, Brian Lagerstrom, Swasthi's Recipes, Pinch of Yum, Oh She Glows and a few others.
 
 ### General / American
 | Blog | Blog |
@@ -204,42 +195,31 @@ Pinch of Yum (its feed now blocks us), Oh She Glows, and several long-dormant bl
 
 ## Filters
 
-Filters narrow the live feed instantly, and also search the full archive (matched on title, excerpt and categories; ~8% of archived posts, from blogs that block or don't expose WordPress's REST API, only have a title to match on). They combine with typed keywords and with the blog picker; within a category choices are OR, across categories AND.
+Filters narrow the live feed instantly and also search the archive. In the archive they match on title, excerpt and categories. About 8% of archived posts come from blogs that block or don't offer WordPress's REST API, and those only have a title to match. Filters combine with typed words and the blog picker. Choices within a group are OR, and groups are AND.
 
-| Category | Options |
-|----------|---------|
-| **Meal** | Breakfast, Lunch, Dinner, Dessert, Snack/Side, Drinks |
-| **Cuisine** | African, American, British & Irish, Caribbean, Chinese, Eastern European, Filipino, French, Indian, Italian, Japanese, Korean, Latin American, Mediterranean, Mexican, Middle Eastern, SE Asian, Spanish, Thai, Vietnamese |
-| **Protein** | Beef, Chicken, Lamb, Other, Pork, Seafood, Vegetarian |
-| **Time** | Quick (≤30m), ~1 Hour, 2+ Hours |
-| **Method** | Air Fryer, Baked, Grilled, Instant Pot, No-Cook, Slow Cooker |
-| **Dietary** | Dairy-Free, Gluten-Free, Keto, Paleo, Vegan, Vegetarian |
+| Group | Options |
+|-------|---------|
+| Meal | Breakfast, Lunch, Dinner, Dessert, Snack/Side, Drinks |
+| Cuisine | African, American, British & Irish, Caribbean, Chinese, Eastern European, Filipino, French, Indian, Italian, Japanese, Korean, Latin American, Mediterranean, Mexican, Middle Eastern, SE Asian, Spanish, Thai, Vietnamese |
+| Protein | Beef, Chicken, Lamb, Other, Pork, Seafood, Vegetarian |
+| Time | Quick (30 min or less), ~1 Hour, 2+ Hours |
+| Method | Air Fryer, Baked, Grilled, Instant Pot, No-Cook, Slow Cooker |
+| Diet | Dairy-Free, Gluten-Free, Keto, Paleo, Vegan, Vegetarian |
 
-Multiple filters can be selected at once (OR logic within each category).
+## How it's built
 
-## Tech stack
+The server is Node and Express and the frontend is plain JavaScript with no framework.
 
-- **Backend** — Node.js / Express
-- **RSS parsing** — `rss-parser` with `media:content`, `media:thumbnail`, `content:encoded` support
-- **Recipe extraction** — JSON-LD Schema.org parsing via `cheerio`; fallbacks for WP Recipe Maker, Tasty Recipes, Mediavine Create
-- **Keyword search** — SQLite FTS5 (via `@libsql/client`/Turso) over a self-hosted archive of every blog's full post history — free, no per-query cost. URLs come from each blog's sitemap, then the WordPress REST API adds the real title, excerpt, categories and publish date (about 1,200 requests for the whole archive, incremental after that)
-- **Ingredient search** — the archive stores each recipe's ingredient list (`crawl-archive.js --ingredients`, WordPress REST body or the page itself) in a separate FTS index; Claude Haiku 5.5 tidies the user's text into ingredient names; Serper web search only tops up thin results
-- **Nutrition analysis** — CalorieNinjas API calculates calories, macros, and sodium from recipe ingredients when a blog hasn't published structured nutrition data
-- **Streaming** — Server-Sent Events so recipes appear as each feed loads
-- **Caching** — in-memory feed cache (1 hour TTL) so repeat page loads are instant
-- **Frontend** — vanilla JS, no framework
-- **Saved** — bookmarked recipes stored in `localStorage` (browser-local, private per device)
-- **PWA** — `manifest.json` + PNG icons (192×192, 512×512) + service worker with auto-versioned cache; installable on iOS/Android via Add to Home Screen
+- The live feed comes from each blog's RSS, parsed with `rss-parser`, and reaches the browser as server-sent events. Feeds are cached in memory for an hour.
+- Recipe cards are read from the page's JSON-LD, with fallbacks for WP Recipe Maker, Tasty Recipes and Mediavine Create, and a heading-based reader for pages with neither.
+- The archive is SQLite on Turso (`@libsql/client`) with FTS5 search. `crawl-archive.js` gets every URL from each blog's sitemap, then fills in titles, excerpts, categories and dates from the WordPress REST API. A GitHub Action runs it every Monday.
+- Ingredient search uses a second index of ingredient lists, read from the recipe card in the REST response, or from the page for sites without one. Claude Haiku 5.5 turns what you type into ingredient names. Serper web search tops up the results when very few recipes match.
+- Calories and macros come from CalorieNinjas when a blog doesn't publish nutrition.
+- It works as a PWA, with a manifest, icons and a service worker.
 
 ## Setup
 
-### Prerequisites
-- Node.js 18+
-- A [Serper.dev](https://serper.dev) account (free tier: 2,500 searches/month)
-- An [Anthropic](https://console.anthropic.com) API key (for ingredient search)
-- A [CalorieNinjas](https://calorieninjas.com/api) account (free tier available)
-
-### Install
+You need Node 18 or newer, plus API keys for [Serper](https://serper.dev), [Anthropic](https://console.anthropic.com) and [CalorieNinjas](https://calorieninjas.com/api), and a [Turso](https://turso.tech) database for the archive.
 
 ```bash
 git clone https://github.com/benjamin-cooper/mise-en-scroll.git
@@ -247,45 +227,28 @@ cd mise-en-scroll
 npm install
 ```
 
-### Configure
-
 Create a `.env` file in the project root:
 
 ```
-SERPER_API_KEY=your_serper_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-CALORIENINJAS_API_KEY=your_calorieninjas_api_key_here
+SERPER_API_KEY=
+ANTHROPIC_API_KEY=
+CALORIENINJAS_API_KEY=
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
 ```
 
-### Run
+Then start it:
 
 ```bash
-# Development (auto-restarts on file changes)
-npm run dev
-
-# Production
-npm start
+npm run dev    # restarts on file changes
+npm start      # production
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+and open [http://localhost:3000](http://localhost:3000). To fill the archive, run `node crawl-archive.js`, then `node crawl-archive.js --ingredients` for the ingredient lists.
 
-## Deploy
+## Deploying
 
-### Render (recommended)
-
-1. Push to GitHub
-2. Go to [render.com](https://render.com) → New Web Service → connect repo
-3. Start command: `node server.js`
-4. Add `SERPER_API_KEY` and `ANTHROPIC_API_KEY` in the Environment tab
-5. Click Save Changes — Render will deploy automatically on every push
-
-### Railway
-
-1. Push to GitHub
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
-3. Select your repo
-4. Add `SERPER_API_KEY` and `ANTHROPIC_API_KEY` in the Variables tab
-5. Click Generate Domain in the Settings tab
+I run it on Render with the start command `node server.js` and the keys above set as environment variables. Railway works the same way.
 
 ## License
 

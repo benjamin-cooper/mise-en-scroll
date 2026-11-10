@@ -4,3 +4,4 @@ favorites.json
 .feed-cache.json
 archive.db
 archive.db-*
+.claude/
